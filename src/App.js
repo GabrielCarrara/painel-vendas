@@ -18,7 +18,7 @@ export default function App() {
           <Route element={<ProtectedRoute allowed={['admin']} />}>
             <Route path="/admin/*" element={<PainelAdmin />} />
           </Route>
-<Route path="/painel-vendedor" element={<PainelVendedor />} />  
+
           {/* rotas de gerente */}
           <Route element={<ProtectedRoute allowed={['gerente']} />}>
             <Route path="/gerente/*" element={<PainelGerente />} />
@@ -30,8 +30,8 @@ export default function App() {
           </Route>
 
           {/* fallback */}
-          <Route path="*" element={<Login />} />
           <Route path="/editar-venda/:id" element={<EditarVenda />} />
+          <Route path="*" element={<Login />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

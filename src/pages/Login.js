@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import logo from '../assets/logo.png'; // ajuste o caminho conforme seu projeto
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -22,9 +23,7 @@ const Login = () => {
       return;
     }
 
-    console.log('Usuário logado:', user);
-
-    // Buscar o tipo de usuário na tabela 'usuarios_custom'
+    // Buscar o tipo de usuário
     let { data: perfil, error: perfilErro } = await supabase
       .from('usuarios_custom')
       .select('tipo')
@@ -38,7 +37,6 @@ const Login = () => {
     }
 
     if (!perfil) {
-      // Se não existe perfil, cria automaticamente como vendedor
       const { error: insertErro } = await supabase
         .from('usuarios_custom')
         .insert({
@@ -58,8 +56,7 @@ const Login = () => {
       perfil = { tipo: 'vendedor' };
     }
 
-    console.log('Perfil encontrado:', perfil);
-
+    // Redirecionar para o painel conforme tipo
     if (perfil.tipo === 'admin') {
       navigate('/admin');
     } else if (perfil.tipo === 'gerente') {
@@ -72,7 +69,9 @@ const Login = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
+      <img src={logo} alt="Logo" className="w-56 md:w-64 mb-6" />
+
       <form onSubmit={handleLogin} className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-sm">
         <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
 
@@ -90,7 +89,7 @@ const Login = () => {
           type="password"
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
-          className="w-full px-4 py-2 mb-6 rounded bg-gray-700 text-white"
+          className="w-full px-4 py-2 mb-4 rounded bg-gray-700 text-white"
           required
         />
 

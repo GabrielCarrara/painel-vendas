@@ -1,183 +1,224 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../supabaseClient';
+// src/pages/PainelCRM.js
+import React, { useEffect, useState } from "react";
+import { supabase } from "../supabaseClient";
+import dayjs from "dayjs";
 
-export default function PainelCRM({ usuarioId }) {
+export default function PainelCRM() {
   const [leads, setLeads] = useState([]);
-  const [nome, setNome] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [origem, setOrigem] = useState('');
-  const [tipo, setTipo] = useState('LEAD NOVO');
-  const [mes, setMes] = useState(new Date().toISOString().slice(0, 7));
-
-  const [filtroTipo, setFiltroTipo] = useState('');
-  const [filtroMes, setFiltroMes] = useState('');
-
-  const tipos = ['LEAD NOVO', 'LEAD QUENTE', 'VENDIDO', 'ESQUECIDO', 'LEAD FRIO'];
+  const [usuarioAtual, setUsuarioAtual] = useState(null);
+  const [novoLead, setNovoLead] = useState({
+    nome: "",
+    telefone: "",
+    cpf: "",
+    origem: "",
+    tipo: "LEAD NOVO",
+    mes: dayjs().format("YYYY-MM"),
+  });
+  const [editandoId, setEditandoId] = useState(null);
+  const [leadEditado, setLeadEditado] = useState({});
+  const [filtroTipo, setFiltroTipo] = useState("");
 
   useEffect(() => {
-    if (usuarioId) carregarLeads();
-  }, [usuarioId, filtroTipo, filtroMes]);
+    buscarUsuario();
+  }, []);
 
-  const carregarLeads = async () => {
-    let query = supabase.from('leads').select('*').eq('usuario_id', usuarioId);
+  useEffect(() => {
+    if (usuarioAtual) buscarLeads();
+  }, [usuarioAtual]);
 
-    if (filtroTipo) query = query.eq('tipo', filtroTipo);
-    if (filtroMes) query = query.eq('mes', filtroMes);
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-    if (!error) setLeads(data);
+  const buscarUsuario = async () => {
+    const { data } = await supabase.auth.getUser();
+    if (data?.user) setUsuarioAtual(data.user);
   };
 
-  const cadastrarLead = async (e) => {
-    e.preventDefault();
+  const buscarLeads = async () => {
+    const { data } = await supabase
+      .from("leads")
+      .select("*")
+      .eq("usuario_id", usuarioAtual.id)
+      .order("created_at", { ascending: false });
+    if (data) setLeads(data);
+  };
 
-    console.log('Usuário ID sendo usado:', usuarioId); // <-- Para depuração
-
-    const novoLead = {
-      usuario_id: usuarioId,
-      nome,
-      telefone,
-      cpf: cpf || null,
-      origem,
-      tipo,
-      mes,
-    };
-
-    const { error } = await supabase.from('leads').insert([novoLead]);
-    if (error) {
-      alert('Erro ao cadastrar lead: ' + error.message);
-    } else {
-      await carregarLeads();
-      limparFormulario();
+  const cadastrarLead = async () => {
+    if (!novoLead.nome || !novoLead.telefone || !novoLead.origem || !novoLead.tipo || !novoLead.mes) {
+      alert("Preencha os campos obrigatórios.");
+      return;
     }
+
+    await supabase.from("leads").insert([{ ...novoLead, usuario_id: usuarioAtual.id }]);
+    setNovoLead({
+      nome: "",
+      telefone: "",
+      cpf: "",
+      origem: "",
+      tipo: "LEAD NOVO",
+      mes: dayjs().format("YYYY-MM"),
+    });
+    buscarLeads();
+  };
+
+  const iniciarEdicao = (lead) => {
+    setEditandoId(lead.id);
+    setLeadEditado({ ...lead });
+  };
+
+  const salvarEdicao = async () => {
+    await supabase.from("leads").update(leadEditado).eq("id", editandoId);
+    setEditandoId(null);
+    setLeadEditado({});
+    buscarLeads();
   };
 
   const excluirLead = async (id) => {
-    if (!window.confirm('Excluir este lead?')) return;
-    await supabase.from('leads').delete().eq('id', id);
-    setLeads(leads.filter((l) => l.id !== id));
+    if (window.confirm("Deseja excluir este lead?")) {
+      await supabase.from("leads").delete().eq("id", id);
+      buscarLeads();
+    }
   };
 
-  const limparFormulario = () => {
-    setNome('');
-    setTelefone('');
-    setCpf('');
-    setOrigem('');
-    setTipo('LEAD NOVO');
-    setMes(new Date().toISOString().slice(0, 7));
-  };
+  const leadsFiltrados = leads.filter((lead) => {
+    return !filtroTipo || lead.tipo === filtroTipo;
+  });
 
-  const contadores = tipos.map(t => ({
-    tipo: t,
-    total: leads.filter(l => l.tipo === t).length
-  }));
+  const contarPorTipo = (tipo) => leads.filter((l) => l.tipo === tipo).length;
 
   return (
-    <div>
-      <h2 className="text-xl font-bold mb-4">Cadastro de Leads</h2>
-      <form onSubmit={cadastrarLead} className="bg-gray-800 p-4 rounded shadow mb-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Input value={nome} onChange={setNome} placeholder="Nome" required />
-        <Input value={telefone} onChange={setTelefone} placeholder="Telefone" required />
-        <Input value={cpf} onChange={setCpf} placeholder="CPF (opcional)" />
-        <Input value={origem} onChange={setOrigem} placeholder="Origem" required />
-        <Select value={tipo} onChange={setTipo}>
-          {tipos.map(t => <option key={t}>{t}</option>)}
-        </Select>
-        <input
-          type="month"
-          value={mes}
-          onChange={(e) => setMes(e.target.value)}
-          className="bg-gray-700 p-2 rounded text-white"
-          required
-        />
-        <button type="submit" className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-bold col-span-full sm:col-auto">
-          Cadastrar
-        </button>
-      </form>
+    <div className="text-white">
+      <h2 className="text-2xl font-bold mb-4">Painel de CRM</h2>
 
-      <h3 className="text-lg font-bold mb-2">Filtros</h3>
-      <div className="flex gap-4 flex-wrap mb-6">
-        <Select value={filtroTipo} onChange={setFiltroTipo}>
-          <option value="">Todos os tipos</option>
-          {tipos.map(t => <option key={t}>{t}</option>)}
-        </Select>
-        <input
-          type="month"
-          value={filtroMes}
-          onChange={(e) => setFiltroMes(e.target.value)}
-          className="bg-gray-700 p-2 rounded text-white"
-        />
-      </div>
-
-      <h3 className="text-lg font-bold mb-2">Contadores por tipo</h3>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        {contadores.map(c => (
-          <div key={c.tipo} className="bg-gray-800 p-3 rounded shadow">
-            <p className="text-gray-300">{c.tipo}</p>
-            <p className="text-xl font-bold text-green-400">{c.total}</p>
+      {/* Contadores */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        {["LEAD NOVO", "LEAD QUENTE", "VENDIDO", "ESQUECIDO", "LEAD FRIO"].map((tipo) => (
+          <div key={tipo} className="bg-gray-800 p-4 rounded text-center">
+            <p className="text-sm font-semibold">{tipo}</p>
+            <p className="text-2xl text-green-400">{contarPorTipo(tipo)}</p>
           </div>
         ))}
       </div>
 
-      <h3 className="text-lg font-bold mb-2">Leads</h3>
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-gray-800 rounded">
-          <thead>
-            <tr className="bg-gray-700 text-left">
-              <th className="p-2">Nome</th>
-              <th className="p-2">Telefone</th>
-              <th className="p-2">CPF</th>
-              <th className="p-2">Origem</th>
-              <th className="p-2">Tipo</th>
-              <th className="p-2">Mês</th>
-              <th className="p-2">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {leads.map(l => (
-              <tr key={l.id} className="border-t border-gray-700">
-                <td className="p-2">{l.nome}</td>
-                <td className="p-2">{l.telefone}</td>
-                <td className="p-2">{l.cpf || '-'}</td>
-                <td className="p-2">{l.origem}</td>
-                <td className="p-2">{l.tipo}</td>
-                <td className="p-2">{l.mes}</td>
-                <td className="p-2">
-                  <button onClick={() => excluirLead(l.id)} className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm">
-                    Excluir
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {leads.length === 0 && (
-              <tr>
-                <td colSpan={7} className="text-center p-4 text-gray-400">Nenhum lead encontrado.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      {/* Filtro por tipo */}
+      <div className="mb-6">
+        <select
+          value={filtroTipo}
+          onChange={(e) => setFiltroTipo(e.target.value)}
+          className="bg-gray-800 p-2 rounded"
+        >
+          <option value="">Todos os Tipos</option>
+          <option value="LEAD NOVO">LEAD NOVO</option>
+          <option value="LEAD QUENTE">LEAD QUENTE</option>
+          <option value="VENDIDO">VENDIDO</option>
+          <option value="ESQUECIDO">ESQUECIDO</option>
+          <option value="LEAD FRIO">LEAD FRIO</option>
+        </select>
       </div>
+
+      {/* Formulário de Cadastro */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-4">
+        <input
+          placeholder="Nome*"
+          className="bg-gray-800 p-2 rounded"
+          value={novoLead.nome}
+          onChange={(e) => setNovoLead({ ...novoLead, nome: e.target.value })}
+        />
+        <input
+          placeholder="Telefone*"
+          className="bg-gray-800 p-2 rounded"
+          value={novoLead.telefone}
+          onChange={(e) => setNovoLead({ ...novoLead, telefone: e.target.value })}
+        />
+        <input
+          placeholder="CPF"
+          className="bg-gray-800 p-2 rounded"
+          value={novoLead.cpf}
+          onChange={(e) => setNovoLead({ ...novoLead, cpf: e.target.value })}
+        />
+        <input
+          placeholder="Origem*"
+          className="bg-gray-800 p-2 rounded"
+          value={novoLead.origem}
+          onChange={(e) => setNovoLead({ ...novoLead, origem: e.target.value })}
+        />
+        <select
+          className="bg-gray-800 p-2 rounded"
+          value={novoLead.tipo}
+          onChange={(e) => setNovoLead({ ...novoLead, tipo: e.target.value })}
+        >
+          <option value="LEAD NOVO">LEAD NOVO</option>
+          <option value="LEAD QUENTE">LEAD QUENTE</option>
+          <option value="VENDIDO">VENDIDO</option>
+          <option value="ESQUECIDO">ESQUECIDO</option>
+          <option value="LEAD FRIO">LEAD FRIO</option>
+        </select>
+        <input
+          type="month"
+          className="bg-gray-800 p-2 rounded"
+          value={novoLead.mes}
+          onChange={(e) => setNovoLead({ ...novoLead, mes: e.target.value })}
+        />
+      </div>
+      <button
+        onClick={cadastrarLead}
+        className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 mb-6"
+      >
+        Cadastrar Lead
+      </button>
+
+      {/* Lista de Leads */}
+      <table className="w-full bg-gray-800 text-sm rounded overflow-hidden">
+        <thead className="bg-gray-700 text-gray-300">
+          <tr>
+            <th className="px-4 py-2">Nome</th>
+            <th className="px-4 py-2">Telefone</th>
+            <th className="px-4 py-2">CPF</th>
+            <th className="px-4 py-2">Origem</th>
+            <th className="px-4 py-2">Tipo</th>
+            <th className="px-4 py-2">Mês</th>
+            <th className="px-4 py-2">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {leadsFiltrados.map((lead) => (
+            <tr key={lead.id} className="border-b border-gray-700">
+              {editandoId === lead.id ? (
+                <>
+                  <td><input value={leadEditado.nome} onChange={(e) => setLeadEditado({ ...leadEditado, nome: e.target.value })} /></td>
+                  <td><input value={leadEditado.telefone} onChange={(e) => setLeadEditado({ ...leadEditado, telefone: e.target.value })} /></td>
+                  <td><input value={leadEditado.cpf} onChange={(e) => setLeadEditado({ ...leadEditado, cpf: e.target.value })} /></td>
+                  <td><input value={leadEditado.origem} onChange={(e) => setLeadEditado({ ...leadEditado, origem: e.target.value })} /></td>
+                  <td>
+                    <select value={leadEditado.tipo} onChange={(e) => setLeadEditado({ ...leadEditado, tipo: e.target.value })}>
+                      <option value="LEAD NOVO">LEAD NOVO</option>
+                      <option value="LEAD QUENTE">LEAD QUENTE</option>
+                      <option value="VENDIDO">VENDIDO</option>
+                      <option value="ESQUECIDO">ESQUECIDO</option>
+                      <option value="LEAD FRIO">LEAD FRIO</option>
+                    </select>
+                  </td>
+                  <td><input type="month" value={leadEditado.mes} onChange={(e) => setLeadEditado({ ...leadEditado, mes: e.target.value })} /></td>
+                  <td>
+                    <button onClick={salvarEdicao} className="bg-green-600 px-2 py-1 rounded">Salvar</button>
+                    <button onClick={() => setEditandoId(null)} className="bg-gray-600 px-2 py-1 rounded ml-2">Cancelar</button>
+                  </td>
+                </>
+              ) : (
+                <>
+                  <td>{lead.nome}</td>
+                  <td>{lead.telefone}</td>
+                  <td>{lead.cpf}</td>
+                  <td>{lead.origem}</td>
+                  <td>{lead.tipo}</td>
+                  <td>{lead.mes}</td>
+                  <td>
+                    <button onClick={() => iniciarEdicao(lead)} className="bg-blue-600 px-2 py-1 rounded">Editar</button>
+                    <button onClick={() => excluirLead(lead.id)} className="bg-red-600 px-2 py-1 rounded ml-1">Excluir</button>
+                  </td>
+                </>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
-
-const Input = ({ value, onChange, placeholder, required = false }) => (
-  <input
-    className="p-2 rounded bg-gray-700 text-white"
-    placeholder={placeholder}
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-    required={required}
-  />
-);
-
-const Select = ({ value, onChange, children }) => (
-  <select
-    className="p-2 rounded bg-gray-700 text-white"
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-  >
-    {children}
-  </select>
-);
