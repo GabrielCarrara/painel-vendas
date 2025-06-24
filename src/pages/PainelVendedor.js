@@ -1,12 +1,11 @@
-// src/pages/PainelVendedor.js
 import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import PainelCRM from './PainelCRM';
 
 /* porcentagens de comissão */
-const PERCENT_CHEIA = [0.006, 0.003, 0.003];   // 0,60 % 0,30 % 0,30 %
-const PERCENT_MEIA  = [0.003, 0.0015, 0.0015]; // 0,30 % 0,15 % 0,15 %
+const PERCENT_CHEIA = [0.006, 0.003, 0.003];
+const PERCENT_MEIA = [0.003, 0.0015, 0.0015];
 
 export default function PainelVendedor() {
   const [aba, setAba] = useState('vendas');
@@ -24,6 +23,8 @@ export default function PainelVendedor() {
   const [mesFiltro, setMesFiltro] = useState(new Date().toISOString().slice(0, 7));
   const [editandoId, setEditandoId] = useState(null);
 
+  const [contempladas, setContempladas] = useState([]);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,7 +36,10 @@ export default function PainelVendedor() {
   }, [navigate]);
 
   useEffect(() => {
-    if (usuarioId) carregarVendas();
+    if (usuarioId) {
+      carregarVendas();
+      carregarContempladas();
+    }
   }, [usuarioId, mesFiltro]);
 
   const carregarVendas = async () => {
@@ -49,6 +53,21 @@ export default function PainelVendedor() {
 
     if (!error) setVendas(data);
     setLoading(false);
+  };
+
+  const carregarContempladas = async () => {
+    const { data, error } = await supabase
+      .from('contempladas')
+      .select('*')
+      .in('status', ['DISPONÍVEL', 'RESERVADO', 'EM ANÁLISE', 'VENDIDO']);
+
+    if (!error) {
+      const ordenadas = data.sort((a, b) => {
+        const peso = { 'DISPONÍVEL': 0, 'RESERVADO': 1, 'EM ANÁLISE': 2, 'VENDIDO': 3 };
+        return peso[a.status] - peso[b.status];
+      });
+      setContempladas(ordenadas);
+    }
   };
 
   const moedaPt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
@@ -149,6 +168,12 @@ export default function PainelVendedor() {
         >
           CRM
         </button>
+        <button
+          className={`px-4 py-2 rounded ${aba === 'contempladas' ? 'bg-green-600' : 'bg-gray-700'}`}
+          onClick={() => setAba('contempladas')}
+        >
+          Contempladas
+        </button>
       </div>
 
       {aba === 'vendas' ? (
@@ -213,8 +238,50 @@ export default function PainelVendedor() {
             ))
           )}
         </>
-      ) : (
+      ) : aba === 'crm' ? (
         <PainelCRM usuarioId={usuarioId} />
+      ) : (
+        <>
+          <h2 className="text-xl font-semibold mb-4">Cartas Contempladas</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm bg-gray-800 rounded overflow-hidden">
+              <thead className="bg-gray-700">
+                <tr>
+                  <th className="p-2">Crédito</th>
+                  <th>Tipo</th>
+                  <th>Entrada</th>
+                  <th>Parcela</th>
+                  <th>Meses</th>
+                  <th>Taxa</th>
+                  <th>Grupo</th>
+                  <th>Cota</th>
+                  <th>Responsável</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contempladas.map((item) => (
+                  <tr key={item.id} className="text-center border-t border-gray-700">
+                    <td>R$ {moedaPt(Number(item.valor_credito))}</td>
+                    <td>{item.tipo}</td>
+                    <td>R$ {moedaPt(Number(item.entrada))}</td>
+                    <td>R$ {moedaPt(Number(item.parcela))}</td>
+                    <td>{item.meses}</td>
+                    <td>R$ {moedaPt(Number(item.taxa_transferencia))}</td>
+                    <td>{item.grupo}</td>
+                    <td>{item.cota}</td>
+                    <td>{item.responsavel}</td>
+                    <td>
+                      <span className={`font-bold ${item.status === 'DISPONÍVEL' ? 'text-green-400' : item.status === 'VENDIDO' ? 'text-red-400' : 'text-yellow-300'}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
@@ -255,14 +322,12 @@ const CardVenda = ({ v, moeda, onEditar, onExcluir }) => (
     <p><strong>Administradora:</strong> {v.administradora}</p>
     <p><strong>Valor:</strong> R$ {moeda(Number(v.valor))}</p>
     <p><strong>Parcela:</strong> {v.parcela}</p>
-
     <div className="mt-2 flex gap-3 flex-wrap">
       <Caixa checked={v.confirmada} label="Venda confirmada" />
       <Caixa checked={v.comissao_1} label="Comissão 1" />
       <Caixa checked={v.comissao_2} label="Comissão 2" />
       <Caixa checked={v.comissao_3} label="Comissão 3" />
     </div>
-
     <div className="mt-4 flex gap-3">
       <button
         onClick={onEditar}

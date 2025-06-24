@@ -1,8 +1,8 @@
-// src/pages/PainelGerente.js
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
 import PainelCRM from "./PainelCRM";
+import PainelContempladas from "./PainelContempladas";
 
 export default function PainelGerente() {
   const [aba, setAba] = useState("vendas");
@@ -134,23 +134,26 @@ export default function PainelGerente() {
 
   return (
     <div className="p-6 bg-gray-900 text-white min-h-screen">
-      {/* Navegação por abas */}
       <div className="flex gap-2 mb-6">
-        {["vendas", "crm", "nova_venda"].map((tab) => (
+        {["vendas", "crm", "nova_venda", "contempladas"].map((tab) => (
           <button
             key={tab}
             className={`px-4 py-2 rounded ${aba === tab ? "bg-blue-600" : "bg-gray-700"}`}
             onClick={() => setAba(tab)}
           >
-            {tab === "vendas" ? "VENDAS" : tab === "crm" ? "CRM" : "NOVA VENDA"}
+            {tab === "vendas"
+              ? "VENDAS"
+              : tab === "crm"
+              ? "CRM"
+              : tab === "nova_venda"
+              ? "NOVA VENDA"
+              : "CONTEMPLADAS"}
           </button>
         ))}
       </div>
 
-      {/* ABA: VENDAS */}
       {aba === "vendas" && (
         <>
-          {/* Filtros */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <select value={filtros.vendedor} onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} className="bg-gray-800 p-2 rounded">
               <option value="">Todos os Vendedores</option>
@@ -167,7 +170,6 @@ export default function PainelGerente() {
             </select>
           </div>
 
-          {/* Totais */}
           <p className="text-green-400 font-semibold mt-4">Total vendido no mês atual: R$ {totalMesTodos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
           {filtros.vendedor && (
             <p className="text-yellow-400 mt-1">
@@ -175,7 +177,6 @@ export default function PainelGerente() {
             </p>
           )}
 
-          {/* Tabela de Totais */}
           <div className="mt-6 mb-4">
             <h2 className="text-xl font-bold mb-2">Comissões por Vendedor</h2>
             <table className="w-full bg-gray-800 text-sm rounded">
@@ -200,7 +201,6 @@ export default function PainelGerente() {
             </table>
           </div>
 
-          {/* Lista de Vendas */}
           <table className="w-full bg-gray-800 text-sm rounded overflow-hidden">
             <thead className="bg-gray-700 text-gray-300">
               <tr>
@@ -262,10 +262,7 @@ export default function PainelGerente() {
         </>
       )}
 
-      {/* ABA: CRM */}
       {aba === "crm" && <PainelCRM />}
-
-      {/* ABA: NOVA VENDA */}
       {aba === "nova_venda" && (
         <div className="bg-gray-800 p-6 rounded-lg">
           <h2 className="text-xl font-bold mb-4">Cadastrar Nova Venda</h2>
@@ -287,6 +284,7 @@ export default function PainelGerente() {
           <button onClick={cadastrarVenda} className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700">Salvar Venda</button>
         </div>
       )}
-    </div>
+
+{aba === "contempladas" && <PainelContempladas usuario={usuarioAtual} />}    </div>
   );
 }
