@@ -105,13 +105,13 @@ export default function PainelGerente() {
         if (venda[`comissao_${i + 1}`]) {
           const data = dayjs(venda.created_at).add(i, "month").format("YYYY-MM");
           const comissaoValor = valor * tipo[i];
-          if (data === mesAtual) totaisPorVendedor[id].atual += comissaoValor;
+        if (data === filtros.mes) totaisPorVendedor[id].atual += comissaoValor;
           else if ([prox1, prox2].includes(data)) totaisPorVendedor[id].futuro += comissaoValor;
         }
       }
 
-      if (venda.mes === mesAtual) totalMesTodos += valor;
-      if (filtros.vendedor && venda.usuario_id === filtros.vendedor && venda.mes === mesAtual) {
+      if (venda.mes === filtros.mes || filtros.mes === "") totalMesTodos += valor;
+      if (filtros.vendedor && venda.usuario_id === filtros.vendedor && venda.mes === filtros.mes) {
         totalMesVendedorSelecionado += valor;
         for (let i = 0; i < 3; i++) {
           if (venda[`comissao_${i + 1}`]) totalComissaoVendedor += valor * tipo[i];
