@@ -82,45 +82,63 @@ export default function PainelGerente() {
   };
 
   const calcularTotais = () => {
-    const mesAtual = dayjs().format("YYYY-MM");
-    const prox1 = dayjs().add(1, "month").format("YYYY-MM");
-    const prox2 = dayjs().add(2, "month").format("YYYY-MM");
+  const mesBase = filtros.mes || dayjs().format("YYYY-MM");
+  const prox1 = dayjs(mesBase).add(1, "month").format("YYYY-MM");
+  const prox2 = dayjs(mesBase).add(2, "month").format("YYYY-MM");
 
-    const totaisPorVendedor = {};
-    let totalMesTodos = 0;
-    let totalMesVendedorSelecionado = 0;
-    let totalComissaoVendedor = 0;
+  const totaisPorVendedor = {};
+  let totalMesTodos = 0;
+  let totalMesVendedorSelecionado = 0;
+  let totalComissaoVendedor = 0;
 
-    filtrarVendas().forEach((venda) => {
-      const id = venda.usuario_id;
-      const valor = parseFloat(venda.valor);
-      const tipo = venda.parcela === "cheia" ? [0.006, 0.003, 0.003] : [0.003, 0.0015, 0.0015];
+  filtrarVendas().forEach((venda) => {
+    const id = venda.usuario_id;
+    const valor = parseFloat(venda.valor);
+    const tipo = venda.parcela === "cheia" ? [0.006, 0.003, 0.003] : [0.003, 0.0015, 0.0015];
 
-      if (!totaisPorVendedor[id]) {
-        totaisPorVendedor[id] = { nome: nomeVendedor(id), vendido: 0, atual: 0, futuro: 0 };
-      }
+    if (!totaisPorVendedor[id]) {
+      totaisPorVendedor[id] = { nome: nomeVendedor(id), vendido: 0, atual: 0, futuro: 0 };
+    }
 
+    // Soma sempre o total vendido no mês base, apenas se a venda foi feita nesse mês
+    if (venda.mes === mesBase) {
       totaisPorVendedor[id].vendido += valor;
-      for (let i = 0; i < 3; i++) {
-        if (venda[`comissao_${i + 1}`]) {
-          const data = dayjs(venda.created_at).add(i, "month").format("YYYY-MM");
-          const comissaoValor = valor * tipo[i];
-        if (data === filtros.mes) totaisPorVendedor[id].atual += comissaoValor;
-          else if ([prox1, prox2].includes(data)) totaisPorVendedor[id].futuro += comissaoValor;
+      totalMesTodos += valor;
+    }
+
+    // Comissões baseadas em venda.mes + i
+    for (let i = 0; i < 3; i++) {
+      if (venda[`comissao_${i + 1}`]) {
+        const dataComissao = dayjs(venda.mes).add(i, "month").format("YYYY-MM");
+        const comissaoValor = valor * tipo[i];
+
+        if (dataComissao === mesBase) {
+          totaisPorVendedor[id].atual += comissaoValor;
+        } else if ([prox1, prox2].includes(dataComissao)) {
+          totaisPorVendedor[id].futuro += comissaoValor;
+        }
+
+        // Se o vendedor está selecionado e a comissão é do mês base, soma para ele também
+        if (filtros.vendedor && venda.usuario_id === filtros.vendedor && dataComissao === mesBase) {
+          totalComissaoVendedor += comissaoValor;
         }
       }
+    }
 
-      if (venda.mes === filtros.mes || filtros.mes === "") totalMesTodos += valor;
-      if (filtros.vendedor && venda.usuario_id === filtros.vendedor && venda.mes === filtros.mes) {
-        totalMesVendedorSelecionado += valor;
-        for (let i = 0; i < 3; i++) {
-          if (venda[`comissao_${i + 1}`]) totalComissaoVendedor += valor * tipo[i];
-        }
-      }
-    });
+    // Soma total vendido por vendedor selecionado (baseado no mês da venda)
+    if (filtros.vendedor && venda.usuario_id === filtros.vendedor && venda.mes === mesBase) {
+      totalMesVendedorSelecionado += valor;
+    }
+  });
 
-    return { totaisPorVendedor, totalMesTodos, totalMesVendedorSelecionado, totalComissaoVendedor };
+  return {
+    totaisPorVendedor,
+    totalMesTodos,
+    totalMesVendedorSelecionado,
+    totalComissaoVendedor,
   };
+};
+
 
   const cadastrarVenda = async () => {
     if (!usuarioAtual) return alert("Usuário não autenticado.");
