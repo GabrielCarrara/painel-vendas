@@ -9,6 +9,7 @@ import {
   FaBullseye, FaChartLine
 } from 'react-icons/fa';
 import dayjs from 'dayjs';
+import HSCotas from './HSCotas';
 
 // --- Constantes de Comissão ---
 const PERCENT_CHEIA = [0.006, 0.003, 0.003];
@@ -208,6 +209,7 @@ export default function PainelVendedor() {
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
   ];
   
+  // CASES DE ROTAS
   const renderContent = () => {
       if (loading) return <LoadingSpinner />;
       switch(aba) {
@@ -215,6 +217,7 @@ export default function PainelVendedor() {
           case 'ranking': return <AbaRankingVendedor vendas={allVendas} usuarios={allUsers} mes={mesFiltro} configuracoes={configuracoes} usuarioAtual={usuario} />;
           case 'crm': return <PainelCRM usuarioId={usuario?.id} />;
           case 'contempladas': return <AbaContempladas contempladas={contempladas} />;
+          case 'hs_cotas': return <HSCotas usuario={usuario} />; // 'usuario' é a variável de estado neste painel
           default: return null;
       }
   };

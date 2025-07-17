@@ -5,12 +5,14 @@ import dayjs from "dayjs";
 import 'dayjs/locale/pt-br';
 import { 
     FaChartBar, FaUsers, FaPlusCircle, FaTrophy, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, 
-    FaDollarSign, FaUserTie, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs 
+    FaDollarSign, FaUserTie, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs,
+    FaTh // <--- ÍCONE ADICIONADO AQUI
 } from "react-icons/fa";
 
 // Componentes importados (verifique os caminhos)
 import PainelCRM from "./PainelCRM";
 import PainelContempladas from "./PainelContempladas";
+import HSCotas from './HSCotas'; // Verifique se o caminho está correto
 
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, title, value, color }) => (
@@ -148,12 +150,14 @@ export default function PainelGerenteAprimorado() {
     return { vendasFiltradas, totaisPorVendedor, totalMesTodos, totalComissaoVendedor };
   }, [vendas, usuarios, filtros]);
 
+  // CAMINHO DE ABAS
   const abas = [
     { id: 'vendas', label: 'Dashboard de Vendas', icon: <FaChartBar /> },
     { id: 'ranking', label: 'Ranking', icon: <FaTrophy /> },
     { id: 'nova_venda', label: 'Nova Venda', icon: <FaPlusCircle /> },
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
     { id: 'crm', label: 'CRM', icon: <FaUsers /> },
+    { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> }, // Ícone FaTh precisa ser importado
   ];
   
   const renderContent = () => {
@@ -170,10 +174,12 @@ export default function PainelGerenteAprimorado() {
         editarVenda={editarVenda} salvarEdicao={salvarEdicao} 
         excluirVenda={excluirVenda} atualizarComissao={atualizarComissao}
         />;
+        // CASES PARA ROTAS
       case 'ranking': return <AbaRanking vendas={vendas} usuarios={usuarios} filtros={filtros} setFiltros={setFiltros} configuracoes={configuracoes} onSave={fetchConfiguracoes} />;
       case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
       case 'crm': return <PainelCRM />; 
       case 'contempladas': return <PainelContempladas usuario={usuarioAtual} />;
+      case 'hs_cotas': return <HSCotas usuario={usuarioAtual} />;     
       default: return null;
     }
   };
