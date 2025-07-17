@@ -1,7 +1,7 @@
 // src/pages/HSCotas.js (Versão com correção definitiva do Realtime Subscription)
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { FaSpinner, FaCar, FaHome, FaBlender, FaExclamationTriangle, FaSearch, FaSyncAlt } from 'react-icons/fa';
+import { FaSpinner, FaCar, FaHome, FaBlender, FaExclamationTriangle, FaSearch, FaSyncAlt, FaEraser } from 'react-icons/fa';
 
 // --- Componente de UI Adicionado ---
 const EmptyState = ({ title, message }) => (
@@ -20,10 +20,11 @@ export default function HSCotas({ usuario }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [highlightedCota, setHighlightedCota] = useState(null);
   const [filtroVendas, setFiltroVendas] = useState('todos');
+  const [cotaParaZerar, setCotaParaZerar] = useState('');
 
   const gridRef = useRef(null);
 
-  const podeZerar = usuario?.user_metadata?.cargo === 'admin' || usuario?.user_metadata?.cargo === 'gerente';
+  const podeGerenciar = usuario?.user_metadata?.cargo === 'admin' || usuario?.user_metadata?.cargo === 'gerente';
 
   const getEstiloCota = (count, isHighlighted) => {
     let style = '';
@@ -39,13 +40,13 @@ export default function HSCotas({ usuario }) {
     }
     return style;
   };
-
+  
+  // CORREÇÃO APLICADA AQUI
   useEffect(() => {
-    // 1. Busca os dados iniciais das cotas uma única vez
+    // 1. Define uma função assíncrona para buscar os dados iniciais
     const carregarDadosIniciais = async () => {
       setLoading(true);
       const { data, error } = await supabase.from('hs_cotas').select('*');
-      
       if (error) {
         console.error("Erro ao buscar cotas:", error);
       } else {
@@ -56,9 +57,10 @@ export default function HSCotas({ usuario }) {
     };
     carregarDadosIniciais();
 
-    // 2. Cria o canal e se inscreve para ouvir as mudanças em tempo real
-    const channel = supabase
-      .channel('hs_cotas_realtime_channel_v2') // Usar um nome de canal único
+    // 2. Cria o canal de comunicação em tempo real
+    const channel = supabase.channel(`hs_cotas_realtime_channel_${Math.random()}`);
+
+    const subscription = channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hs_cotas' }, 
         (payload) => {
           console.log('Mudança em tempo real recebida!', payload);
@@ -77,11 +79,13 @@ export default function HSCotas({ usuario }) {
       )
       .subscribe();
 
-    // 3. Retorna a função de limpeza. O React a executará quando o componente for desmontado.
+    // 3. Retorna a função de limpeza.
+    // Esta é a parte mais importante para evitar o erro.
     return () => {
-      supabase.removeChannel(channel);
+      // Primeiro, remove a inscrição do canal específico.
+      supabase.removeChannel(subscription);
     };
-  }, []); // O array vazio garante que a INSCRIÇÃO acontece uma única vez.
+  }, []); // O array vazio garante que isso rode apenas uma vez.
 
   const handleCotaClick = useCallback(async (cotaNumero) => {
     if (!usuario) return alert("Você não está logado.");
@@ -111,7 +115,11 @@ export default function HSCotas({ usuario }) {
   };
 
   const handleZerarQuadro = async () => {
-    if(!window.confirm("ATENÇÃO! Esta ação vai LIMPAR TODO o quadro de cotas. Deseja continuar?")) return;
+    const senha = prompt("Para zerar TODO o quadro, digite a senha de segurança:");
+    if (senha !== 'G4br13l@') {
+        if (senha !== null) alert("Senha incorreta. Ação cancelada.");
+        return;
+    }
     setLoading(true);
     const { error } = await supabase.from('hs_cotas').delete().neq('cota_numero', -1);
     if(error) alert("Erro ao zerar o quadro: " + error.message);
@@ -119,16 +127,21 @@ export default function HSCotas({ usuario }) {
     setLoading(false);
   };
 
+  const handleZerarCotaEspecifica = async () => {
+    if (!cotaParaZerar || isNaN(cotaParaZerar)) return alert("Por favor, digite um número de cota válido.");
+    if(!window.confirm(`Tem certeza que deseja ZERAR a cota #${cotaParaZerar}?`)) return;
+    setLoading(true);
+    const { error } = await supabase.from('hs_cotas').delete().eq('cota_numero', cotaParaZerar);
+    if (error) alert(`Erro ao zerar a cota #${cotaParaZerar}: ${error.message}`);
+    else { setCotas(prev => { const novas = {...prev}; delete novas[cotaParaZerar]; return novas; }); alert(`Cota #${cotaParaZerar} zerada com sucesso!`); setCotaParaZerar(''); }
+    setLoading(false);
+  };
+
   const numerosParaExibir = useMemo(() => {
     const todosNumeros = Array.from({ length: 3000 }, (_, i) => i + 1);
-    if (filtroVendas === 'todos') {
-        return todosNumeros;
-    }
+    if (filtroVendas === 'todos') return todosNumeros;
     const contagemFiltro = parseInt(filtroVendas, 10);
-    return todosNumeros.filter(numero => {
-        const contagemCota = cotas[numero]?.vendas_count || 0;
-        return contagemCota === contagemFiltro;
-    });
+    return todosNumeros.filter(numero => (cotas[numero]?.vendas_count || 0) === contagemFiltro);
   }, [cotas, filtroVendas]);
 
   if (loading) {
@@ -164,13 +177,25 @@ export default function HSCotas({ usuario }) {
                     <option value="4">Indisponíveis (4 vendas)</option>
                 </select>
             </div>
-            
-            {podeZerar && (
-                <button onClick={handleZerarQuadro} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
-                    <FaSyncAlt /> Zerar Quadro
-                </button>
-            )}
         </div>
+
+        {podeGerenciar && (
+            <div className="bg-gray-800/50 rounded-xl p-4 mb-6 border border-gray-700">
+                <h3 className="text-lg font-semibold text-amber-400 mb-3">Área do Gerente</h3>
+                <div className="flex flex-col md:flex-row gap-4 items-end">
+                    <div className="flex-grow">
+                        <label className="text-sm font-medium text-gray-300 mb-1 block">Zerar Cota Específica</label>
+                        <div className="flex items-center gap-2">
+                           <input type="number" placeholder="Nº da cota" value={cotaParaZerar} onChange={(e) => setCotaParaZerar(e.target.value)} className="bg-gray-700 p-2 rounded-lg border border-gray-600 w-full"/>
+                           <button onClick={handleZerarCotaEspecifica} className="bg-amber-600 hover:bg-amber-700 text-white font-bold p-2 rounded-lg"><FaEraser /></button>
+                        </div>
+                    </div>
+                    <button onClick={handleZerarQuadro} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+                        <FaSyncAlt /> Zerar Quadro Completo
+                    </button>
+                </div>
+            </div>
+        )}
 
         <div ref={gridRef} className="grid grid-cols-12 sm:grid-cols-20 md:grid-cols-25 lg:grid-cols-30 xl:grid-cols-40 2xl:grid-cols-50 gap-1">
             {numerosParaExibir.length > 0 ? (
@@ -178,16 +203,9 @@ export default function HSCotas({ usuario }) {
                     const contagem = cotas[numero]?.vendas_count || 0;
                     const estilo = getEstiloCota(contagem, highlightedCota === numero);
                     const desabilitado = contagem >= 4;
-
-                    return (
-                        <button key={numero} id={`cota-${numero}`} disabled={desabilitado} onClick={() => handleCotaClick(numero)} className={`h-8 w-full flex items-center justify-center text-[10px] font-bold rounded transition-all duration-300 ${estilo}`}>
-                            {numero}
-                        </button>
-                    );
+                    return ( <button key={numero} id={`cota-${numero}`} disabled={desabilitado} onClick={() => handleCotaClick(numero)} className={`h-8 w-full flex items-center justify-center text-[10px] font-bold rounded transition-all duration-300 ${estilo}`}>{numero}</button> );
                 })
-            ) : (
-                <EmptyState title="Nenhuma cota encontrada" message="Não há cotas que correspondam ao filtro selecionado." />
-            )}
+            ) : ( <EmptyState title="Nenhuma cota encontrada" message="Não há cotas que correspondam ao filtro selecionado." /> )}
         </div>
     </div>
   );
