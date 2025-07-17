@@ -207,6 +207,8 @@ export default function PainelVendedor() {
     { id: 'ranking', label: 'Ranking', icon: <FaTrophy /> },
     { id: 'crm', label: 'CRM', icon: <FaUsers /> },
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
+    { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> }, // Ícone FaTh precisa ser importado
+    
   ];
   
   // CASES DE ROTAS
