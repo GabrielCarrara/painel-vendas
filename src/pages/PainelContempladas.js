@@ -1,7 +1,7 @@
-// src/pages/PainelContempladas.js (Versão Aprimorada com Cards e Modal)
-import React, { useEffect, useState } from 'react';
+// src/pages/PainelContempladas.js (Versão com Filtro de Status)
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { FaCar, FaHome, FaBlender, FaPlus, FaTimes, FaEdit, FaTrash, FaSave, FaExclamationTriangle, FaSpinner } from 'react-icons/fa';
+import { FaCar, FaHome, FaBlender, FaPlus, FaTimes, FaEdit, FaTrash, FaSave, FaExclamationTriangle, FaSpinner, FaFilter } from 'react-icons/fa';
 
 // --- Componentes de UI Reutilizáveis ---
 
@@ -11,11 +11,11 @@ const LoadingSpinner = () => (
     </div>
 );
 
-const EmptyState = () => (
-    <div className="text-center py-20 bg-gray-800/50 rounded-xl">
+const EmptyState = ({ message = "Nenhuma carta encontrada para o filtro selecionado." }) => (
+    <div className="text-center py-20 bg-gray-800/50 rounded-xl col-span-1 md:col-span-2 xl:col-span-3">
         <FaExclamationTriangle className="mx-auto text-gray-500" size={48} />
-        <h3 className="mt-4 text-xl font-semibold text-white">Nenhuma Carta Encontrada</h3>
-        <p className="text-gray-400 mt-1">Quando uma nova carta contemplada for adicionada, ela aparecerá aqui.</p>
+        <h3 className="mt-4 text-xl font-semibold text-white">Nenhum Resultado</h3>
+        <p className="text-gray-400 mt-1">{message}</p>
     </div>
 );
 
@@ -100,9 +100,9 @@ const FormModal = ({ formulario, handleInput, salvar, onClose, editandoId }) => 
 );
 
 // --- Componente Principal ---
-
 export default function PainelContempladasAprimorado({ usuario }) {
   const [contempladas, setContempladas] = useState([]);
+  const [filtroStatus, setFiltroStatus] = useState('TODOS'); // NOVO ESTADO PARA O FILTRO
   const [formulario, setFormulario] = useState({
     valor_credito: '', tipo: 'AUTOMÓVEL', entrada: '', parcela: '', meses: '', taxa_transferencia: '', grupo: '', cota: '', responsavel: '', status: 'DISPONÍVEL',
   });
@@ -111,6 +111,7 @@ export default function PainelContempladasAprimorado({ usuario }) {
   const [loading, setLoading] = useState(true);
 
   const podeEditar = usuario?.user_metadata?.cargo === 'admin' || usuario?.user_metadata?.cargo === 'gerente';
+  const statusOpcoes = ['TODOS', 'DISPONÍVEL', 'RESERVADO', 'EM ANÁLISE', 'VENDIDO'];
 
   useEffect(() => {
     buscarContempladas();
@@ -148,10 +149,10 @@ export default function PainelContempladasAprimorado({ usuario }) {
   };
 
   const abrirFormulario = (item = null) => {
-    if (item) { // Editando
+    if (item) {
         setEditandoId(item.id);
         setFormulario({ ...item });
-    } else { // Criando
+    } else {
         setEditandoId(null);
         setFormulario({ valor_credito: '', tipo: 'AUTOMÓVEL', entrada: '', parcela: '', meses: '', taxa_transferencia: '', grupo: '', cota: '', responsavel: usuario?.email || '', status: 'DISPONÍVEL' });
     }
@@ -159,16 +160,10 @@ export default function PainelContempladasAprimorado({ usuario }) {
   };
 
   const salvar = async () => {
-    const dados = {
-      valor_credito: desformatarReal(formulario.valor_credito), tipo: formulario.tipo, entrada: desformatarReal(formulario.entrada), parcela: desformatarReal(formulario.parcela), meses: parseInt(formulario.meses) || null, taxa_transferencia: desformatarReal(formulario.taxa_transferencia), grupo: formulario.grupo, cota: formulario.cota, responsavel: formulario.responsavel, status: formulario.status,
-    };
+    const dados = { valor_credito: desformatarReal(formulario.valor_credito), tipo: formulario.tipo, entrada: desformatarReal(formulario.entrada), parcela: desformatarReal(formulario.parcela), meses: parseInt(formulario.meses) || null, taxa_transferencia: desformatarReal(formulario.taxa_transferencia), grupo: formulario.grupo, cota: formulario.cota, responsavel: formulario.responsavel, status: formulario.status, };
     const { error } = editandoId ? await supabase.from('contempladas').update(dados).eq('id', editandoId) : await supabase.from('contempladas').insert([dados]);
-
     if (error) alert("Erro ao salvar: " + error.message);
-    else {
-      buscarContempladas();
-      setMostrarFormulario(false);
-    }
+    else { buscarContempladas(); setMostrarFormulario(false); }
   };
   
   const excluir = async (id) => {
@@ -178,9 +173,31 @@ export default function PainelContempladasAprimorado({ usuario }) {
     }
   };
 
+  // NOVA LÓGICA DE FILTRAGEM
+  const contempladasFiltradas = useMemo(() => {
+    if (filtroStatus === 'TODOS') {
+        return contempladas;
+    }
+    return contempladas.filter(c => c.status === filtroStatus);
+  }, [contempladas, filtroStatus]);
+
   return (
     <div className="text-white relative animate-fade-in">
-      <h2 className="text-3xl font-bold mb-6">Cartas Contempladas</h2>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <h2 className="text-3xl font-bold">Cartas Contempladas</h2>
+        {/* NOVO FILTRO DE STATUS */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+            <label htmlFor="filtro-status" className="text-sm font-medium text-gray-300"><FaFilter /></label>
+            <select 
+                id="filtro-status"
+                value={filtroStatus}
+                onChange={(e) => setFiltroStatus(e.target.value)}
+                className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500 w-full"
+            >
+                {statusOpcoes.map(s => <option key={s} value={s}>{s === 'TODOS' ? 'MOSTRAR TODOS' : s}</option>)}
+            </select>
+        </div>
+      </div>
 
       {podeEditar && (
         <button onClick={() => abrirFormulario()} className="fixed bottom-8 right-8 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-full shadow-lg z-40 flex items-center gap-2 transition-transform hover:scale-110">
@@ -199,13 +216,13 @@ export default function PainelContempladasAprimorado({ usuario }) {
       )}
       
       {loading ? <LoadingSpinner /> : (
-          contempladas.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {contempladas.map((item) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {contempladasFiltradas.length > 0 ? (
+                  contempladasFiltradas.map((item) => (
                       <CartaCard key={item.id} item={item} onEdit={abrirFormulario} onDelete={excluir} podeEditar={podeEditar} />
-                  ))}
-              </div>
-          ) : <EmptyState />
+                  ))
+              ) : <EmptyState />}
+          </div>
       )}
     </div>
   );
