@@ -1,4 +1,4 @@
-// src/pages/PainelVendedor.js (Versão Final com TODAS as correções)
+// src/pages/PainelVendedor.js (Versão com totalizador na Aba de Contempladas)
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
@@ -6,7 +6,7 @@ import PainelCRM from './PainelCRM';
 import {
   FaDollarSign, FaHandHoldingUsd, FaPlus, FaChevronDown, FaChevronUp, FaEdit, FaTrash, FaSave, FaTimes,
   FaFileInvoiceDollar, FaUsers, FaTrophy, FaCar, FaHome, FaBlender, FaSpinner, FaExclamationTriangle,
-  FaBullseye, FaChartLine, FaTh
+  FaBullseye, FaChartLine, FaTh, FaFilter, FaLandmark // Ícone adicionado
 } from 'react-icons/fa';
 import dayjs from 'dayjs';
 import HSCotas from './HSCotas';
@@ -81,9 +81,28 @@ const CartaCard = ({ item }) => (
         <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm flex-grow">
             <div><p className="text-gray-400">Entrada</p><p className="font-semibold">{Number(item.entrada).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
             <div><p className="text-gray-400">Parcela</p><p className="font-semibold">{Number(item.parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} x {item.meses}</p></div>
+            <div><p className="text-gray-400">Grupo/Cota</p><p className="font-semibold">{item.grupo}/{item.cota}</p></div>
+            <div><p className="text-gray-400">Taxa Transf.</p><p className="font-semibold">{Number(item.taxa_transferencia).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
         </div>
+        <footer className="px-4 py-3 border-t border-gray-700/50 text-xs">
+            <p className="text-gray-400">Responsável: <span className="text-gray-300 font-medium">{item.responsavel}</span></p>
+        </footer>
     </div>
 );
+
+const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
+    const medalhas = ['🥇', '🥈', '🥉'];
+    const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold">{posicao + 1}º</span>;
+    return (
+        <div className={`p-4 rounded-xl flex items-center justify-between transition-all ${isCurrentUser ? 'bg-indigo-600/30 ring-2 ring-indigo-500' : 'bg-gray-800'}`}>
+            <div className="flex items-center gap-4">
+                <span className="text-2xl w-8 text-center">{prefixo}</span>
+                <span className={`font-bold ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{nome}</span>
+            </div>
+            <span className="font-bold text-lg text-green-400">{valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+        </div>
+    );
+};
 
 // --- Componente Principal ---
 export default function PainelVendedor() {
@@ -100,13 +119,13 @@ export default function PainelVendedor() {
   const [configuracoes, setConfiguracoes] = useState({ meta_geral: 0, duplas: [] });
   const navigate = useNavigate();
 
-  const carregarTodosDados = useCallback(async () => {
+  const carregarTodosDados = useCallback(async (mes) => {
     setLoading(true);
     const [vendasRes, usersRes, contempladasRes, configRes] = await Promise.all([
         supabase.from('vendas').select('*').order('created_at', { ascending: false }),
         supabase.from('usuarios_custom').select('id, nome'),
         supabase.from('contempladas').select('*'),
-        supabase.from('configuracoes_mensais').select('*').eq('mes', mesFiltro).single()
+        supabase.from('configuracoes_mensais').select('*').eq('mes', mes).single()
     ]);
     
     if (vendasRes.data) setAllVendas(vendasRes.data);
@@ -116,27 +135,24 @@ export default function PainelVendedor() {
         setContempladas(contempladasRes.data.sort((a, b) => peso[a.status] - peso[b.status]));
     }
     if (configRes.data) setConfiguracoes(configRes.data);
-    else setConfiguracoes({ mes: mesFiltro, meta_geral: 10000000, duplas: [] });
+    else setConfiguracoes({ mes: mes, meta_geral: 10000000, duplas: [] });
     setLoading(false);
-  }, [mesFiltro]);
+  }, []);
   
   useEffect(() => {
-    const getUserAndData = async () => {
+    const getUser = async () => {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            navigate('/login');
-            return;
-        }
+        if (!user) { navigate('/login'); return; }
         setUsuario(user);
     }
-    getUserAndData();
+    getUser();
   }, [navigate]);
 
   useEffect(() => {
     if (usuario) {
-        carregarTodosDados();
+        carregarTodosDados(mesFiltro);
     }
-  }, [usuario, carregarTodosDados]);
+  }, [usuario, mesFiltro, carregarTodosDados]);
   
   const formatInputMoeda = (txt) => {
     if(!txt) return '';
@@ -152,17 +168,11 @@ export default function PainelVendedor() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    const dados = {
-      ...formulario,
-      valor: desformatarMoeda(formulario.valor),
-      mes: editandoId ? formulario.mes : dayjs(mesFiltro).format('YYYY-MM'),
-      usuario_id: usuario.id,
-      cliente: formulario.cliente.toUpperCase()
-    };
+    const dados = { ...formulario, valor: desformatarMoeda(formulario.valor), mes: editandoId ? formulario.mes : dayjs(mesFiltro).format('YYYY-MM'), usuario_id: usuario.id, cliente: formulario.cliente.toUpperCase() };
     if(!editandoId) { dados.comissao_1 = true; }
     const { error } = editandoId ? await supabase.from('vendas').update(dados).eq('id', editandoId) : await supabase.from('vendas').insert([dados]);
     if (error) alert('Erro: ' + error.message);
-    else { await carregarTodosDados(); limparFormulario(); }
+    else { await carregarTodosDados(mesFiltro); limparFormulario(); }
   };
   
   const iniciarEdicao = (venda) => {
@@ -172,14 +182,14 @@ export default function PainelVendedor() {
   };
 
   const excluirVenda = async (id) => {
-    if (!window.confirm('Tem certeza que deseja excluir esta venda?')) return;
+    if (!window.confirm('Tem certeza?')) return;
     setLoading(true);
     const { error } = await supabase.from('vendas').delete().eq('id', id);
     if(error) {
         alert('Erro ao excluir: ' + error.message);
         setLoading(false);
     } else {
-        await carregarTodosDados();
+        await carregarTodosDados(mesFiltro);
         alert('Venda excluída com sucesso!');
     }
   };
@@ -201,25 +211,30 @@ export default function PainelVendedor() {
     }, 0);
     return { totalMes, comissaoRecebida };
   }, [minhasVendasDoMes]);
+  
+  // NOVO CÁLCULO
+  const totalDisponivelContempladas = useMemo(() => {
+    return contempladas
+      .filter(c => c.status === 'DISPONÍVEL')
+      .reduce((acc, c) => acc + (Number(c.valor_credito) || 0), 0);
+  }, [contempladas]);
 
   const abas = [
     { id: 'vendas', label: 'Minhas Vendas', icon: <FaFileInvoiceDollar /> },
     { id: 'ranking', label: 'Ranking', icon: <FaTrophy /> },
     { id: 'crm', label: 'CRM', icon: <FaUsers /> },
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
-    { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> }, // Ícone FaTh precisa ser importado
-    
+    { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
   ];
   
-  // CASES DE ROTAS
   const renderContent = () => {
       if (loading) return <LoadingSpinner />;
       switch(aba) {
           case 'vendas': return <AbaMinhasVendas totais={totaisPessoais} mesFiltro={mesFiltro} setMesFiltro={setMesFiltro} formVisivel={formVisivel} setFormVisivel={setFormVisivel} formulario={formulario} setFormulario={setFormulario} handleSave={handleSave} editandoId={editandoId} limparFormulario={limparFormulario} minhasVendas={minhasVendasDoMes} iniciarEdicao={iniciarEdicao} excluirVenda={excluirVenda} formatInputMoeda={formatInputMoeda}/>;
-          case 'ranking': return <AbaRankingVendedor vendas={allVendas} usuarios={allUsers} mes={mesFiltro} configuracoes={configuracoes} usuarioAtual={usuario} />;
+          case 'ranking': return <AbaRankingVendedor vendas={allVendas} usuarios={allUsers} mesFiltro={mesFiltro} setMesFiltro={setMesFiltro} configuracoes={configuracoes} usuarioAtual={usuario} />;
           case 'crm': return <PainelCRM usuarioId={usuario?.id} />;
-          case 'contempladas': return <AbaContempladas contempladas={contempladas} />;
-          case 'hs_cotas': return <HSCotas usuario={usuario} />; // 'usuario' é a variável de estado neste painel
+          case 'contempladas': return <AbaContempladas contempladas={contempladas} totalDisponivel={totalDisponivelContempladas} />;
+          case 'hs_cotas': return <HSCotas usuario={usuario} />;
           default: return null;
       }
   };
@@ -242,7 +257,6 @@ export default function PainelVendedor() {
   );
 }
 
-// --- Componente da Aba Minhas Vendas ---
 const AbaMinhasVendas = ({ totais, mesFiltro, setMesFiltro, formVisivel, setFormVisivel, formulario, setFormulario, handleSave, editandoId, limparFormulario, minhasVendas, iniciarEdicao, excluirVenda, formatInputMoeda }) => (
     <div className="animate-fade-in">
         <div className="grid sm:grid-cols-2 gap-6 mb-8">
@@ -272,73 +286,40 @@ const AbaMinhasVendas = ({ totais, mesFiltro, setMesFiltro, formVisivel, setForm
                     </form>
                 )}
             </div>
-            {minhasVendas.length > 0 ? <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">{minhasVendas.map((v) => <SaleCard key={v.id} venda={v} onEdit={() => iniciarEdicao(v)} onDelete={() => excluirVenda(v.id)} />)}</div> : <EmptyState title="Nenhuma Venda no Mês" message="Você ainda não lançou vendas para este período." />}
+            {minhasVendas.length > 0 ? <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">{minhasVendas.map((v) => <SaleCard key={v.id} venda={v} onEdit={() => iniciarEdicao(v)} onExcluir={() => excluirVenda(v.id)} />)}</div> : <EmptyState title="Nenhuma Venda no Mês" message="Você ainda não lançou vendas para este período." />}
         </div>
     </div>
 );
 
-// --- Componente da Aba Ranking para Vendedor ---
-const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
-    const medalhas = ['🥇', '🥈', '🥉'];
-    const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold">{posicao + 1}º</span>;
-
-    return (
-        <div className={`p-4 rounded-xl flex items-center justify-between transition-all ${isCurrentUser ? 'bg-indigo-600/30 ring-2 ring-indigo-500' : 'bg-gray-800'}`}>
-            <div className="flex items-center gap-4">
-                <span className="text-2xl w-8 text-center">{prefixo}</span>
-                <span className={`font-bold ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{nome}</span>
-            </div>
-            <span className="font-bold text-lg text-green-400">{valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-        </div>
-    );
-};
-
-const AbaRankingVendedor = ({ vendas, usuarios, mes, configuracoes, usuarioAtual }) => {
-    
+const AbaRankingVendedor = ({ vendas, usuarios, mesFiltro, setMesFiltro, configuracoes, usuarioAtual }) => {
     const totaisPorVendedor = useMemo(() => {
-        const totais = {};
-        const vendasDoMes = vendas.filter(v => v.mes === mes);
+        const totais = {}; const vendasDoMes = vendas.filter(v => v.mes === mesFiltro);
         usuarios.forEach(u => { totais[u.id] = { id: u.id, nome: u.nome, vendido: 0 }; });
-        vendasDoMes.forEach((venda) => {
-          if (totais[venda.usuario_id]) { totais[venda.usuario_id].vendido += parseFloat(venda.valor) || 0; }
-        });
+        vendasDoMes.forEach((venda) => { if (totais[venda.usuario_id]) { totais[venda.usuario_id].vendido += parseFloat(venda.valor) || 0; } });
         return totais;
-    }, [vendas, mes, usuarios]);
-
+    }, [vendas, mesFiltro, usuarios]);
     const rankingIndividual = useMemo(() => Object.values(totaisPorVendedor).filter(v => v.vendido > 0).sort((a, b) => b.vendido - a.vendido), [totaisPorVendedor]);
     const totaisDuplas = useMemo(() => {
         const duplasParaCalculo = configuracoes.duplas || [];
-        return duplasParaCalculo.map(dupla => {
-            const total = dupla.reduce((acc, nome) => {
-                const vendedor = Object.values(totaisPorVendedor).find(v => v.nome === nome);
-                return acc + (vendedor ? vendedor.vendido : 0);
-            }, 0);
-            return { nomes: dupla.join(' e '), total, membros: dupla };
-        }).sort((a, b) => b.total - a.total);
+        return duplasParaCalculo.map(dupla => { const total = dupla.reduce((acc, nome) => { const vendedor = Object.values(totaisPorVendedor).find(v => v.nome === nome); return acc + (vendedor ? vendedor.vendido : 0); }, 0); return { nomes: dupla.join(' e '), total, membros: dupla }; }).sort((a, b) => b.total - a.total);
     }, [configuracoes.duplas, totaisPorVendedor]);
-    
     const vendidoGeral = useMemo(() => rankingIndividual.reduce((acc, v) => acc + v.vendido, 0), [rankingIndividual]);
     const faltaParaMeta = (configuracoes.meta_geral || 0) - vendidoGeral;
 
     return (
         <div className="animate-fade-in space-y-8">
-            <h2 className="text-3xl font-bold">Ranking de {dayjs(mes).format('MMMM')}</h2>
+            <div className="flex flex-wrap items-center gap-4 p-4 bg-gray-800/50 rounded-xl">
+                <h3 className="text-xl font-bold flex items-center gap-2"><FaFilter /> Visualizar Ranking de:</h3>
+                <input type="month" value={mesFiltro} onChange={(e) => setMesFiltro(e.target.value)} className="w-full md:w-auto bg-gray-700 p-3 rounded-lg border border-gray-600" />
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
                     <h3 className="text-xl font-semibold mb-4 text-indigo-400">RANKING INDIVIDUAL</h3>
-                    <div className="space-y-3">
-                        {rankingIndividual.length > 0 ? rankingIndividual.map((vendedor, index) => (
-                            <RankingCard key={vendedor.id} posicao={index} nome={vendedor.nome} valor={vendedor.vendido} isCurrentUser={vendedor.id === usuarioAtual.id} />
-                        )) : <p className="text-gray-500">Ninguém vendeu ainda este mês.</p>}
-                    </div>
+                    <div className="space-y-3">{rankingIndividual.length > 0 ? rankingIndividual.map((vendedor, index) => ( <RankingCard key={vendedor.id} posicao={index} nome={vendedor.nome} valor={vendedor.vendido} isCurrentUser={vendedor.id === usuarioAtual.id} /> )) : <p className="text-gray-500">Ninguém vendeu ainda este mês.</p>}</div>
                 </div>
                 <div>
                     <h3 className="text-xl font-semibold mb-4 text-indigo-400">RANKING DE DUPLAS</h3>
-                    <div className="space-y-3">
-                        {totaisDuplas.length > 0 ? totaisDuplas.map((dupla, index) => (
-                            <RankingCard key={dupla.nomes} posicao={index} nome={dupla.nomes} valor={dupla.total} isCurrentUser={dupla.membros.includes(usuarioAtual?.user_metadata?.nome)} />
-                        )) : <p className="text-gray-500">Duplas não configuradas para este mês.</p>}
-                    </div>
+                    <div className="space-y-3">{totaisDuplas.length > 0 ? totaisDuplas.map((dupla, index) => ( <RankingCard key={dupla.nomes} posicao={index} nome={dupla.nomes} valor={dupla.total} isCurrentUser={dupla.membros.includes(usuarioAtual?.user_metadata?.nome)} /> )) : <p className="text-gray-500">Duplas não configuradas.</p>}</div>
                 </div>
             </div>
             <div>
@@ -354,9 +335,15 @@ const AbaRankingVendedor = ({ vendas, usuarios, mes, configuracoes, usuarioAtual
 };
 
 // --- Componente da Aba Contempladas ---
-const AbaContempladas = ({ contempladas }) => (
-    <div className="animate-fade-in">
-        <h2 className="text-3xl font-bold mb-6">Cartas Contempladas Disponíveis</h2>
+const AbaContempladas = ({ contempladas, totalDisponivel }) => (
+    <div className="animate-fade-in space-y-6">
+        <h2 className="text-3xl font-bold">Cartas Contempladas Disponíveis</h2>
+        <StatCard
+            icon={<FaLandmark size={24} />}
+            label="Total em Créditos Disponíveis"
+            value={totalDisponivel}
+            color="bg-green-500/20"
+        />
         {contempladas.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {contempladas.map((item) => <CartaCard key={item.id} item={item} />)}

@@ -1,9 +1,21 @@
-// src/pages/PainelContempladas.js (Versão com Filtro de Status)
+// src/pages/PainelContempladas.js (Versão com import do FaFilter corrigido)
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { FaCar, FaHome, FaBlender, FaPlus, FaTimes, FaEdit, FaTrash, FaSave, FaExclamationTriangle, FaSpinner, FaFilter } from 'react-icons/fa';
+import { 
+    FaCar, FaHome, FaBlender, FaPlus, FaTimes, FaEdit, FaTrash, FaSave, 
+    FaExclamationTriangle, FaSpinner, FaLandmark, FaFilter // Ícone adicionado
+} from 'react-icons/fa';
 
 // --- Componentes de UI Reutilizáveis ---
+const StatCard = ({ icon, title, value, color }) => (
+  <div className="bg-gray-800 p-5 rounded-xl shadow-lg flex items-center space-x-4">
+    <div className={`p-3 rounded-full ${color}`}>{icon}</div>
+    <div>
+      <p className="text-sm text-gray-400">{title}</p>
+      <p className={`text-2xl font-bold text-white`}>{(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+    </div>
+  </div>
+);
 
 const LoadingSpinner = () => (
     <div className="flex justify-center items-center h-full py-20">
@@ -102,10 +114,8 @@ const FormModal = ({ formulario, handleInput, salvar, onClose, editandoId }) => 
 // --- Componente Principal ---
 export default function PainelContempladasAprimorado({ usuario }) {
   const [contempladas, setContempladas] = useState([]);
-  const [filtroStatus, setFiltroStatus] = useState('TODOS'); // NOVO ESTADO PARA O FILTRO
-  const [formulario, setFormulario] = useState({
-    valor_credito: '', tipo: 'AUTOMÓVEL', entrada: '', parcela: '', meses: '', taxa_transferencia: '', grupo: '', cota: '', responsavel: '', status: 'DISPONÍVEL',
-  });
+  const [filtroStatus, setFiltroStatus] = useState('TODOS');
+  const [formulario, setFormulario] = useState({ valor_credito: '', tipo: 'AUTOMÓVEL', entrada: '', parcela: '', meses: '', taxa_transferencia: '', grupo: '', cota: '', responsavel: '', status: 'DISPONÍVEL' });
   const [editandoId, setEditandoId] = useState(null);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -119,11 +129,8 @@ export default function PainelContempladasAprimorado({ usuario }) {
 
   const buscarContempladas = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('contempladas')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (!error) setContempladas(data.map(item => ({ ...item, valor_credito: formatarParaReal(item.valor_credito), entrada: formatarParaReal(item.entrada), parcela: formatarParaReal(item.parcela), taxa_transferencia: formatarParaReal(item.taxa_transferencia) })));
+    const { data, error } = await supabase.from('contempladas').select('*').order('created_at', { ascending: false });
+    if (!error) setContempladas(data);
     setLoading(false);
   };
 
@@ -135,7 +142,7 @@ export default function PainelContempladasAprimorado({ usuario }) {
 
   const desformatarReal = (valorFormatado) => {
     if (!valorFormatado) return 0;
-    const valorNumerico = valorFormatado.replace('R$', '').replace(/\s/g, '').replace(/\./g, '').replace(/,/g, '.');
+    const valorNumerico = String(valorFormatado).replace('R$', '').replace(/\s/g, '').replace(/\./g, '').replace(/,/g, '.');
     return parseFloat(valorNumerico) || 0;
   };
 
@@ -151,7 +158,12 @@ export default function PainelContempladasAprimorado({ usuario }) {
   const abrirFormulario = (item = null) => {
     if (item) {
         setEditandoId(item.id);
-        setFormulario({ ...item });
+        setFormulario({ ...item, 
+            valor_credito: formatarParaReal(item.valor_credito),
+            entrada: formatarParaReal(item.entrada),
+            parcela: formatarParaReal(item.parcela),
+            taxa_transferencia: formatarParaReal(item.taxa_transferencia),
+        });
     } else {
         setEditandoId(null);
         setFormulario({ valor_credito: '', tipo: 'AUTOMÓVEL', entrada: '', parcela: '', meses: '', taxa_transferencia: '', grupo: '', cota: '', responsavel: usuario?.email || '', status: 'DISPONÍVEL' });
@@ -173,19 +185,21 @@ export default function PainelContempladasAprimorado({ usuario }) {
     }
   };
 
-  // NOVA LÓGICA DE FILTRAGEM
   const contempladasFiltradas = useMemo(() => {
-    if (filtroStatus === 'TODOS') {
-        return contempladas;
-    }
+    if (filtroStatus === 'TODOS') return contempladas;
     return contempladas.filter(c => c.status === filtroStatus);
   }, [contempladas, filtroStatus]);
+
+  const totalDisponivel = useMemo(() => {
+    return contempladas
+        .filter(c => c.status === 'DISPONÍVEL')
+        .reduce((acc, c) => acc + (Number(c.valor_credito) || 0), 0);
+  }, [contempladas]);
 
   return (
     <div className="text-white relative animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <h2 className="text-3xl font-bold">Cartas Contempladas</h2>
-        {/* NOVO FILTRO DE STATUS */}
         <div className="flex items-center gap-2 w-full md:w-auto">
             <label htmlFor="filtro-status" className="text-sm font-medium text-gray-300"><FaFilter /></label>
             <select 
@@ -198,6 +212,15 @@ export default function PainelContempladasAprimorado({ usuario }) {
             </select>
         </div>
       </div>
+      
+      <div className="mb-6">
+        <StatCard 
+            icon={<FaLandmark size={24} />} 
+            title="Total em Créditos Disponíveis" 
+            value={totalDisponivel} 
+            color="bg-green-500/20"
+        />
+      </div>
 
       {podeEditar && (
         <button onClick={() => abrirFormulario()} className="fixed bottom-8 right-8 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-full shadow-lg z-40 flex items-center gap-2 transition-transform hover:scale-110">
@@ -206,20 +229,14 @@ export default function PainelContempladasAprimorado({ usuario }) {
       )}
 
       {mostrarFormulario && (
-          <FormModal 
-              formulario={formulario} 
-              handleInput={handleInput} 
-              salvar={salvar} 
-              onClose={() => setMostrarFormulario(false)}
-              editandoId={editandoId}
-          />
+          <FormModal formulario={formulario} handleInput={handleInput} salvar={salvar} onClose={() => setMostrarFormulario(false)} editandoId={editandoId} />
       )}
       
       {loading ? <LoadingSpinner /> : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {contempladasFiltradas.length > 0 ? (
                   contempladasFiltradas.map((item) => (
-                      <CartaCard key={item.id} item={item} onEdit={abrirFormulario} onDelete={excluir} podeEditar={podeEditar} />
+                      <CartaCard key={item.id} item={{...item, valor_credito: formatarParaReal(item.valor_credito), entrada: formatarParaReal(item.entrada), parcela: formatarParaReal(item.parcela), taxa_transferencia: formatarParaReal(item.taxa_transferencia)}} onEdit={abrirFormulario} onDelete={excluir} podeEditar={podeEditar} />
                   ))
               ) : <EmptyState />}
           </div>
