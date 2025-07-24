@@ -1,12 +1,12 @@
-// src/pages/PainelVendedor.js (Versão com totalizador na Aba de Contempladas)
+// src/pages/PainelVendedor.js (Versão com erros de compilação corrigidos)
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import PainelCRM from './PainelCRM';
 import {
-  FaDollarSign, FaHandHoldingUsd, FaPlus, FaChevronDown, FaChevronUp, FaEdit, FaTrash, FaSave, FaTimes,
+  FaDollarSign, FaHandHoldingUsd, FaChevronDown, FaChevronUp, FaEdit, FaTrash, FaSave,
   FaFileInvoiceDollar, FaUsers, FaTrophy, FaCar, FaHome, FaBlender, FaSpinner, FaExclamationTriangle,
-  FaBullseye, FaChartLine, FaTh, FaFilter, FaLandmark // Ícone adicionado
+  FaBullseye, FaChartLine, FaTh, FaFilter, FaLandmark // Ícones corrigidos e organizados
 } from 'react-icons/fa';
 import dayjs from 'dayjs';
 import HSCotas from './HSCotas';
@@ -90,9 +90,11 @@ const CartaCard = ({ item }) => (
     </div>
 );
 
+// --- COMPONENTE QUE FALTAVA ---
 const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
     const medalhas = ['🥇', '🥈', '🥉'];
     const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold">{posicao + 1}º</span>;
+
     return (
         <div className={`p-4 rounded-xl flex items-center justify-between transition-all ${isCurrentUser ? 'bg-indigo-600/30 ring-2 ring-indigo-500' : 'bg-gray-800'}`}>
             <div className="flex items-center gap-4">
@@ -103,6 +105,7 @@ const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
         </div>
     );
 };
+
 
 // --- Componente Principal ---
 export default function PainelVendedor() {
@@ -140,12 +143,12 @@ export default function PainelVendedor() {
   }, []);
   
   useEffect(() => {
-    const getUser = async () => {
+    const getUserAndData = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { navigate('/login'); return; }
         setUsuario(user);
     }
-    getUser();
+    getUserAndData();
   }, [navigate]);
 
   useEffect(() => {
@@ -212,7 +215,6 @@ export default function PainelVendedor() {
     return { totalMes, comissaoRecebida };
   }, [minhasVendasDoMes]);
   
-  // NOVO CÁLCULO
   const totalDisponivelContempladas = useMemo(() => {
     return contempladas
       .filter(c => c.status === 'DISPONÍVEL')
@@ -334,7 +336,6 @@ const AbaRankingVendedor = ({ vendas, usuarios, mesFiltro, setMesFiltro, configu
     );
 };
 
-// --- Componente da Aba Contempladas ---
 const AbaContempladas = ({ contempladas, totalDisponivel }) => (
     <div className="animate-fade-in space-y-6">
         <h2 className="text-3xl font-bold">Cartas Contempladas Disponíveis</h2>
