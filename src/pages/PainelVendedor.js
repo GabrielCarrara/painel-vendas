@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fa';
 import dayjs from 'dayjs';
 import HSCotas from './HSCotas';
+import PainelContempladasAprimorado from './PainelContempladas'; 
 
 // --- Constantes de Comissão ---
 const PERCENT_CHEIA = [0.006, 0.003, 0.003];
@@ -235,8 +236,7 @@ export default function PainelVendedor() {
           case 'vendas': return <AbaMinhasVendas totais={totaisPessoais} mesFiltro={mesFiltro} setMesFiltro={setMesFiltro} formVisivel={formVisivel} setFormVisivel={setFormVisivel} formulario={formulario} setFormulario={setFormulario} handleSave={handleSave} editandoId={editandoId} limparFormulario={limparFormulario} minhasVendas={minhasVendasDoMes} iniciarEdicao={iniciarEdicao} excluirVenda={excluirVenda} formatInputMoeda={formatInputMoeda}/>;
           case 'ranking': return <AbaRankingVendedor vendas={allVendas} usuarios={allUsers} mesFiltro={mesFiltro} setMesFiltro={setMesFiltro} configuracoes={configuracoes} usuarioAtual={usuario} />;
           case 'crm': return <PainelCRM usuarioId={usuario?.id} />;
-          case 'contempladas': return <AbaContempladas contempladas={contempladas} totalDisponivel={totalDisponivelContempladas} />;
-          case 'hs_cotas': return <HSCotas usuario={usuario} />;
+        case 'contempladas': return <PainelContempladasAprimorado usuario={usuario} />;          case 'hs_cotas': return <HSCotas usuario={usuario} />;
           default: return null;
       }
   };
@@ -336,19 +336,3 @@ const AbaRankingVendedor = ({ vendas, usuarios, mesFiltro, setMesFiltro, configu
     );
 };
 
-const AbaContempladas = ({ contempladas, totalDisponivel }) => (
-    <div className="animate-fade-in space-y-6">
-        <h2 className="text-3xl font-bold">Cartas Contempladas Disponíveis</h2>
-        <StatCard
-            icon={<FaLandmark size={24} />}
-            label="Total em Créditos Disponíveis"
-            value={totalDisponivel}
-            color="bg-green-500/20"
-        />
-        {contempladas.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {contempladas.map((item) => <CartaCard key={item.id} item={item} />)}
-            </div>
-        ) : <EmptyState title="Nenhuma Carta Disponível" message="No momento não há cartas contempladas para exibir." />}
-    </div>
-);
