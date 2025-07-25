@@ -53,7 +53,93 @@ const CartaCard = ({ item, onEdit, onDelete, podeEditar, onSelect, isSelected })
     </div>
 )};
 
-const FormModal = ({ formulario, handleInput, salvar, onClose, editandoId }) => ( <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in">{/* ...código do modal de formulário... */}</div> );
+const FormModal = ({ formulario, handleInput, salvar, onClose, editandoId }) => (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in">
+        <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700">
+            <header className="p-4 flex justify-between items-center border-b border-gray-700">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <FaEdit /> {editandoId ? 'Editar Carta Contemplada' : 'Adicionar Nova Carta'}
+                </h3>
+                <button onClick={onClose} className="p-2 text-gray-500 hover:text-white rounded-full">
+                    <FaTimes size={20} />
+                </button>
+            </header>
+            <form onSubmit={(e) => { e.preventDefault(); salvar(); }}>
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[70vh] overflow-y-auto">
+                    
+                    {/* Linha 1 */}
+                    <div className="md:col-span-2">
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Tipo de Carta</label>
+                        <select name="tipo" value={formulario.tipo} onChange={handleInput} className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600">
+                            <option value="AUTOMÓVEL">AUTOMÓVEL</option>
+                            <option value="IMÓVEL">IMÓVEL</option>
+                            <option value="ELETRO">ELETRO</option>
+                        </select>
+                    </div>
+
+                    {/* Linha 2 */}
+                    <div>
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Valor do Crédito</label>
+                        <input type="text" name="valor_credito" value={formulario.valor_credito} onChange={handleInput} placeholder="R$ 0,00" className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600" />
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Valor de Entrada</label>
+                        <input type="text" name="entrada" value={formulario.entrada} onChange={handleInput} placeholder="R$ 0,00" className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600" />
+                    </div>
+
+                    {/* Linha 3 */}
+                    <div>
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Valor da Parcela</label>
+                        <input type="text" name="parcela" value={formulario.parcela} onChange={handleInput} placeholder="R$ 0,00" className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600" />
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Meses Restantes</label>
+                        <input type="number" name="meses" value={formulario.meses} onChange={handleInput} placeholder="Ex: 60" className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600" />
+                    </div>
+                    
+                    {/* Linha 4 */}
+                    <div>
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Grupo</label>
+                        <input type="text" name="grupo" value={formulario.grupo} onChange={handleInput} placeholder="Ex: 0123" className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600" />
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Cota</label>
+                        <input type="text" name="cota" value={formulario.cota} onChange={handleInput} placeholder="Ex: 456" className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600" />
+                    </div>
+
+                    {/* Linha 5 */}
+                     <div>
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Taxa de Transferência</label>
+                        <input type="text" name="taxa_transferencia" value={formulario.taxa_transferencia} onChange={handleInput} placeholder="R$ 0,00" className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600" />
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Status</label>
+                        <select name="status" value={formulario.status} onChange={handleInput} className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600">
+                            <option value="DISPONÍVEL">DISPONÍVEL</option>
+                            <option value="RESERVADO">RESERVADO</option>
+                            <option value="EM ANÁLISE">EM ANÁLISE</option>
+                            <option value="VENDIDO">VENDIDO</option>
+                        </select>
+                    </div>
+
+                    {/* Linha 6 */}
+                    <div className="md:col-span-2">
+                        <label className="text-sm font-medium text-gray-400 block mb-1">Responsável</label>
+                        <input type="text" name="responsavel" value={formulario.responsavel} onChange={handleInput} placeholder="Nome do responsável" className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600" />
+                    </div>
+                </div>
+                <footer className="p-4 flex justify-end gap-3 border-t border-gray-700">
+                    <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-500 px-5 py-2 rounded-lg font-semibold">
+                        Cancelar
+                    </button>
+                    <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2">
+                        <FaSave /> {editandoId ? 'Salvar Alterações' : 'Criar Carta'}
+                    </button>
+                </footer>
+            </form>
+        </div>
+    </div>
+);
 
 // --- NOVO Componente do Modal de Cálculo ---
 const CalculoModal = ({ resultado, onClose }) => {
