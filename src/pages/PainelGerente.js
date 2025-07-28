@@ -6,14 +6,17 @@ import 'dayjs/locale/pt-br';
 import { 
     FaChartBar, FaUsers, FaPlusCircle, FaTrophy, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, 
     FaDollarSign, FaUserTie, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs,
-    FaTh // <--- ÍCONE ADICIONADO AQUI
+    FaFileInvoiceDollar, // <-- ÍCONE ADICIONADO AQUI
+    FaTh
 } from "react-icons/fa";
 
 // Componentes importados (verifique os caminhos)
 import PainelCRM from "./PainelCRM";
 import PainelContempladas from "./PainelContempladas";
 import HSCotas from './HSCotas'; // Verifique se o caminho está correto
-
+const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0]; // Comissão: 1.2% total (0.6, 0.3, 0.3). Parcela 4 não tem comissão.
+const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0]; // Comissão: 0.6% total (0.3, 0.15, 0.15). Parcela 4 não tem comissão.
+const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO'];
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, title, value, color }) => (
   <div className="bg-gray-800 p-5 rounded-xl shadow-lg flex items-center space-x-4 transition-transform hover:scale-105">
@@ -45,13 +48,53 @@ export default function PainelGerenteAprimorado() {
   const [usuarioAtual, setUsuarioAtual] = useState(null);
   const [loading, setLoading] = useState(true);
   const [configuracoes, setConfiguracoes] = useState({ meta_geral: 0, duplas: [] });
+  const [comissoesLiberadasMes, setComissoesLiberadasMes] = useState(0);
+  const buscarUsuarios = async () => {
+    const { data } = await supabase.from("usuarios_custom").select("id, nome").order('nome', { ascending: true });
+    if (data) setUsuarios(data);
+  };
+  const buscarVendas = async () => {
+    const { data } = await supabase.from("vendas").select("*").order("created_at", { ascending: false });
+    if (data) setVendas(data);
+  };
+// PainelGerente.js
+  const buscarComissoesLiberadas = useCallback(async () => {
+    const mesAtual = dayjs().format('YYYY-MM');
+    
+    // A query agora busca apenas pagamentos de parcelas que NÃO SÃO a primeira (neq = not equal to).
+    let query = supabase
+      .from('pagamentos_comissao')
+      .select('valor_comissao')
+      .eq('mes_pagamento', mesAtual)
+      .neq('parcela_index', 1); // <-- MUDANÇA PRINCIPAL AQUI
 
+    if (filtros.vendedor) {
+      query = query.eq('usuario_id', filtros.vendedor);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Erro ao buscar comissões liberadas:", error);
+      return;
+    }
+
+    if (data) {
+      const totalLiberado = data.reduce((acc, item) => acc + item.valor_comissao, 0);
+      setComissoesLiberadasMes(totalLiberado);
+    } else {
+      setComissoesLiberadasMes(0);
+    }
+  }, [filtros.vendedor]);
+  
   const fetchConfiguracoes = useCallback(async (mes) => {
     const { data } = await supabase.from('configuracoes_mensais').select('*').eq('mes', mes).single();
     if (data) setConfiguracoes(data);
     else setConfiguracoes({ mes, meta_geral: 10000000, duplas: [] });
   }, []);
 
+  // PainelGerente.js
+  
   useEffect(() => {
     const carregarDadosIniciais = async () => {
       setLoading(true);
@@ -64,40 +107,72 @@ export default function PainelGerenteAprimorado() {
         await Promise.all([
           buscarUsuarios(),
           buscarVendas(),
-          fetchConfiguracoes(filtros.mes)
+          fetchConfiguracoes(filtros.mes), buscarComissoesLiberadas()
         ]);
       }
       setLoading(false);
     };
     carregarDadosIniciais();
-  }, [fetchConfiguracoes]);
+  }, [fetchConfiguracoes, buscarComissoesLiberadas]);
   
   useEffect(() => { 
     if(filtros.mes) {
         fetchConfiguracoes(filtros.mes);
     }
   }, [filtros.mes, fetchConfiguracoes]);
+  useEffect(() => {
+    buscarComissoesLiberadas();
+  }, [filtros.vendedor, buscarComissoesLiberadas]);
 
-  const buscarUsuarios = async () => {
-    const { data } = await supabase.from("usuarios_custom").select("id, nome").order('nome', { ascending: true });
-    if (data) setUsuarios(data);
-  };
-  const buscarVendas = async () => {
-    const { data } = await supabase.from("vendas").select("*").order("created_at", { ascending: false });
-    if (data) setVendas(data);
-  };
   
+
   const nomeVendedor = (id) => usuarios.find((u) => u.id === id)?.nome || "Desconhecido";
 
-  const cadastrarVenda = async () => {
+ const cadastrarVenda = async () => {
     if (!usuarioAtual) return alert("Usuário não autenticado.");
-    if (!novaVenda.cliente || !novaVenda.valor) return alert("Cliente e Valor são obrigatórios.");
-    const vendedorIdParaLancar = novaVenda.usuario_id || usuarioAtual.id;
+    if (!novaVenda.cliente || !novaVenda.valor || !novaVenda.usuario_id) return alert("Cliente, Valor e Vendedor são obrigatórios.");
+    
     const valorNumerico = parseFloat(String(novaVenda.valor).replace(/\./g, '').replace(',', '.'));
-    await supabase.from("vendas").insert([{ ...novaVenda, valor: valorNumerico, usuario_id: vendedorIdParaLancar, cliente: novaVenda.cliente.toUpperCase(), mes: dayjs(novaVenda.mes).format("YYYY-MM") }]);
+    
+    const dadosParaSalvar = { 
+        ...novaVenda, 
+        valor: valorNumerico, 
+        cliente: novaVenda.cliente.toUpperCase(), 
+        mes: dayjs(novaVenda.mes).format("YYYY-MM"),
+        // Define o status inicial de todas as parcelas
+        status_parcela_1: 'PAGO',
+        status_parcela_2: 'PENDENTE',
+        status_parcela_3: 'PENDENTE',
+        status_parcela_4: 'PENDENTE',
+    };
+
+    // Insere a venda e recupera o registro inserido
+    const { data: vendaInserida, error } = await supabase.from('vendas').insert([dadosParaSalvar]).select().single();
+    
+    if (error) {
+        alert('Erro ao criar venda: ' + error.message);
+        return;
+    }
+
+    // REGISTRA O PAGAMENTO DA 1ª COMISSÃO IMEDIATAMENTE
+    const percentuais = vendaInserida.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
+    const valorComissao1 = vendaInserida.valor * percentuais[0];
+
+    if (valorComissao1 > 0) {
+        await supabase.from('pagamentos_comissao').insert({
+            venda_id: vendaInserida.id,
+            usuario_id: vendaInserida.usuario_id,
+            parcela_index: 1,
+            valor_comissao: valorComissao1,
+            mes_pagamento: dayjs().format('YYYY-MM')
+        });
+    }
+
+    // Recarrega os dados, limpa o formulário e volta para a aba de vendas
     await buscarVendas();
-    setNovaVenda({ cliente: "", grupo: "", cota: "", administradora: "GAZIN", valor: "", parcela: "cheia", mes: dayjs().format("YYYY-MM"), usuario_id: usuarioAtual?.id || "" });
-    setAba("vendas"); 
+    setNovaVenda({ cliente: "", grupo: "", cota: "", administradora: "GAZIN", valor: "", parcela: "cheia", mes: dayjs().format("YYYY-MM"), usuario_id: "" });
+    setAba("vendas");
+    alert("Venda cadastrada com sucesso!");
   };
   
   const editarVenda = (venda) => { setEditandoId(venda.id); setVendaEditada({ ...venda, valor: venda.valor.toString() }); };
@@ -107,9 +182,58 @@ export default function PainelGerenteAprimorado() {
     setEditandoId(null); setVendaEditada({}); buscarVendas(); 
   };
   const excluirVenda = async (id) => { if (window.confirm("Tem certeza?")) { await supabase.from("vendas").delete().eq("id", id); buscarVendas(); } };
-  const atualizarComissao = async (id, campo, valor) => { await supabase.from("vendas").update({ [campo]: valor }).eq("id", id); buscarVendas(); };
+ // Substitua sua função handleStatusChange atual por esta
+  const handleStatusChange = async (venda, parcelaIndex, novoStatus) => {
+    const nomeColuna = `status_parcela_${parcelaIndex}`;
+    const statusAntigo = venda[nomeColuna];
 
-  const calculosDoMes = useMemo(() => {
+    if (statusAntigo === novoStatus) {
+        console.log(`O status da Parcela ${parcelaIndex} já é ${novoStatus}.`);
+        return;
+    }
+
+    // 1. ATUALIZA O STATUS NA TABELA DE VENDAS
+    const { error: updateError } = await supabase
+        .from("vendas")
+        .update({ [nomeColuna]: novoStatus })
+        .eq("id", venda.id);
+
+    if (updateError) {
+        alert('Erro ao atualizar status da venda: ' + updateError.message);
+        return;
+    }
+
+    // 2. LÓGICA PARA ADICIONAR OU REMOVER PAGAMENTO
+    if (novoStatus === 'PAGO') {
+        // Se o novo status é PAGO, INSERE o registro de pagamento
+        const percentuais = venda.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
+        const valorComissao = venda.valor * percentuais[parcelaIndex - 1];
+
+        if (valorComissao > 0) {
+            await supabase.from('pagamentos_comissao').insert({
+                venda_id: venda.id,
+                usuario_id: venda.usuario_id,
+                parcela_index: parcelaIndex,
+                valor_comissao: valorComissao,
+                mes_pagamento: dayjs().format('YYYY-MM')
+            });
+        }
+    } else if (statusAntigo === 'PAGO') {
+        // Se o status ANTIGO era PAGO e o novo NÃO É, REMOVE o registro de pagamento
+        await supabase
+          .from('pagamentos_comissao')
+          .delete()
+          .eq('venda_id', venda.id)
+          .eq('parcela_index', parcelaIndex);
+    }
+    
+    // 3. RECARREGA OS DADOS PARA ATUALIZAR A INTERFACE
+    buscarVendas(); 
+    buscarComissoesLiberadas();
+  };
+
+// COLE ESTE BLOCO CORRIGIDO NO LUGAR DO SEU calculosDoMes ATUAL
+const calculosDoMes = useMemo(() => {
     const vendasFiltradas = vendas.filter((v) => {
         const matchVendedor = !filtros.vendedor || v.usuario_id === filtros.vendedor;
         const matchMes = !filtros.mes || v.mes === filtros.mes;
@@ -136,19 +260,18 @@ export default function PainelGerenteAprimorado() {
         totalMesTodos += valor;
       }
       
-      const tipo = venda.parcela === "cheia" ? [0.006, 0.003, 0.003] : [0.003, 0.0015, 0.0015];
-      for (let i = 0; i < 3; i++) {
-        if (venda[`comissao_${i + 1}`]) {
-          const dataComissao = dayjs(venda.mes).add(i, "month").format("YYYY-MM");
-          if (filtros.vendedor && venda.usuario_id === filtros.vendedor && dataComissao === mesBase) {
-            totalComissaoVendedor += valor * tipo[i];
-          }
-        }
+      // Lógica de cálculo da comissão P1
+      if (filtros.vendedor && venda.usuario_id === filtros.vendedor && venda.mes === mesBase) {
+        const percentuais = venda.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
+        // Linha corrigida para calcular APENAS a P1
+        const comissaoP1DaVenda = valor * percentuais[0];
+        totalComissaoVendedor += comissaoP1DaVenda;
       }
     });
 
     return { vendasFiltradas, totaisPorVendedor, totalMesTodos, totalComissaoVendedor };
   }, [vendas, usuarios, filtros]);
+
 
   // CAMINHO DE ABAS
   const abas = [
@@ -162,18 +285,20 @@ export default function PainelGerenteAprimorado() {
   
   const renderContent = () => {
     switch (aba) {
-      case 'vendas': return <AbaVendas 
-        vendasFiltradas={calculosDoMes.vendasFiltradas}
-        totalMesTodos={calculosDoMes.totalMesTodos}
-        totalComissaoVendedor={calculosDoMes.totalComissaoVendedor}
-        usuarios={usuarios}
-        filtros={filtros} setFiltros={setFiltros} 
-        nomeVendedor={nomeVendedor} 
-        editandoId={editandoId} setEditandoId={setEditandoId} 
-        vendaEditada={vendaEditada} setVendaEditada={setVendaEditada}
-        editarVenda={editarVenda} salvarEdicao={salvarEdicao} 
-        excluirVenda={excluirVenda} atualizarComissao={atualizarComissao}
-        />;
+     case 'vendas': return <AbaVendas 
+  vendasFiltradas={calculosDoMes.vendasFiltradas}
+  totalMesTodos={calculosDoMes.totalMesTodos}
+  totalComissaoVendedor={calculosDoMes.totalComissaoVendedor}
+  usuarios={usuarios}
+  filtros={filtros} setFiltros={setFiltros} 
+  nomeVendedor={nomeVendedor} 
+  editandoId={editandoId} setEditandoId={setEditandoId} 
+  vendaEditada={vendaEditada} setVendaEditada={setVendaEditada}
+  editarVenda={editarVenda} salvarEdicao={salvarEdicao} 
+  excluirVenda={excluirVenda} 
+  handleStatusChange={handleStatusChange} // <-- CORRIGIDO para a nova função
+  comissoesLiberadasMes={comissoesLiberadasMes}
+  />;
         // CASES PARA ROTAS
       case 'ranking': return <AbaRanking vendas={vendas} usuarios={usuarios} filtros={filtros} setFiltros={setFiltros} configuracoes={configuracoes} onSave={fetchConfiguracoes} />;
       case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
@@ -207,17 +332,14 @@ export default function PainelGerenteAprimorado() {
 }
 
 // --- Componente da Aba de Vendas (Dashboard) ---
-const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, atualizarComissao }) => {
-    const mesSelecionadoLabel = dayjs(filtros.mes).format("MMMM [de] YYYY");
-
+const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes }) => {    const mesSelecionadoLabel = dayjs(filtros.mes).format("MMMM [de] YYYY");
     return (
     <div className="animate-fade-in space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <StatCard icon={<FaDollarSign size={24} />} title={`Total Vendido em ${mesSelecionadoLabel}`} value={totalMesTodos} color="bg-green-500/20 text-green-400" />
             {filtros.vendedor && (
-                <StatCard icon={<FaUserTie size={24} />} title={`Comissão de ${nomeVendedor(filtros.vendedor)}`} value={totalComissaoVendedor} color="bg-yellow-500/20 text-yellow-400" />
-            )}
-        </div>
+<StatCard icon={<FaUserTie size={24} />} title={`Comissão P1 (Vendas de ${mesSelecionadoLabel})`} value={totalComissaoVendedor} color="bg-yellow-500/20 text-yellow-400" />)}    
+<StatCard icon={<FaFileInvoiceDollar size={24} />} title={`Comissões Anteriores Liberadas em ${dayjs().format('MMMM')}`} value={comissoesLiberadasMes} color="bg-blue-500/20 text-blue-400" />        </div>
         
         <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6">
             <div className="flex flex-wrap items-center gap-4 mb-6 pb-6 border-b border-gray-700">
@@ -270,8 +392,33 @@ const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usua
                                             </td>
                                             <td className="px-4 py-3 text-green-400 font-semibold">{parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
                                             <td className="px-4 py-3">{nomeVendedor(venda.usuario_id)}</td>
-                                            <td className="px-4 py-3"><div className="flex gap-3 justify-center">{[1, 2, 3].map((i) => (<input key={i} type="checkbox" checked={venda[`comissao_${i}`]} onChange={(e) => atualizarComissao(venda.id, `comissao_${i}`, e.target.checked)} className="form-checkbox h-5 w-5 bg-gray-600 rounded text-indigo-500 focus:ring-indigo-600"/>))}</div></td>
-                                            <td className="px-4 py-3"><div className="flex gap-3 justify-center"><button onClick={() => editarVenda(venda)} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={18} /></button><button onClick={() => excluirVenda(venda.id)} className="p-2 text-red-500 hover:text-red-400"><FaTrash size={18} /></button></div></td>
+<td className="px-4 py-3">
+    <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
+        {/* Parcela 1 é apenas informativa, não editável aqui */}
+        <span className={`px-2 py-1 text-xs rounded-md font-medium whitespace-nowrap ${venda.status_parcela_1 === 'PAGO' ? 'bg-green-500/20 text-green-300' : 'bg-gray-700'}`}>
+            P1: {venda.status_parcela_1 || 'PENDENTE'}
+        </span>
+
+        {/* Parcelas 2, 3 e 4 são editáveis pelo gerente */}
+        {[2, 3, 4].map((i) => {
+            const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
+            let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
+            if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
+            if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
+            if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
+
+            return (
+                <select 
+                    key={i}
+                    value={statusAtual}
+onChange={(e) => handleStatusChange(venda, i, e.target.value)}                    className={`p-1 text-xs rounded-md border focus:ring-2 focus:ring-indigo-400 font-medium ${corSeletor}`}
+                >
+                    {STATUS_OPCOES.map(opt => <option key={opt} value={opt}>{`P${i}: ${opt}`}</option>)}
+                </select>
+            );
+        })}
+    </div>
+</td>                                            <td className="px-4 py-3"><div className="flex gap-3 justify-center"><button onClick={() => editarVenda(venda)} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={18} /></button><button onClick={() => excluirVenda(venda.id)} className="p-2 text-red-500 hover:text-red-400"><FaTrash size={18} /></button></div></td>
                                         </>
                                     )}
                                 </tr>

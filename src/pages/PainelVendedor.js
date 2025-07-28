@@ -41,14 +41,24 @@ const SaleCard = ({ venda, onEdit, onDelete }) => (
       <div><p className="text-gray-400">Grupo</p><p className="font-semibold">{venda.grupo}</p></div>
       <div><p className="text-gray-400">Cota</p><p className="font-semibold">{venda.cota}</p></div>
     </div>
-    <div className="px-4 pb-4 text-xs">
-        <p className="text-gray-400 mb-1">Status das Comissões:</p>
-        <div className="flex gap-3 flex-wrap">
-            <span className={`font-medium ${venda.comissao_1 ? 'text-green-400' : 'text-gray-500'}`}>1ª Parcela</span>
-            <span className={`font-medium ${venda.comissao_2 ? 'text-green-400' : 'text-gray-500'}`}>2ª Parcela</span>
-            <span className={`font-medium ${venda.comissao_3 ? 'text-green-400' : 'text-gray-500'}`}>3ª Parcela</span>
-        </div>
+<div className="px-4 pb-4 text-xs">
+    <p className="text-gray-400 mb-1">Status das Comissões:</p>
+    <div className="flex gap-2 flex-wrap">
+        {[1, 2, 3, 4].map(i => {
+            const status = venda[`status_parcela_${i}`] || 'PENDENTE';
+            let cor = 'text-gray-500';
+            if (status === 'PAGO') cor = 'text-green-400';
+            if (status === 'VENCIDO' || status === 'ESTORNO') cor = 'text-red-400';
+            if (status === 'PENDENTE') cor = 'text-yellow-400';
+
+            return (
+                <span key={i} className={`font-semibold ${cor}`}>
+                    P{i}: {status}
+                </span>
+            );
+        })}
     </div>
+</div>
     <footer className="p-3 border-t border-gray-700/50 flex justify-end">
       <div className="flex gap-2">
         <button onClick={onEdit} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={16} /></button>
@@ -121,15 +131,23 @@ export default function PainelVendedor() {
   const [formVisivel, setFormVisivel] = useState(false);
   const [contempladas, setContempladas] = useState([]);
   const [configuracoes, setConfiguracoes] = useState({ meta_geral: 0, duplas: [] });
+  const [comissaoLiberadaMes, setComissaoLiberadaMes] = useState(0);
   const navigate = useNavigate();
 
-  const carregarTodosDados = useCallback(async (mes) => {
+const carregarTodosDados = useCallback(async (mes, userId) => {
+    if (!userId) return; // Não carrega se o ID do usuário não estiver disponível
     setLoading(true);
-    const [vendasRes, usersRes, contempladasRes, configRes] = await Promise.all([
+
+    const [vendasRes, usersRes, contempladasRes, configRes, pagamentosRes] = await Promise.all([
         supabase.from('vendas').select('*').order('created_at', { ascending: false }),
         supabase.from('usuarios_custom').select('id, nome'),
         supabase.from('contempladas').select('*'),
-        supabase.from('configuracoes_mensais').select('*').eq('mes', mes).single()
+        supabase.from('configuracoes_mensais').select('*').eq('mes', mes).single(),
+        // NOVA CHAMADA: Busca comissões pagas para o usuário no mês atual
+        supabase.from('pagamentos_comissao')
+                .select('valor_comissao')
+                .eq('usuario_id', userId)
+                .eq('mes_pagamento', dayjs().format('YYYY-MM'))
     ]);
     
     if (vendasRes.data) setAllVendas(vendasRes.data);
@@ -140,8 +158,15 @@ export default function PainelVendedor() {
     }
     if (configRes.data) setConfiguracoes(configRes.data);
     else setConfiguracoes({ mes: mes, meta_geral: 10000000, duplas: [] });
+
+    // NOVO: Calcule e defina o total de comissões liberadas
+    if (pagamentosRes.data) {
+        const totalLiberado = pagamentosRes.data.reduce((acc, item) => acc + item.valor_comissao, 0);
+        setComissaoLiberadaMes(totalLiberado);
+    }
+
     setLoading(false);
-  }, []);
+}, []);
   
   useEffect(() => {
     const getUserAndData = async () => {
@@ -154,8 +179,7 @@ export default function PainelVendedor() {
 
   useEffect(() => {
     if (usuario) {
-        carregarTodosDados(mesFiltro);
-    }
+        carregarTodosDados(mesFiltro, usuario.id);    }
   }, [usuario, mesFiltro, carregarTodosDados]);
   
   const formatInputMoeda = (txt) => {
@@ -170,14 +194,50 @@ export default function PainelVendedor() {
     return parseFloat(String(txt).replace(/\./g, '').replace(',', '.'));
   }
 
-  const handleSave = async (e) => {
+const handleSave = async (e) => {
     e.preventDefault();
-    const dados = { ...formulario, valor: desformatarMoeda(formulario.valor), mes: editandoId ? formulario.mes : dayjs(mesFiltro).format('YYYY-MM'), usuario_id: usuario.id, cliente: formulario.cliente.toUpperCase() };
-    if(!editandoId) { dados.comissao_1 = true; }
-    const { error } = editandoId ? await supabase.from('vendas').update(dados).eq('id', editandoId) : await supabase.from('vendas').insert([dados]);
-    if (error) alert('Erro: ' + error.message);
-    else { await carregarTodosDados(mesFiltro); limparFormulario(); }
-  };
+    const valorDesformatado = desformatarMoeda(formulario.valor);
+    const dadosParaSalvar = { ...formulario, valor: valorDesformatado, mes: editandoId ? formulario.mes : dayjs(mesFiltro).format('YYYY-MM'), usuario_id: usuario.id, cliente: formulario.cliente.toUpperCase() };
+
+    // Se for uma NOVA VENDA
+    if (!editandoId) {
+        // Define o status inicial de todas as parcelas
+        dadosParaSalvar.status_parcela_1 = 'PAGO';
+        dadosParaSalvar.status_parcela_2 = 'PENDENTE';
+        dadosParaSalvar.status_parcela_3 = 'PENDENTE';
+        dadosParaSalvar.status_parcela_4 = 'PENDENTE';
+        
+        // Insere a venda e recupera o registro inserido
+        const { data: vendaInserida, error } = await supabase.from('vendas').insert([dadosParaSalvar]).select().single();
+        
+        if (error) {
+            alert('Erro ao criar venda: ' + error.message);
+            return;
+        }
+
+        // REGISTRA O PAGAMENTO DA 1ª COMISSÃO IMEDIATAMENTE
+        const percentuais = vendaInserida.parcela === 'cheia' ? [0.006, 0.003, 0.003, 0] : [0.003, 0.0015, 0.0015, 0];
+        const valorComissao1 = vendaInserida.valor * percentuais[0];
+
+        if (valorComissao1 > 0) {
+            await supabase.from('pagamentos_comissao').insert({
+                venda_id: vendaInserida.id,
+                usuario_id: usuario.id,
+                parcela_index: 1,
+                valor_comissao: valorComissao1,
+                mes_pagamento: dayjs().format('YYYY-MM')
+            });
+        }
+
+    } else { // Se estiver apenas EDITANDO uma venda existente
+        const { error } = await supabase.from('vendas').update(dadosParaSalvar).eq('id', editandoId);
+        if (error) { alert('Erro ao atualizar: ' + error.message); return; }
+    }
+
+    // Recarrega todos os dados e limpa o formulário
+    await carregarTodosDados(mesFiltro, usuario.id);
+    limparFormulario();
+};
   
   const iniciarEdicao = (venda) => {
     setEditandoId(venda.id);
@@ -193,7 +253,7 @@ export default function PainelVendedor() {
         alert('Erro ao excluir: ' + error.message);
         setLoading(false);
     } else {
-        await carregarTodosDados(mesFiltro);
+await carregarTodosDados(mesFiltro, usuario.id);
         alert('Venda excluída com sucesso!');
     }
   };
@@ -206,15 +266,23 @@ export default function PainelVendedor() {
 
   const minhasVendasDoMes = useMemo(() => allVendas.filter(v => v.usuario_id === usuario?.id && v.mes === mesFiltro), [allVendas, usuario, mesFiltro]);
 
-  const totaisPessoais = useMemo(() => {
+ const totaisPessoais = useMemo(() => {
     const totalMes = minhasVendasDoMes.reduce((s, v) => s + Number(v.valor), 0);
-    const comissaoRecebida = minhasVendasDoMes.reduce((s, v) => {
-        const base = Number(v.valor); const pc = v.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
-        if (v.comissao_1) s += base * pc[0]; if (v.comissao_2) s += base * pc[1]; if (v.comissao_3) s += base * pc[2];
+    
+    // Lógica corrigida: "Comissão Prevista" agora calcula com base no status 'PAGO' das parcelas daquele mês.
+    const comissaoRecebida = minhasVendasDoMes.reduce((s, venda) => {
+        const base = Number(venda.valor);
+        const pc = venda.parcela === 'cheia' ? [0.006, 0.003, 0.003] : [0.003, 0.0015, 0.0015];
+        
+        if (venda.status_parcela_1 === 'PAGO') s += base * pc[0];
+        if (venda.status_parcela_2 === 'PAGO') s += base * pc[1];
+        if (venda.status_parcela_3 === 'PAGO') s += base * pc[2];
+        
         return s;
     }, 0);
+
     return { totalMes, comissaoRecebida };
-  }, [minhasVendasDoMes]);
+}, [minhasVendasDoMes]);
   
   const totalDisponivelContempladas = useMemo(() => {
     return contempladas
@@ -230,17 +298,60 @@ export default function PainelVendedor() {
     { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
   ];
   
-  const renderContent = () => {
+  // COLE ESTE BLOCO CORRIGIDO NO LUGAR DA SUA FUNÇÃO renderContent ATUAL
+
+const renderContent = () => {
       if (loading) return <LoadingSpinner />;
+      
       switch(aba) {
-          case 'vendas': return <AbaMinhasVendas totais={totaisPessoais} mesFiltro={mesFiltro} setMesFiltro={setMesFiltro} formVisivel={formVisivel} setFormVisivel={setFormVisivel} formulario={formulario} setFormulario={setFormulario} handleSave={handleSave} editandoId={editandoId} limparFormulario={limparFormulario} minhasVendas={minhasVendasDoMes} iniciarEdicao={iniciarEdicao} excluirVenda={excluirVenda} formatInputMoeda={formatInputMoeda}/>;
-          case 'ranking': return <AbaRankingVendedor vendas={allVendas} usuarios={allUsers} mesFiltro={mesFiltro} setMesFiltro={setMesFiltro} configuracoes={configuracoes} usuarioAtual={usuario} />;
-          case 'crm': return <PainelCRM usuarioId={usuario?.id} />;
-        case 'contempladas': return <PainelContempladasAprimorado usuario={usuario} />;          case 'hs_cotas': return <HSCotas usuario={usuario} />;
-          default: return null;
+          case 'vendas': 
+              return <AbaMinhasVendas 
+                  totais={totaisPessoais} 
+                  comissaoLiberada={comissaoLiberadaMes} 
+                  mesFiltro={mesFiltro} 
+                  setMesFiltro={setMesFiltro} 
+                  formVisivel={formVisivel} 
+                  setFormVisivel={setFormVisivel} 
+                  formulario={formulario} 
+                  setFormulario={setFormulario} 
+                  handleSave={handleSave} 
+                  editandoId={editandoId} 
+                  limparFormulario={limparFormulario} 
+                  minhasVendas={minhasVendasDoMes} 
+                  iniciarEdicao={iniciarEdicao} 
+                  excluirVenda={excluirVenda} 
+                  formatInputMoeda={formatInputMoeda} 
+              />;
+          
+          case 'ranking': 
+              return <AbaRankingVendedor 
+                  vendas={allVendas} 
+                  usuarios={allUsers} 
+                  mesFiltro={mesFiltro} 
+                  setMesFiltro={setMesFiltro} 
+                  configuracoes={configuracoes} 
+                  usuarioAtual={usuario} 
+              />;
+
+          case 'crm': 
+              return <PainelCRM 
+                  usuarioId={usuario?.id} 
+              />;
+
+          case 'contempladas': 
+              return <PainelContempladasAprimorado 
+                  usuario={usuario} 
+              />;
+
+          case 'hs_cotas': 
+              return <HSCotas 
+                  usuario={usuario} 
+              />;
+
+          default: 
+              return null;
       }
   };
-
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 animate-fade-in">
         <header className="mb-8">
@@ -259,11 +370,12 @@ export default function PainelVendedor() {
   );
 }
 
-const AbaMinhasVendas = ({ totais, mesFiltro, setMesFiltro, formVisivel, setFormVisivel, formulario, setFormulario, handleSave, editandoId, limparFormulario, minhasVendas, iniciarEdicao, excluirVenda, formatInputMoeda }) => (
+const AbaMinhasVendas = ({ totais, comissaoLiberada, mesFiltro, setMesFiltro, formVisivel, setFormVisivel, formulario, setFormulario, handleSave, editandoId, limparFormulario, minhasVendas, iniciarEdicao, excluirVenda, formatInputMoeda }) => (
     <div className="animate-fade-in">
         <div className="grid sm:grid-cols-2 gap-6 mb-8">
             <StatCard icon={<FaDollarSign size={24} />} label="Minhas Vendas no Mês" value={totais.totalMes} color="bg-green-500/20" />
             <StatCard icon={<FaHandHoldingUsd size={24} />} label="Minha Comissão Prevista" value={totais.comissaoRecebida} color="bg-yellow-500/20" />
+                <StatCard icon={<FaFileInvoiceDollar size={24} />} label="Comissão Liberada este Mês" value={comissaoLiberada} color="bg-blue-500/20" />
         </div>
         <div className="bg-gray-800/50 rounded-xl shadow-2xl p-6">
             <div className="flex justify-between items-center mb-4">
@@ -288,7 +400,7 @@ const AbaMinhasVendas = ({ totais, mesFiltro, setMesFiltro, formVisivel, setForm
                     </form>
                 )}
             </div>
-            {minhasVendas.length > 0 ? <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">{minhasVendas.map((v) => <SaleCard key={v.id} venda={v} onEdit={() => iniciarEdicao(v)} onExcluir={() => excluirVenda(v.id)} />)}</div> : <EmptyState title="Nenhuma Venda no Mês" message="Você ainda não lançou vendas para este período." />}
+            {minhasVendas.length > 0 ? <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">{minhasVendas.map((v) => <SaleCard key={v.id} venda={v} onEdit={() => iniciarEdicao(v)} onDelete={() => excluirVenda(v.id)} />)}</div> : <EmptyState title="Nenhuma Venda no Mês" message="Você ainda não lançou vendas para este período." />}
         </div>
     </div>
 );
