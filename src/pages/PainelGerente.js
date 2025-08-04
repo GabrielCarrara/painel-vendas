@@ -367,20 +367,26 @@ const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usua
                                 <tr key={venda.id} className="border-b border-gray-700/50 hover:bg-gray-700/50 transition-colors">
                                     {editandoId === venda.id ? (
                                         <>
-                                            <td className="p-2"><input value={vendaEditada.cliente} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-2 rounded w-full"/></td>
-                                            <td className="p-2">
-                                                <input value={vendaEditada.administradora} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-                                            </td>
-                                            <td className="p-2"><input type="number" value={vendaEditada.valor} onChange={(e) => setVendaEditada({ ...vendaEditada, valor: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
-                                            <td className="p-2">{nomeVendedor(venda.usuario_id)}</td>
-                                            <td className="p-2 text-center">-</td>
-                                            <td className="p-2">
-                                                <div className="flex gap-2 justify-center">
-                                                    <button onClick={salvarEdicao} className="p-2 text-green-400 hover:text-green-300"><FaSave size={18} /></button>
-                                                    <button onClick={() => setEditandoId(null)} className="p-2 text-gray-400 hover:text-gray-200"><FaTimes size={18} /></button>
-                                                </div>
-                                            </td>
-                                        </>
+    <td className="p-2"><input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-2 rounded w-full"/></td>
+    <td className="p-2 space-y-2">
+        <input placeholder="Admin" value={vendaEditada.administradora || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
+        <input placeholder="Grupo" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
+        <input placeholder="Cota" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
+        <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-2 rounded w-full">
+            <option value="cheia">Parcela Cheia</option>
+            <option value="meia">Parcela Meia</option>
+        </select>
+    </td>
+    <td className="p-2"><input type="number" value={vendaEditada.valor || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, valor: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
+    <td className="p-2">{nomeVendedor(venda.usuario_id)}</td>
+    <td className="p-2 text-center">-</td>
+    <td className="p-2">
+        <div className="flex gap-2 justify-center">
+            <button onClick={salvarEdicao} className="p-2 text-green-400 hover:text-green-300"><FaSave size={18} /></button>
+            <button onClick={() => setEditandoId(null)} className="p-2 text-gray-400 hover:text-gray-200"><FaTimes size={18} /></button>
+        </div>
+    </td>
+</>
                                     ) : (
                                         <>
                                             <td className="px-4 py-3 font-medium">{venda.cliente.toUpperCase()}</td>
