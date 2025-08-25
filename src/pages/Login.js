@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import logo from '../assets/logo.png'; // Garanta que o caminho para sua logo esteja correto
 import { FaEnvelope, FaLock, FaSpinner } from 'react-icons/fa';
+import Footer from '../components/Footer';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -143,9 +144,7 @@ const Login = () => {
       </main>
 
       {/* Rodapé que fica fixo na parte inferior */}
-      <footer className="w-full text-center p-4 text-gray-500 text-sm">
-        © {new Date().getFullYear()} Seu Sistema. Todos os direitos reservados.
-      </footer>
+      <Footer />
     </div>
   );
 };
