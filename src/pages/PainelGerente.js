@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
 import 'dayjs/locale/pt-br';
+import LembretesLeads from '../components/LembretesLeads'; // <-- ADICIONE ESTA LINHA
 import { 
     FaChartBar, FaUsers, FaPlusCircle, FaTrophy, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, 
     FaDollarSign, FaUserTie, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs,
@@ -325,6 +326,7 @@ const calculosDoMes = useMemo(() => {
             ))}
           </nav>
         </header>
+                <LembretesLeads />
         <div className="mt-6">{renderContent()}</div>
       </div>
     </div>

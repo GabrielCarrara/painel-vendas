@@ -1,5 +1,6 @@
 // src/pages/PainelVendedor.js (Versão com erros de compilação corrigidos)
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import LembretesLeads from '../components/LembretesLeads'; // Verifique o caminho
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import PainelCRM from './PainelCRM';
@@ -35,6 +36,8 @@ const SaleCard = ({ venda, onEdit, onDelete }) => (
         {venda.parcela === 'cheia' ? 'PARCELA CHEIA' : 'PARCELA MEIA'}
       </span>
     </header>
+            <LembretesLeads />
+    
     <div className="p-4 grid grid-cols-2 gap-4 text-sm flex-grow">
       <div><p className="text-gray-400">Valor</p><p className="font-semibold">{Number(venda.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
       <div><p className="text-gray-400">Admin</p><p className="font-semibold">{venda.administradora}</p></div>
