@@ -216,8 +216,8 @@ export default function PainelContempladasAprimorado({ usuario }) {
   const [mostrarModalCalculo, setMostrarModalCalculo] = useState(false);
   const [resultadoCalculo, setResultadoCalculo] = useState(null);
 
-  const podeEditar = usuario?.user_metadata?.cargo === 'admin' || usuario?.user_metadata?.cargo === 'gerente';
-  const statusOpcoes = ['TODOS', 'DISPONÍVEL', 'RESERVADO', 'EM ANÁLISE', 'VENDIDO'];
+const podeEditar = usuario?.cargo?.toLowerCase() === 'diretor';
+const statusOpcoes = ['TODOS', 'DISPONÍVEL', 'RESERVADO', 'EM ANÁLISE', 'VENDIDO'];
 
   useEffect(() => { buscarContempladas(); }, []);
   const buscarContempladas = async () => { setLoading(true); const { data, error } = await supabase.from('contempladas').select('*').order('created_at', { ascending: false }); if (!error) setContempladas(data); setLoading(false); };

@@ -1,11 +1,11 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Login from './pages/Login';
-import PainelAdmin from './pages/PainelAdmin';
 import PainelGerente from './pages/PainelGerente';
 import PainelVendedor from './pages/PainelVendedor';
 import ProtectedRoute from './routes/ProtectedRoute';
 import EditarVenda from './pages/EditarVenda';
+import PainelDiretor from './pages/PainelDiretor';
 
 export default function App() {
   return (
@@ -16,7 +16,11 @@ export default function App() {
 
           {/* rotas de admin */}
           <Route element={<ProtectedRoute allowed={['admin']} />}>
-            <Route path="/admin/*" element={<PainelAdmin />} />
+          </Route>
+
+          {/* rotas de diretor */}
+          <Route element={<ProtectedRoute allowed={['diretor']} />}>
+            <Route path="/diretor/*" element={<PainelDiretor />} />
           </Route>
 
           {/* rotas de gerente */}

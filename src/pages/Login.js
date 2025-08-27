@@ -31,9 +31,11 @@ const Login = () => {
       
       let { data: perfil } = await supabase
         .from('usuarios_custom')
-        .select('tipo')
+        .select('cargo')
         .eq('id', user.id)
         .single();
+
+console.log('Perfil recebido do Supabase:', perfil);
 
       if (!perfil) {
         const { error: insertError } = await supabase
@@ -53,19 +55,22 @@ const Login = () => {
         perfil = { tipo: 'vendedor' };
       }
       
-      switch (perfil.tipo) {
-        case 'admin':
-          navigate('/admin');
-          break;
-        case 'gerente':
-          navigate('/gerente');
-          break;
-        case 'vendedor':
-          navigate('/vendedor');
-          break;
-        default:
-          setErro('Tipo de usuário não reconhecido.');
-      }
+      switch (perfil.cargo.toLowerCase()) { // <--- CORRIGIDO
+  case 'admin':
+    navigate('/admin');
+    break;
+  case 'diretor':
+  navigate('/diretor');
+  break;
+case 'gerente':
+  navigate('/gerente');
+  break;
+  case 'vendedor':
+    navigate('/vendedor');
+    break;
+  default:
+    setErro('Tipo de usuário não reconhecido.');
+}
     } catch (error) {
       console.error("Erro no processo de login:", error.message);
       setErro('Ocorreu um erro inesperado. Tente novamente mais tarde.');

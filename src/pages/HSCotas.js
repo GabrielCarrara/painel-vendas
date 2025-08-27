@@ -24,7 +24,7 @@ export default function HSCotas({ usuario }) {
 
   const gridRef = useRef(null);
 
-  const podeGerenciar = usuario?.user_metadata?.cargo === 'admin' || usuario?.user_metadata?.cargo === 'gerente';
+const podeGerenciar = usuario?.cargo?.toLowerCase() === 'diretor';
 
   const getEstiloCota = (count, isHighlighted) => {
     let style = '';

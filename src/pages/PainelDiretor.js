@@ -1,4 +1,3 @@
-// src/pages/PainelGerente.js (Versão com Filtro de Mês na Aba Ranking)
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
@@ -11,7 +10,7 @@ import {
     FaTh,
     FaBullseye
 } from "react-icons/fa"; // <--- CORRIGIDO
-// Componentes importados (verifique os caminhos)
+
 import PainelCRM from "./PainelCRM";
 import PainelContempladas from "./PainelContempladas";
 import HSCotas from './HSCotas'; // Verifique se o caminho está correto
@@ -36,7 +35,7 @@ const EmptyStateRow = ({ message, colSpan }) => (
 );
 
 // --- Componente Principal ---
-export default function PainelGerenteAprimorado() {
+export default function PainelDiretor() {
   dayjs.locale('pt-br'); 
 
   const [aba, setAba] = useState("vendas");
@@ -50,41 +49,39 @@ export default function PainelGerenteAprimorado() {
   const [loading, setLoading] = useState(true);
   const [configuracoes, setConfiguracoes] = useState({ meta_geral: 0, duplas: [] });
   const [comissoesLiberadasMes, setComissoesLiberadasMes] = useState(0);
-  const [perfilUsuario, setPerfilUsuario] = useState(null); // <-- ADICIONE ESTA LINHA
-  const buscarUsuarios = async (perfil) => {
-let query = supabase.from("usuarios_custom").select("id, nome, id_filial").order('nome', { ascending: true });
-  // APLICA O FILTRO APENAS SE O CARGO FOR 'gerente'
-  if (perfil && perfil.tipo === 'gerente') {
-    query = query.eq('id_filial', perfil.id_filial);
-  }
-
-  const { data } = await query;
-  if (data) setUsuarios(data);
-};
-  const buscarVendas = async (perfil) => {
-  let queryVendas = supabase.from("vendas").select("*").order("created_at", { ascending: false });
-
-  // APLICA O FILTRO DE FILIAL APENAS PARA O CARGO 'gerente'
-  if (perfil && perfil.tipo === 'gerente') {
-    // 1. Pega os IDs de todos os usuários da filial do gerente
-    const { data: usuariosDaFilial } = await supabase
-      .from('usuarios_custom')
-      .select('id')
-      .eq('id_filial', perfil.id_filial);
-
-    if (usuariosDaFilial && usuariosDaFilial.length > 0) {
-      // 2. Cria um array apenas com os IDs
-      const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
-      // 3. Filtra as vendas
-      queryVendas = queryVendas.in('usuario_id', idsDosUsuarios);
-    } else {
-      // Se não encontrar usuários na filial, força a busca a não retornar nenhuma venda
-      queryVendas = queryVendas.in('usuario_id', []); 
+const [perfilUsuario, setPerfilUsuario] = useState(null);
+const [listaFiliais, setListaFiliais] = useState([]); // <-- ADICIONE ESTA LINHA
+const [filialSelecionadaId, setFilialSelecionadaId] = useState(null);
+const buscarUsuarios = async (id_filial_selecionada) => {
+    let query = supabase.from("usuarios_custom").select("id, nome, id_filial").order('nome', { ascending: true });
+    // Se uma filial for selecionada no filtro, aplica o filtro.
+    if (id_filial_selecionada) {
+        query = query.eq('id_filial', id_filial_selecionada);
     }
-  }
+    const { data } = await query;
+    if (data) setUsuarios(data);
+};
 
-  const { data } = await queryVendas;
-  if (data) setVendas(data);
+const buscarVendas = async (id_filial_selecionada) => {
+    let queryVendas = supabase.from("vendas").select("*").order("created_at", { ascending: false });
+    // Se uma filial for selecionada, busca apenas vendas daquela filial
+    if (id_filial_selecionada) {
+        const { data: usuariosDaFilial } = await supabase.from('usuarios_custom').select('id').eq('id_filial', id_filial_selecionada);
+        if (usuariosDaFilial && usuariosDaFilial.length > 0) {
+            const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
+            queryVendas = queryVendas.in('usuario_id', idsDosUsuarios);
+        } else {
+            queryVendas = queryVendas.in('usuario_id', []); // Retorna zero vendas se a filial não tiver usuários
+        }
+    }
+    const { data } = await queryVendas;
+    if (data) setVendas(data);
+};
+const buscarTodasFiliais = async () => {
+    const { data } = await supabase.from('filiais').select('*');
+    if (data) {
+        setListaFiliais(data);
+    }
 };
 // PainelGerente.js
   const buscarComissoesLiberadas = useCallback(async () => {
@@ -116,7 +113,7 @@ let query = supabase.from("usuarios_custom").select("id, nome, id_filial").order
     }
   }, [filtros.vendedor]);
   
-const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
+  const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
   if (!id_filial) return; // Não busca se não souber a filial
   const { data } = await supabase
     .from('configuracoes_mensais')
@@ -135,7 +132,7 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
 
   // PainelGerente.js
   
-  useEffect(() => {
+ useEffect(() => {
     const carregarDadosIniciais = async () => {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -144,22 +141,22 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
         setUsuarioAtual(user);
         setNovaVenda(prev => ({ ...prev, usuario_id: user.id }));
 
-        // 1. Busca o perfil completo do usuário para obter o cargo e a filial
         const { data: perfilData } = await supabase
           .from('usuarios_custom')
-          .select('*') // Pega tudo: id, nome, cargo, tipo, id_filial, etc.
+          .select('*')
           .eq('id', user.id)
           .single();
 
         if (perfilData) {
-          setPerfilUsuario(perfilData); // 2. Salva o perfil no estado
+          setPerfilUsuario(perfilData);
+          setFilialSelecionadaId(perfilData.id_filial); // Define a filial inicial
 
-          // 3. Busca os outros dados, passando o perfil para as funções de filtro
           await Promise.all([
             buscarUsuarios(perfilData),
             buscarVendas(perfilData),
             fetchConfiguracoes(filtros.mes, perfilData.id_filial),
-            buscarComissoesLiberadas()
+            buscarComissoesLiberadas(),
+            buscarTodasFiliais() // <-- ADICIONE ESTA CHAMADA
           ]);
         }
       }
@@ -167,14 +164,26 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
     };
 
     carregarDadosIniciais();
-  }, [fetchConfiguracoes, buscarComissoesLiberadas, filtros.mes]);
-  
-  useEffect(() => { 
-  if(filtros.mes && perfilUsuario) { // Adicionada verificação do perfil
-      fetchConfiguracoes(filtros.mes, perfilUsuario.id_filial); // Passa a filial
-  }
-}, [filtros.mes, fetchConfiguracoes, perfilUsuario]);
+  }, []);
   useEffect(() => {
+    // Roda sempre que o diretor muda a filial no seletor
+    if (perfilUsuario?.cargo?.toLowerCase() === 'diretor' && filialSelecionadaId) {
+        setLoading(true);
+        Promise.all([
+            buscarUsuarios(filialSelecionadaId),
+            buscarVendas(filialSelecionadaId)
+        ]).then(() => {
+            setLoading(false);
+        });
+    }
+}, [filialSelecionadaId]); // A "dependência" é a filial selecionada
+  useEffect(() => { 
+    if (filtros.mes && filialSelecionadaId) {
+        fetchConfiguracoes(filtros.mes, filialSelecionadaId);
+      }
+}, [filtros.mes, filialSelecionadaId, fetchConfiguracoes]);
+
+useEffect(() => {
     buscarComissoesLiberadas();
   }, [filtros.vendedor, buscarComissoesLiberadas]);
 
@@ -354,26 +363,19 @@ const calculosDoMes = useMemo(() => {
   comissoesLiberadasMes={comissoesLiberadasMes}
   />;
         // CASES PARA ROTAS
-case 'ranking':
-  // Se o usuário for gerente, filtra os dados. Se não, passa tudo.
-  const usuariosParaRanking = perfilUsuario?.cargo?.toLowerCase() === 'gerente'
-    ? usuarios.filter(u => u.id_filial === perfilUsuario.id_filial)
-    : usuarios;
-
-  const vendasParaRanking = perfilUsuario?.cargo?.toLowerCase() === 'gerente'
-    ? vendas.filter(v => usuariosParaRanking.some(u => u.id === v.usuario_id))
-    : vendas;
-
+case 'ranking': 
   return <AbaRanking 
-         perfilUsuario={perfilUsuario} // <-- ADICIONE ESTA LINHA FALTANTE
-         vendas={vendasParaRanking} 
-         usuarios={usuariosParaRanking} 
-         filtros={filtros} 
-         setFiltros={setFiltros} 
-         configuracoes={configuracoes} 
-         onSave={fetchConfiguracoes} 
-       />;
-      case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
+           perfilUsuario={perfilUsuario} 
+           vendas={vendas} 
+           usuarios={usuarios} 
+           filtros={filtros} 
+           setFiltros={setFiltros} 
+           configuracoes={configuracoes} 
+           onSave={fetchConfiguracoes}
+           listaFiliais={listaFiliais} // <-- ADICIONE ESTA LINHA
+           filialSelecionadaId={filialSelecionadaId} // <-- ADICIONE ESTA LINHA
+           setFilialSelecionadaId={setFilialSelecionadaId} // <-- ADICIONE ESTA LINHA
+         />;      case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
       case 'crm': return <PainelCRM />; 
       case 'contempladas': return <PainelContempladas usuario={perfilUsuario} />;
       case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;     
@@ -387,7 +389,7 @@ case 'ranking':
     <div className="bg-gray-900 text-gray-200 min-h-screen p-4 md:p-8">
       <div className="container mx-auto">
         <header className="mb-8">
-          <h1 className="text-4xl font-bold text-white">Painel do Gerente</h1>
+          <h1 className="text-4xl font-bold text-white">Painel do Diretor</h1>
           <p className="text-gray-400 mt-1">Gerencie vendas, comissões, rankings e sua equipe.</p>
           <nav className="mt-6 flex flex-wrap gap-2 border-b border-gray-700 pb-2">
             {abas.map((item) => (
@@ -543,7 +545,6 @@ const AbaNovaVenda = ({ novaVenda, setNovaVenda, cadastrarVenda, usuarios, usuar
     );
 };
 
-// --- Componente da Aba de Ranking ---
 // --- Componente da Aba de Ranking (VERSÃO FINAL CORRIGIDA) ---
 const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, configuracoes: initialConfig, onSave, listaFiliais, filialSelecionadaId, setFilialSelecionadaId }) => {
     const [config, setConfig] = useState(initialConfig);

@@ -138,23 +138,46 @@ export default function PainelVendedor() {
   const navigate = useNavigate();
 
 const carregarTodosDados = useCallback(async (mes, userId) => {
-    if (!userId) return; // Não carrega se o ID do usuário não estiver disponível
+    if (!userId) return;
     setLoading(true);
 
+    // 1. Busca o perfil do usuário atual para descobrir sua filial
+    const { data: perfil } = await supabase
+      .from('usuarios_custom')
+      .select('id_filial')
+      .eq('id', userId)
+      .single();
+
+    if (!perfil) {
+      console.error("Não foi possível encontrar o perfil do usuário.");
+      setLoading(false);
+      return;
+    }
+
+    // 2. Monta as queries filtrando pela filial do usuário
     const [vendasRes, usersRes, contempladasRes, configRes, pagamentosRes] = await Promise.all([
-        supabase.from('vendas').select('*').order('created_at', { ascending: false }),
-        supabase.from('usuarios_custom').select('id, nome'),
-        supabase.from('contempladas').select('*'),
-        supabase.from('configuracoes_mensais').select('*').eq('mes', mes).single(),
-        // NOVA CHAMADA: Busca comissões pagas para o usuário no mês atual
-        supabase.from('pagamentos_comissao')
-                .select('valor_comissao')
-                .eq('usuario_id', userId)
-                .eq('mes_pagamento', dayjs().format('YYYY-MM'))
+      // Filtra vendas de usuários da mesma filial
+      supabase.from('vendas')
+        .select('*, usuarios_custom(id_filial)')
+        .eq('usuarios_custom.id_filial', perfil.id_filial)
+        .order('created_at', { ascending: false }),
+
+      // Filtra usuários da mesma filial
+      supabase.from('usuarios_custom')
+        .select('id, nome')
+        .eq('id_filial', perfil.id_filial),
+
+      supabase.from('contempladas').select('*'),
+      supabase.from('configuracoes_mensais').select('*').eq('mes', mes).single(),
+      supabase.from('pagamentos_comissao')
+              .select('valor_comissao')
+              .eq('usuario_id', userId)
+              .eq('mes_pagamento', dayjs().format('YYYY-MM'))
     ]);
-    
+
     if (vendasRes.data) setAllVendas(vendasRes.data);
     if (usersRes.data) setAllUsers(usersRes.data);
+    // ... resto da sua função continua igual
     if (contempladasRes.data) {
         const peso = { 'DISPONÍVEL': 0, 'RESERVADO': 1, 'EM ANÁLISE': 2, 'VENDIDO': 3 };
         setContempladas(contempladasRes.data.sort((a, b) => peso[a.status] - peso[b.status]));
@@ -162,7 +185,6 @@ const carregarTodosDados = useCallback(async (mes, userId) => {
     if (configRes.data) setConfiguracoes(configRes.data);
     else setConfiguracoes({ mes: mes, meta_geral: 10000000, duplas: [] });
 
-    // NOVO: Calcule e defina o total de comissões liberadas
     if (pagamentosRes.data) {
         const totalLiberado = pagamentosRes.data.reduce((acc, item) => acc + item.valor_comissao, 0);
         setComissaoLiberadaMes(totalLiberado);
@@ -172,13 +194,26 @@ const carregarTodosDados = useCallback(async (mes, userId) => {
 }, []);
   
   useEffect(() => {
-    const getUserAndData = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { navigate('/login'); return; }
-        setUsuario(user);
-    }
-    getUserAndData();
-  }, [navigate]);
+  const getUserAndData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { navigate('/login'); return; }
+
+      // Busca o perfil completo na tabela usuarios_custom
+      const { data: perfilData } = await supabase
+        .from('usuarios_custom')
+        .select('id, nome, email, cargo') // Puxa o cargo junto
+        .eq('id', user.id)
+        .single();
+
+      // Salva o perfil completo no estado 'usuario'
+      if (perfilData) {
+        setUsuario(perfilData);
+      } else {
+        setUsuario(user); // Fallback caso não ache o perfil
+      }
+  }
+  getUserAndData();
+}, [navigate]);
 
   useEffect(() => {
     if (usuario) {
