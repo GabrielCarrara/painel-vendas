@@ -41,8 +41,7 @@ export default function PainelDiretor() {
   const [aba, setAba] = useState("vendas");
   const [vendas, setVendas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [filtros, setFiltros] = useState({ vendedor: "", mes: dayjs().format("YYYY-MM"), administradora: "" });
-  const [editandoId, setEditandoId] = useState(null);
+const [filtros, setFiltros] = useState({ vendedor: "", mes: dayjs().format("YYYY-MM"), administradora: "", filial: "" });  const [editandoId, setEditandoId] = useState(null);
   const [vendaEditada, setVendaEditada] = useState({});
   const [novaVenda, setNovaVenda] = useState({ cliente: "", grupo: "", cota: "", administradora: "GAZIN", valor: "", parcela: "cheia", mes: dayjs().format("YYYY-MM"), usuario_id: "" });
   const [usuarioAtual, setUsuarioAtual] = useState(null);
@@ -52,29 +51,13 @@ export default function PainelDiretor() {
 const [perfilUsuario, setPerfilUsuario] = useState(null);
 const [listaFiliais, setListaFiliais] = useState([]); // <-- ADICIONE ESTA LINHA
 const [filialSelecionadaId, setFilialSelecionadaId] = useState(null);
-const buscarUsuarios = async (id_filial_selecionada) => {
-    let query = supabase.from("usuarios_custom").select("id, nome, id_filial").order('nome', { ascending: true });
-    // Se uma filial for selecionada no filtro, aplica o filtro.
-    if (id_filial_selecionada) {
-        query = query.eq('id_filial', id_filial_selecionada);
-    }
-    const { data } = await query;
+const buscarUsuarios = async () => {
+    const { data } = await supabase.from("usuarios_custom").select("id, nome, id_filial").order('nome', { ascending: true });
     if (data) setUsuarios(data);
 };
 
-const buscarVendas = async (id_filial_selecionada) => {
-    let queryVendas = supabase.from("vendas").select("*").order("created_at", { ascending: false });
-    // Se uma filial for selecionada, busca apenas vendas daquela filial
-    if (id_filial_selecionada) {
-        const { data: usuariosDaFilial } = await supabase.from('usuarios_custom').select('id').eq('id_filial', id_filial_selecionada);
-        if (usuariosDaFilial && usuariosDaFilial.length > 0) {
-            const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
-            queryVendas = queryVendas.in('usuario_id', idsDosUsuarios);
-        } else {
-            queryVendas = queryVendas.in('usuario_id', []); // Retorna zero vendas se a filial não tiver usuários
-        }
-    }
-    const { data } = await queryVendas;
+const buscarVendas = async () => {
+    const { data } = await supabase.from("vendas").select("*").order("created_at", { ascending: false });
     if (data) setVendas(data);
 };
 const buscarTodasFiliais = async () => {
@@ -148,35 +131,25 @@ const buscarTodasFiliais = async () => {
           .single();
 
         if (perfilData) {
-          setPerfilUsuario(perfilData);
-          setFilialSelecionadaId(perfilData.id_filial); // Define a filial inicial
+  setPerfilUsuario(perfilData);
+  setFilialSelecionadaId(perfilData.id_filial);
 
-          await Promise.all([
-            buscarUsuarios(perfilData),
-            buscarVendas(perfilData),
-            fetchConfiguracoes(filtros.mes, perfilData.id_filial),
-            buscarComissoesLiberadas(),
-            buscarTodasFiliais() // <-- ADICIONE ESTA CHAMADA
-          ]);
-        }
+  await Promise.all([
+    buscarUsuarios(), // <-- Altere aqui (sem parâmetro)
+    buscarVendas(),   // <-- Altere aqui (sem parâmetro)
+    fetchConfiguracoes(filtros.mes, perfilData.id_filial),
+    buscarComissoesLiberadas(),
+    buscarTodasFiliais()
+  ]);
+}
       }
       setLoading(false);
     };
 
     carregarDadosIniciais();
   }, []);
-  useEffect(() => {
-    // Roda sempre que o diretor muda a filial no seletor
-    if (perfilUsuario?.cargo?.toLowerCase() === 'diretor' && filialSelecionadaId) {
-        setLoading(true);
-        Promise.all([
-            buscarUsuarios(filialSelecionadaId),
-            buscarVendas(filialSelecionadaId)
-        ]).then(() => {
-            setLoading(false);
-        });
-    }
-}, [filialSelecionadaId]); // A "dependência" é a filial selecionada
+ 
+    
   useEffect(() => { 
     if (filtros.mes && filialSelecionadaId) {
         fetchConfiguracoes(filtros.mes, filialSelecionadaId);
@@ -297,11 +270,23 @@ useEffect(() => {
 
 // COLE ESTE BLOCO CORRIGIDO NO LUGAR DO SEU calculosDoMes ATUAL
 const calculosDoMes = useMemo(() => {
+    // Primeiro, filtramos os usuários com base na filial selecionada no filtro.
+    const usuariosDaFilialFiltrada = filtros.filial
+        ? usuarios.filter(u => u.id_filial == filtros.filial)
+        : usuarios;
+
+    // Criamos uma lista de IDs desses usuários para usar no filtro de vendas.
+    const idsUsuariosDaFilial = usuariosDaFilialFiltrada.map(u => u.id);
+
     const vendasFiltradas = vendas.filter((v) => {
+        // Nova condição: a venda pertence a um usuário da filial selecionada?
+        const matchFilial = !filtros.filial || idsUsuariosDaFilial.includes(v.usuario_id);
+
         const matchVendedor = !filtros.vendedor || v.usuario_id === filtros.vendedor;
         const matchMes = !filtros.mes || v.mes === filtros.mes;
         const matchAdm = !filtros.administradora || v.administradora === filtros.administradora;
-        return matchVendedor && matchMes && matchAdm;
+
+        return matchFilial && matchVendedor && matchMes && matchAdm;
     });
 
     const totaisPorVendedor = {};
@@ -314,7 +299,7 @@ const calculosDoMes = useMemo(() => {
     vendasFiltradas.forEach((venda) => {
       const id = venda.usuario_id;
       const valor = parseFloat(venda.valor) || 0;
-      
+
       if(venda.mes === mesBase && totaisPorVendedor[id]) {
           totaisPorVendedor[id].vendido += valor;
       }
@@ -322,18 +307,16 @@ const calculosDoMes = useMemo(() => {
       if (venda.mes === mesBase) {
         totalMesTodos += valor;
       }
-      
-      // Lógica de cálculo da comissão P1
+
       if (filtros.vendedor && venda.usuario_id === filtros.vendedor && venda.mes === mesBase) {
         const percentuais = venda.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
-        // Linha corrigida para calcular APENAS a P1
         const comissaoP1DaVenda = valor * percentuais[0];
         totalComissaoVendedor += comissaoP1DaVenda;
       }
     });
 
     return { vendasFiltradas, totaisPorVendedor, totalMesTodos, totalComissaoVendedor };
-  }, [vendas, usuarios, filtros]);
+}, [vendas, usuarios, filtros]); // A dependência 'filtros' já inclui a filial
 
 
   // CAMINHO DE ABAS
@@ -349,6 +332,7 @@ const calculosDoMes = useMemo(() => {
   const renderContent = () => {
     switch (aba) {
      case 'vendas': return <AbaVendas 
+     listaFiliais={listaFiliais} 
   vendasFiltradas={calculosDoMes.vendasFiltradas}
   totalMesTodos={calculosDoMes.totalMesTodos}
   totalComissaoVendedor={calculosDoMes.totalComissaoVendedor}
@@ -407,23 +391,67 @@ case 'ranking':
 }
 
 // --- Componente da Aba de Vendas (Dashboard) ---
-const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes }) => {    const mesSelecionadoLabel = dayjs(filtros.mes).format("MMMM [de] YYYY");
+const AbaVendas = ({ listaFiliais, vendasFiltradas, totalMesTodos, totalComissaoVendedor, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes }) => {
+    const mesSelecionadoLabel = dayjs(filtros.mes).format("MMMM [de] YYYY");
+
+    // 1. CRIA UMA LISTA DE VENDEDORES QUE REAGE AO FILTRO DE FILIAL
+     const vendedoresFiltradosParaDropdown = useMemo(() => {
+        // --- Linhas de Diagnóstico ---
+        console.log("ID da Filial selecionada no filtro:", filtros.filial);
+        console.log("Dados dos usuários (verifique o id_filial de cada um):", usuarios);
+        // -----------------------------
+
+        if (!filtros.filial) {
+            return usuarios; // Se "Todas as Filiais" estiver selecionado, mostra todos.
+        }
+        // Usamos '==' para comparar, que é mais flexível com texto vs número (ex: 1 == "1")
+        return usuarios.filter(u => u.id_filial == filtros.filial);
+    }, [usuarios, filtros.filial]);
+
     return (
     <div className="animate-fade-in space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <StatCard icon={<FaDollarSign size={24} />} title={`Total Vendido em ${mesSelecionadoLabel}`} value={totalMesTodos} color="bg-green-500/20 text-green-400" />
+        {/* Cards de estatísticas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <StatCard icon={<FaDollarSign size={24} />} label={`Total Vendido em ${mesSelecionadoLabel}`} value={totalMesTodos} color="bg-green-500/20 text-green-400" />
             {filtros.vendedor && (
-<StatCard icon={<FaUserTie size={24} />} title={`Comissão P1 (Vendas de ${mesSelecionadoLabel})`} value={totalComissaoVendedor} color="bg-yellow-500/20 text-yellow-400" />)}    
-<StatCard icon={<FaFileInvoiceDollar size={24} />} title={`Comissões Anteriores Liberadas em ${dayjs().format('MMMM')}`} value={comissoesLiberadasMes} color="bg-blue-500/20 text-blue-400" />        </div>
+                <StatCard icon={<FaUserTie size={24} />} label={`Comissão P1 (Vendas de ${mesSelecionadoLabel})`} value={totalComissaoVendedor} color="bg-yellow-500/20 text-yellow-400" />
+            )}    
+            <StatCard icon={<FaFileInvoiceDollar size={24} />} label={`Comissões Anteriores Liberadas em ${dayjs().format('MMMM')}`} value={comissoesLiberadasMes} color="bg-blue-500/20 text-blue-400" />
+        </div>
         
         <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6">
+            {/* 2. FILTROS REORDENADOS E COM LÓGICA ATUALIZADA */}
             <div className="flex flex-wrap items-center gap-4 mb-6 pb-6 border-b border-gray-700">
                 <h2 className="text-xl font-semibold flex items-center gap-2 whitespace-nowrap"><FaFilter /> Filtros</h2>
-                <select value={filtros.vendedor} onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Todos os Vendedores</option>
-                    {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-                </select>
+                
+                {/* Filtro de Mês */}
                 <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500" />
+
+                {/* Filtro de Filial */}
+                <select 
+                    value={filtros.filial} 
+                    // 3. Ao mudar a filial, o filtro de vendedor é resetado
+                    onChange={(e) => setFiltros({ ...filtros, filial: e.target.value, vendedor: "" })} 
+                    className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
+                >
+                    <option value="">Todas as Filiais</option>
+                    {listaFiliais.map((filial) => (
+                        <option key={filial.id} value={filial.id}>{filial.nome}</option>
+                    ))}
+                </select>
+
+                {/* Filtro de Vendedor (agora usa a lista filtrada) */}
+                <select 
+                    value={filtros.vendedor} 
+                    onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} 
+                    className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
+                >
+                    <option value="">Todos os Vendedores</option>
+                    {/* 4. Mapeia a nova lista de vendedores que depende da filial */}
+                    {vendedoresFiltradosParaDropdown.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                </select>
+
+                {/* Filtro de Administradora */}
                 <select value={filtros.administradora} onChange={(e) => setFiltros({ ...filtros, administradora: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500">
                     <option value="">Todas Administradoras</option>
                     <option value="HS">HS</option><option value="GAZIN">GAZIN</option>
