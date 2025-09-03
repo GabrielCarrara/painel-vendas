@@ -347,19 +347,36 @@ const calculosDoMes = useMemo(() => {
   comissoesLiberadasMes={comissoesLiberadasMes}
   />;
         // CASES PARA ROTAS
-case 'ranking': 
-  return <AbaRanking 
-           perfilUsuario={perfilUsuario} 
-           vendas={vendas} 
-           usuarios={usuarios} 
-           filtros={filtros} 
-           setFiltros={setFiltros} 
-           configuracoes={configuracoes} 
-           onSave={fetchConfiguracoes}
-           listaFiliais={listaFiliais} // <-- ADICIONE ESTA LINHA
-           filialSelecionadaId={filialSelecionadaId} // <-- ADICIONE ESTA LINHA
-           setFilialSelecionadaId={setFilialSelecionadaId} // <-- ADICIONE ESTA LINHA
-         />;      case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
+case 'ranking': {
+    // 1. Filtra os usuários com base na filial selecionada no dropdown
+    const usuariosParaRanking = filialSelecionadaId
+        ? usuarios.filter(u => u.id_filial == filialSelecionadaId)
+        : usuarios; // Se nenhuma filial for selecionada, usa todos (fallback)
+
+    // Pega os IDs dos usuários filtrados para usar no filtro de vendas
+    const idsDosUsuariosParaRanking = usuariosParaRanking.map(u => u.id);
+
+    // 2. Filtra as vendas para incluir apenas as dos usuários da filial selecionada
+    const vendasParaRanking = filialSelecionadaId
+        ? vendas.filter(v => idsDosUsuariosParaRanking.includes(v.usuario_id))
+        : vendas; // Se nenhuma filial for selecionada, usa todas (fallback)
+
+    return (
+        <AbaRanking 
+            perfilUsuario={perfilUsuario} 
+            vendas={vendasParaRanking}   // <-- Passa a lista de vendas JÁ FILTRADA
+            usuarios={usuariosParaRanking} // <-- Passa a lista de usuários JÁ FILTRADA
+            filtros={filtros} 
+            setFiltros={setFiltros} 
+            configuracoes={configuracoes} 
+            onSave={fetchConfiguracoes}
+            listaFiliais={listaFiliais}
+            filialSelecionadaId={filialSelecionadaId}
+            setFilialSelecionadaId={setFilialSelecionadaId}
+        />
+    );
+}     
+        case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
       case 'crm': return <PainelCRM />; 
       case 'contempladas': return <PainelContempladas usuario={perfilUsuario} />;
       case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;     
