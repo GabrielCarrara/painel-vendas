@@ -154,40 +154,50 @@ const carregarTodosDados = useCallback(async (mes, userId) => {
       return;
     }
 
-    // 2. Monta as queries filtrando pela filial do usuário
+    // 2. Monta as queries para buscar os dados, agora usando o ID da filial do vendedor
     const [vendasRes, usersRes, contempladasRes, configRes, pagamentosRes] = await Promise.all([
       // Filtra vendas de usuários da mesma filial
       supabase.from('vendas')
         .select('*, usuarios_custom(id_filial)')
         .eq('usuarios_custom.id_filial', perfil.id_filial)
         .order('created_at', { ascending: false }),
-
+      
       // Filtra usuários da mesma filial
       supabase.from('usuarios_custom')
         .select('id, nome')
         .eq('id_filial', perfil.id_filial),
 
       supabase.from('contempladas').select('*'),
-      supabase.from('configuracoes_mensais').select('*').eq('mes', mes).single(),
+      
+      // MUDANÇA PRINCIPAL AQUI: Filtra as configurações pela filial do vendedor
+      supabase.from('configuracoes_mensais')
+              .select('*')
+              .eq('mes', mes)
+              .eq('id_filial', perfil.id_filial) // <-- FILTRO DE FILIAL ADICIONADO
+              .single(),
+
       supabase.from('pagamentos_comissao')
               .select('valor_comissao')
               .eq('usuario_id', userId)
               .eq('mes_pagamento', dayjs().format('YYYY-MM'))
     ]);
 
+    // O restante da função para processar os dados continua o mesmo...
     if (vendasRes.data) setAllVendas(vendasRes.data);
     if (usersRes.data) setAllUsers(usersRes.data);
-    // ... resto da sua função continua igual
     if (contempladasRes.data) {
         const peso = { 'DISPONÍVEL': 0, 'RESERVADO': 1, 'EM ANÁLISE': 2, 'VENDIDO': 3 };
         setContempladas(contempladasRes.data.sort((a, b) => peso[a.status] - peso[b.status]));
     }
-    if (configRes.data) setConfiguracoes(configRes.data);
-    else setConfiguracoes({ mes: mes, meta_geral: 10000000, duplas: [] });
-
+    if (configRes.data) {
+        setConfiguracoes(configRes.data);
+    } else {
+        // Se não houver configuração para a filial, mostra um padrão
+        setConfiguracoes({ mes: mes, meta_geral: 0, duplas: [] });
+    }
     if (pagamentosRes.data) {
         const totalLiberado = pagamentosRes.data.reduce((acc, item) => acc + item.valor_comissao, 0);
-        setComissaoLiberadaMes(totalLiberado);
+        setComissoaoLiberadaMes(totalLiberado);
     }
 
     setLoading(false);
