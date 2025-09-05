@@ -663,7 +663,24 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
         if (error) { alert('Erro ao salvar configurações: ' + error.message); }
         else { alert('Configurações salvas com sucesso!'); onSave(filtros.mes, id_filial_atual); }
     };
-    
+    // NOVA FUNÇÃO PARA CALCULAR OS DIAS ÚTEIS RESTANTES
+    // ==================================================================
+    const calcularDiasUteisRestantes = () => {
+        const hoje = dayjs();
+        const ultimoDiaDoMes = hoje.endOf('month').date();
+        let diasUteis = 0;
+
+        // Loop a partir de hoje até o fim do mês
+        for (let dia = hoje.date(); dia <= ultimoDiaDoMes; dia++) {
+            const dataVerificada = hoje.date(dia);
+            // day() retorna 0 para Domingo
+            if (dataVerificada.day() !== 0) {
+                diasUteis++;
+            }
+        }
+        // Retorna no mínimo 1 para evitar divisão por zero
+        return diasUteis > 0 ? diasUteis : 1;
+    };
     // ==================================================================
     // FUNÇÃO PRINCIPAL PARA GERAR O TEXTO DO WHATSAPP (VERSÃO ATUALIZADA)
     // ==================================================================
@@ -690,13 +707,15 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
             });
         }
         
-        const divisaoMeta = faltaParaMeta > 0 ? faltaParaMeta / 5 : 0;
+        // --- LÓGICA ATUALIZADA AQUI ---
+        const diasRestantes = calcularDiasUteisRestantes();
+        const divisaoMeta = faltaParaMeta > 0 ? faltaParaMeta / diasRestantes : 0;
 
         texto += `\nESCRITÓRIO:\n\n`;
         texto += `META GERAL: ${formatarValor(config.meta_geral || 0)}\n`;
         texto += `VENDIDO GERAL: ${formatarValor(vendidoGeral)}\n`;
         texto += `FALTA PARA META: ${formatarValor(faltaParaMeta > 0 ? faltaParaMeta : 0)}\n`;
-        texto += `DIVISÃO POR 5 DIAS DE VENDAS: ${formatarValor(divisaoMeta)}\n`;
+        texto += `DIVISÃO POR ${diasRestantes} DIAS DE VENDAS: ${formatarValor(divisaoMeta)}\n`;
 
         setTextoRanking(texto);
     }, [filtros.mes, rankingIndividual, totaisDuplas, vendidoGeral, faltaParaMeta, config.meta_geral]);

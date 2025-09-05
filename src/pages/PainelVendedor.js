@@ -197,8 +197,7 @@ const carregarTodosDados = useCallback(async (mes, userId) => {
     }
     if (pagamentosRes.data) {
         const totalLiberado = pagamentosRes.data.reduce((acc, item) => acc + item.valor_comissao, 0);
-        setComissoaoLiberadaMes(totalLiberado);
-    }
+setComissaoLiberadaMes(totalLiberado);    }
 
     setLoading(false);
 }, []);
