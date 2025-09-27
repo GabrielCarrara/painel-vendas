@@ -1,43 +1,45 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+// Substitua o conteúdo do seu src/App.js por este:
+
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import PublicLayout from './components/PublicLayout'; // Importa o novo layout
+
+
+// Importe as páginas PÚBLICAS que vamos criar
+import HomePage from './pages/public/HomePage';
+import ContatoPage from './pages/public/ContatoPage';
+import CartasPage from './pages/public/CartasPage';
+import SobreNosPage from './pages/public/SobreNosPage'; // <-- ADICIONE ESTA LINHA
+
+// Importe as páginas de LOGIN e PAINÉIS que já existem
 import Login from './pages/Login';
 import PainelGerente from './pages/PainelGerente';
-import PainelVendedor from './pages/PainelVendedor';
-import ProtectedRoute from './routes/ProtectedRoute';
-import EditarVenda from './pages/EditarVenda';
 import PainelDiretor from './pages/PainelDiretor';
+import PainelVendedor from './pages/PainelVendedor'; // <-- ADICIONE ESTA LINHA
 
-export default function App() {
+function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-
-          {/* rotas de admin */}
-          <Route element={<ProtectedRoute allowed={['admin']} />}>
-          </Route>
-
-          {/* rotas de diretor */}
-          <Route element={<ProtectedRoute allowed={['diretor']} />}>
-            <Route path="/diretor/*" element={<PainelDiretor />} />
-          </Route>
-
-          {/* rotas de gerente */}
-          <Route element={<ProtectedRoute allowed={['gerente']} />}>
-            <Route path="/gerente/*" element={<PainelGerente />} />
-          </Route>
-
-          {/* rotas de vendedor */}
-          <Route element={<ProtectedRoute allowed={['vendedor']} />}>
-            <Route path="/vendedor/*" element={<PainelVendedor />} />
-          </Route>
-
-          {/* fallback */}
-          <Route path="/editar-venda/:id" element={<EditarVenda />} />
-          <Route path="*" element={<Login />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <BrowserRouter>
+      <Routes>
+        {/* Rotas Públicas */}
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/sobre-nos" element={<SobreNosPage />} /> {/* <-- ADICIONE ESTA LINHA */}
+          <Route path="/contato" element={<ContatoPage />} />
+          <Route path="/cartas" element={<CartasPage />} />
+        </Route>
+        
+        {/* Rotas de Login e Painéis (sem o layout público) */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/vendedor" element={<PainelVendedor />} />
+        <Route path="/gerente" element={<PainelGerente />} />
+        <Route path="/diretor" element={<PainelDiretor />} />
+        
+        {/* Redirecionamento para a página inicial caso a rota não exista */}
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
+
+export default App;
