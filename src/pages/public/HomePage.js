@@ -32,7 +32,7 @@ export default function HomePage() {
     
     const handleLeadSubmit = (e) => {
         e.preventDefault();
-        const numeroCentral = '5565992263485';
+        const numeroCentral = '5565981278212';
         let mensagem = `Olá, Fênix Consórcios! Tenho interesse em uma simulação.\n\n*Nome:* ${leadData.nome}\n*Telefone:* ${leadData.telefone}\n`;
         if (leadData.email) mensagem += `*E-mail:* ${leadData.email}\n`;
         mensagem += `*Interesse:* ${leadData.interesse}\n`;
