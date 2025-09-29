@@ -1,7 +1,6 @@
-// src/pages/public/SobreNosPage.js
+// src/pages/public/SobreNosPage.js - VERSÃO COM CORREÇÃO FINAL
 
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import ProfileCard from './ProfileCard';
 import { FaEye, FaHandshake, FaStar } from 'react-icons/fa';
@@ -9,26 +8,41 @@ import { FaEye, FaHandshake, FaStar } from 'react-icons/fa';
 const historiaBgUrl = 'https://images.pexels.com/photos/164634/pexels-photo-164634.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1';
 
 export default function SobreNosPage() {
-    // ESTADO PARA ARMAZENAR AS FOTOS DA GALERIA
-    const [fotosGaleria, setFotosGaleria] = useState([]);
-    const socios = [
-        { nome: "RODRIGO CÉSAR DE LIMA", cargo: "Sócio-Diretor", avatarBgColor: "bg-fenix-purple" },
-        { nome: "GLEDSON FERREIRA DE SOUZA", cargo: "Sócio-Diretor", avatarBgColor: "bg-fenix-orange" },
-        { nome: "ANILTON APARECIDO NOVAIS JUNIOR", cargo: "Sócio-Diretor", avatarBgColor: "bg-fenix-pink" }
-    ];
- useEffect(() => {
+    // --- ESTADOS PARA OS DADOS DINÂMICOS ---
+    const [lideranca, setLideranca] = useState([]);
+    const [fotosGaleria, setFotosGaleria] = useState([]); // <-- LINHA QUE ESTAVA FALTANDO
+
+    // --- USEEFFECT PARA BUSCAR LÍDERES E FOTOS ---
+    useEffect(() => {
+        const buscarLideres = async () => {
+            const { data } = await supabase
+                .from('usuarios_custom')
+                .select('*')
+                .in('cargo', ['diretor', 'sócio-diretor']);
+            if (data) setLideranca(data);
+        };
+
         const buscarFotos = async () => {
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('galeria')
                 .select('image_url, caption')
-                .order('created_at', { ascending: false }); // Pega as mais recentes primeiro
-
-            if (data) {
-                setFotosGaleria(data);
-            }
+                .order('created_at', { ascending: false });
+            if (data) setFotosGaleria(data);
         };
+
+        buscarLideres();
         buscarFotos();
     }, []);
+
+    // --- FILTRA OS SÓCIOS DA LISTA DE LÍDERES ---
+    const socios = useMemo(() => 
+        lideranca.filter(p => 
+            p.nome.toUpperCase() === 'RODRIGO CÉSAR DE LIMA' || 
+            p.nome.toUpperCase() === 'GLEDSON FERREIRA DE SOUZA' || 
+            p.nome.toUpperCase() === 'ANILTON APARECIDO NOVAIS JUNIOR'
+        ),
+    [lideranca]);
+
     return (
         <div className="bg-slate-50 text-slate-800">
             {/* --- SEÇÃO 1: NOSSA HISTÓRIA --- */}
@@ -72,17 +86,15 @@ export default function SobreNosPage() {
                     <h2 className="text-4xl font-bold text-center mb-2 text-fenix-purple">Nossa Liderança</h2>
                     <div className="w-24 h-1 bg-fenix-orange mx-auto mb-12"></div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                        {socios.map(socio => <ProfileCard key={socio.nome} {...socio} />)}
+                        {socios.map(socio => <ProfileCard key={socio.id} {...socio} cargo="Sócio-Diretor" />)}
                     </div>
                  </div>
             </section>
 
-        {/* --- SEÇÃO 4: GALERIA DE FOTOS (AGORA DINÂMICA) --- */}
+            {/* --- SEÇÃO 4: GALERIA DE FOTOS --- */}
             <section className="py-20 bg-white">
                 <div className="container mx-auto px-6 text-center">
                     <h2 className="text-4xl font-bold mb-12 text-fenix-purple">Nossos Momentos</h2>
-                    
-                    {/* Renderiza as fotos buscadas do Supabase */}
                     {fotosGaleria.length > 0 ? (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             {fotosGaleria.map((foto, index) => (

@@ -1,43 +1,66 @@
-// src/components/PublicLayout.js - VERSÃO COM RODAPÉ COMPLETO
+// src/components/PublicLayout.js - VERSÃO COM MENU MOBILE
 
-import React from 'react';
+import React, { useState } from 'react'; // Adicionado useState
 import { Outlet, Link, NavLink } from 'react-router-dom';
 import logo from '../assets/logo.png';
-// Ícones para as redes sociais adicionados
-import { FaInstagram, FaFacebook } from 'react-icons/fa';
+// Adicionados ícones para o menu mobile
+import { FaInstagram, FaFacebook, FaEllipsisV, FaTimes } from 'react-icons/fa';
 
-const Navbar = () => (
-    <header className="bg-fenix-orange text-white shadow-lg sticky top-0 z-40">
-        <nav className="container mx-auto px-6 py-2 flex justify-between items-center">
-            <Link to="/">
-                <img src={logo} alt="Fênix Consórcios" className="h-20 transition-transform duration-300 hover:scale-105" />
-            </Link>
-            <div className="hidden md:flex items-center space-x-8 text-lg font-medium">
-                <NavLink to="/" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>
-                    Home
-                    <span className="absolute bottom-[-2px] left-0 w-full h-0.5 bg-white transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
-                </NavLink>
-                <NavLink to="/sobre-nos" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>
-                    Sobre Nós
-                    <span className="absolute bottom-[-2px] left-0 w-full h-0.5 bg-white transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
-                </NavLink>
-                <NavLink to="/cartas" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>
-                    Cartas Contempladas
-                    <span className="absolute bottom-[-2px] left-0 w-full h-0.5 bg-white transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
-                </NavLink>
-                <NavLink to="/contato" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>
-                    Contato
-                    <span className="absolute bottom-[-2px] left-0 w-full h-0.5 bg-white transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
-                </NavLink>
+const Navbar = () => {
+    // Estado para controlar se o menu mobile está aberto ou fechado
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+    return (
+        <header className="bg-fenix-orange text-white shadow-lg sticky top-0 z-40">
+            <nav className="container mx-auto px-6 py-2 flex justify-between items-center">
+                <Link to="/">
+                    <img src={logo} alt="Fênix Consórcios" className="h-20 transition-transform duration-300 hover:scale-105" />
+                </Link>
+
+                {/* Menu para Desktop (esconde em telas pequenas) */}
+                <div className="hidden md:flex items-center space-x-8 text-lg font-medium">
+                    <NavLink to="/" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>Home</NavLink>
+                    <NavLink to="/sobre-nos" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>Sobre Nós</NavLink>
+                    <NavLink to="/cartas" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>Cartas Contempladas</NavLink>
+                    <NavLink to="/contato" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>Contato</NavLink>
+                </div>
+                
+                <div className="hidden md:flex">
+                    <Link to="/login" className="bg-white text-fenix-orange font-bold py-3 px-6 rounded-full text-base transition-all duration-300 transform hover:scale-105 hover:bg-slate-200">
+                        Área Restrita
+                    </Link>
+                </div>
+
+                {/* Botão do Menu Mobile (só aparece em telas pequenas) */}
+                <div className="md:hidden">
+                    <button onClick={() => setIsMenuOpen(true)} className="p-2">
+                        <FaEllipsisV size={24} />
+                    </button>
+                </div>
+            </nav>
+
+            {/* Painel do Menu Mobile (abre e fecha) */}
+            <div className={`fixed inset-0 bg-gray-900/95 backdrop-blur-sm z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'} md:hidden`}>
+                <div className="flex justify-between items-center p-6 border-b border-gray-800">
+                    <span className="text-xl font-bold text-fenix-orange">Navegação</span>
+                    <button onClick={() => setIsMenuOpen(false)} className="p-2">
+                        <FaTimes size={28} />
+                    </button>
+                </div>
+                <div className="flex flex-col items-center justify-center h-full -mt-16 text-2xl space-y-8">
+                    <NavLink to="/" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Home</NavLink>
+                    <NavLink to="/sobre-nos" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Sobre Nós</NavLink>
+                    <NavLink to="/cartas" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Cartas Contempladas</NavLink>
+                    <NavLink to="/contato" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Contato</NavLink>
+                    <Link to="/login" onClick={() => setIsMenuOpen(false)} className="mt-8 border-2 border-fenix-orange text-fenix-orange font-semibold py-3 px-8 rounded-full">
+                        Área Restrita
+                    </Link>
+                </div>
             </div>
-            <Link to="/login" 
-                  className="bg-white text-fenix-orange font-bold py-3 px-6 rounded-full text-base 
-                             transition-all duration-300 transform hover:scale-105 hover:bg-slate-200">
-                Área Restrita
-            </Link>
-        </nav>
-    </header>
-);
+        </header>
+    );
+};
+
 
 // --- COMPONENTE DE RODAPÉ ATUALIZADO ---
 const Footer = () => (
