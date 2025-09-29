@@ -1,5 +1,3 @@
-// src/pages/public/ListaVendedores.js - VERSÃO COM CARGO ADICIONADO
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { FaWhatsapp } from 'react-icons/fa';

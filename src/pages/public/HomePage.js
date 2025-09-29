@@ -1,8 +1,6 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
-import { FaWhatsapp, FaUsers, FaBuilding, FaCheckCircle, FaLightbulb, FaCar, FaHome, FaChartLine, FaArrowRight, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaWhatsapp, FaUsers, FaBuilding, FaCheckCircle, FaLightbulb, FaCar, FaHome, FaChartLine, FaArrowRight, FaMapMarkerAlt, FaPaperPlane } from 'react-icons/fa';
 import ListaVendedores from './ListaVendedores';
 import logoGazin from '../../assets/logo-gazin.png';
 import logoHS from '../../assets/logo-hs.png';
@@ -12,10 +10,14 @@ const backgroundImageUrl = minhaImagem;
 
 export default function HomePage() {
     const [contatoAberto, setContatoAberto] = useState(false);
-    const [filialSelecionada, setFilialSelecionada] = useState('');
-    const [adminFilialSelecionada, setAdminFilialSelecionada] = useState('');
-    const [contatosAdmin, setContatosAdmin] = useState([]);
     const secaoContatoRef = useRef(null);
+    const [leadData, setLeadData] = useState({
+        nome: '',
+        telefone: '',
+        email: '',
+        interesse: 'AUTOMÓVEL',
+        mensagem: ''
+    });
 
     useEffect(() => {
         if (contatoAberto) {
@@ -23,23 +25,25 @@ export default function HomePage() {
         }
     }, [contatoAberto]);
 
-    useEffect(() => {
-        const buscarContatosAdmin = async () => {
-            const { data } = await supabase.from('usuarios_custom').select('nome, cargo, telefone, foto_url, id_filial').in('cargo', ['diretor', 'gerente']).eq('ativo', true);
-            if (data) setContatosAdmin(data);
-        };
-        buscarContatosAdmin();
-    }, []);
-
-    const adminParaExibir = useMemo(() => {
-        if (!adminFilialSelecionada) return [];
-        if (adminFilialSelecionada === '1') return contatosAdmin.filter(admin => admin.nome.toUpperCase() === 'GABRIEL COSTA CARRARA');
-        if (adminFilialSelecionada === '2') return contatosAdmin.filter(admin => admin.nome.toUpperCase() === 'LUCAS DOS SANTOS RIBEIRO');
-        return [];
-    }, [contatosAdmin, adminFilialSelecionada]);
+    const handleLeadChange = (e) => {
+        const { name, value } = e.target;
+        setLeadData(prev => ({ ...prev, [name]: value }));
+    };
     
+    const handleLeadSubmit = (e) => {
+        e.preventDefault();
+        const numeroCentral = '5565992263485';
+        let mensagem = `Olá, Fênix Consórcios! Tenho interesse em uma simulação.\n\n*Nome:* ${leadData.nome}\n*Telefone:* ${leadData.telefone}\n`;
+        if (leadData.email) mensagem += `*E-mail:* ${leadData.email}\n`;
+        mensagem += `*Interesse:* ${leadData.interesse}\n`;
+        if (leadData.mensagem) mensagem += `*Mensagem:* ${leadData.mensagem}\n`;
+        const urlWhatsApp = `https://wa.me/${numeroCentral}?text=${encodeURIComponent(mensagem)}`;
+        window.open(urlWhatsApp, '_blank');
+    };
+
     return (
-        <div className="text-slate-800">
+        
+            <div className="text-slate-800">
            {/* --- HERO SECTION --- */}
            <section 
                 className="relative min-h-[70vh] flex items-center justify-center bg-cover bg-center"
@@ -66,60 +70,48 @@ export default function HomePage() {
                 </div>
             </section>
 
-            {/* --- SEÇÃO DE CONTATO (AGORA REDESENHADA) --- */}
+            {/* --- SEÇÃO DO GERADOR DE LEADS (SUBSTITUI A ANTIGA SEÇÃO DE CONTATO) --- */}
             <div ref={secaoContatoRef}>
                 {contatoAberto && (
-                    <section className="bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 py-20 animate-fade-in">
+                    <section className="bg-slate-200 py-20 animate-fade-in">
                         <div className="container mx-auto px-6 text-center">
-                            <h2 className="text-4xl font-bold mb-4 text-fenix-purple">Como podemos ajudar?</h2>
-                            <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-12">
-                                Seja para uma parceria, um novo plano de consórcio ou para falar com nossa equipe, escolha uma das opções abaixo.
+                            <h2 className="text-4xl font-bold mb-4 text-fenix-purple">Simulação Rápida</h2>
+                            <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-10">
+                                Preencha os campos abaixo e envie para nosso WhatsApp. Um de nossos especialistas entrará em contato em breve!
                             </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start max-w-5xl mx-auto">
-                                
-                                {/* Card Administrativo */}
-                                <div className="bg-white p-8 rounded-xl shadow-lg transition-all duration-300 hover:shadow-2xl hover:-translate-y-2">
-                                    <div className="inline-block bg-purple-100 text-fenix-purple rounded-full p-4 mb-4">
-                                        <FaBuilding size={40} />
-                                    </div>
-                                    <h3 className="text-2xl font-bold mb-4 text-slate-900">Setor Administrativo</h3>
-                                    <div className="mb-4">
-                                        <label className="block mb-2 text-slate-600">Para qual filial é o seu contato?</label>
-                                        <select onChange={(e) => setAdminFilialSelecionada(e.target.value)} className="w-full bg-slate-100 p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-fenix-orange">
-                                            <option value="">-- Escolha uma filial --</option>
-                                            <option value="1">Pontes e Lacerda</option>
-                                            <option value="2">Mirassol D'Oeste</option>
-                                        </select>
-                                    </div>
-                                    {adminParaExibir.map(admin => (
-                                        <div key={admin.nome} className="bg-slate-50 p-4 rounded-lg text-center mt-4 animate-fade-in">
-                                            <img src={admin.foto_url || `https://ui-avatars.com/api/?name=${admin.nome}&background=6A1B9A&color=fff`} alt={admin.nome} className="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-fenix-orange" />
-                                            <h4 className="font-bold text-slate-900">{admin.nome}</h4>
-                                            <p className="text-sm text-fenix-purple capitalize">{admin.cargo.toLowerCase()}</p>
-                                            <a href={`https://wa.me/55${admin.telefone}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
-                                                <FaWhatsapp /> Falar com o Administrativo
-                                            </a>
-                                        </div>
-                                    ))}
+                            <form onSubmit={handleLeadSubmit} className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg text-left space-y-4">
+                                <div>
+                                    <label className="block font-semibold mb-1">Nome Completo*</label>
+                                    <input type="text" name="nome" value={leadData.nome} onChange={handleLeadChange} required className="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-fenix-orange"/>
                                 </div>
-                                
-                                {/* Card Vendedor */}
-                                <div className="bg-white p-8 rounded-xl shadow-lg transition-all duration-300 hover:shadow-2xl hover:-translate-y-2">
-                                    <div className="inline-block bg-pink-100 text-fenix-pink rounded-full p-4 mb-4">
-                                        <FaUsers size={40} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block font-semibold mb-1">Telefone (WhatsApp)*</label>
+                                        <input type="tel" name="telefone" value={leadData.telefone} onChange={handleLeadChange} required className="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-fenix-orange"/>
                                     </div>
-                                    <h3 className="text-2xl font-bold mb-4 text-slate-900">Falar com um Vendedor</h3>
-                                    <div className="mb-4">
-                                        <label className="block mb-2 text-slate-600">Selecione sua cidade:</label>
-                                        <select onChange={(e) => setFilialSelecionada(e.target.value)} className="w-full bg-slate-100 p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-fenix-orange">
-                                            <option value="">-- Escolha uma filial --</option>
-                                            <option value="1">Pontes e Lacerda</option>
-                                            <option value="2">Mirassol D'Oeste</option>
-                                        </select>
+                                    <div>
+                                        <label className="block font-semibold mb-1">E-mail</label>
+                                        <input type="email" name="email" value={leadData.email} onChange={handleLeadChange} className="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-fenix-orange"/>
                                     </div>
-                                    {filialSelecionada && <ListaVendedores filialId={filialSelecionada} />}
                                 </div>
-                            </div>
+                                <div>
+                                    <label className="block font-semibold mb-1">Tenho interesse em:</label>
+                                    <select name="interesse" value={leadData.interesse} onChange={handleLeadChange} className="w-full p-3 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-fenix-orange">
+                                        <option>AUTOMÓVEL</option>
+                                        <option>IMÓVEL</option>
+                                        <option>ELETRO</option>
+                                        <option>INVESTIMENTO</option>
+                                        <option>OUTRO</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block font-semibold mb-1">Mensagem (opcional)</label>
+                                    <textarea name="mensagem" value={leadData.mensagem} onChange={handleLeadChange} rows="4" className="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-fenix-orange"></textarea>
+                                </div>
+                                <button type="submit" className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-lg text-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2">
+                                    <FaWhatsapp size={24} /> Enviar via WhatsApp
+                                </button>
+                            </form>
                         </div>
                     </section>
                 )}

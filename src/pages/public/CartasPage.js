@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { FaCar, FaHome, FaBlender, FaCalculator, FaTimes, FaClipboard, FaWhatsapp, FaInfoCircle } from 'react-icons/fa';
 
-// --- Funções Auxiliares (sem alterações) ---
 const formatarParaReal = (valor) => {
     if (!valor && valor !== 0) return 'R$ 0,00';
     return (Number(valor) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -143,6 +142,7 @@ export default function CartasPage() {
     const tiposDeCarta = ['TODOS', 'AUTOMÓVEL', 'IMÓVEL', 'ELETRO'];
 
     return (
+      
         <div>
             {/* Seção de Introdução */}
             <section className="bg-white">

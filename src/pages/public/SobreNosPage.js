@@ -1,5 +1,3 @@
-// src/pages/public/SobreNosPage.js - VERSÃO COM CORREÇÃO FINAL
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import ProfileCard from './ProfileCard';
@@ -44,7 +42,8 @@ export default function SobreNosPage() {
     [lideranca]);
 
     return (
-        <div className="bg-slate-50 text-slate-800">
+        
+            <div className="bg-slate-50 text-slate-800">
             {/* --- SEÇÃO 1: NOSSA HISTÓRIA --- */}
             <section className="relative py-24 text-white bg-cover bg-center" style={{ backgroundImage: `url(${historiaBgUrl})` }}>
                 <div className="absolute inset-0 bg-black/70"></div>
