@@ -16,6 +16,7 @@ import Login from './pages/Login';
 import PainelGerente from './pages/PainelGerente';
 import PainelDiretor from './pages/PainelDiretor';
 import PainelVendedor from './pages/PainelVendedor'; // <-- ADICIONE ESTA LINHA
+import ConsultorPage from './pages/public/ConsultorPage'; // <-- IMPORTA A NOVA PÁGINA
 
 function App() {
   return (
