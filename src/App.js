@@ -10,7 +10,7 @@ import HomePage from './pages/public/HomePage';
 import ContatoPage from './pages/public/ContatoPage';
 import CartasPage from './pages/public/CartasPage';
 import SobreNosPage from './pages/public/SobreNosPage'; // <-- ADICIONE ESTA LINHA
-
+import AplicativosPage from './pages/public/AplicativosPage'; // <-- IMPORT ADICIONADO
 // Importe as páginas de LOGIN e PAINÉIS que já existem
 import Login from './pages/Login';
 import PainelGerente from './pages/PainelGerente';
@@ -26,6 +26,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/sobre-nos" element={<SobreNosPage />} /> {/* <-- ADICIONE ESTA LINHA */}
           <Route path="/contato" element={<ContatoPage />} />
+                    <Route path="/aplicativos" element={<AplicativosPage />} /> {/* <-- ROTA ADICIONADA */}
           <Route path="/cartas" element={<CartasPage />} />
         </Route>
         

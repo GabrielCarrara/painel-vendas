@@ -23,6 +23,7 @@ const Navbar = () => {
                     <NavLink to="/sobre-nos" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>Sobre Nós</NavLink>
                     <NavLink to="/cartas" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>Cartas Contempladas</NavLink>
                     <NavLink to="/contato" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>Contato</NavLink>
+                    <NavLink to="/aplicativos" className={({ isActive }) => `relative group ${isActive ? "font-bold" : ""}`}>Aplicativos<span className="absolute bottom-[-2px] left-0 w-full h-0.5 bg-white transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span></NavLink>
                 </div>
                 
                 <div className="hidden md:flex">
@@ -52,6 +53,7 @@ const Navbar = () => {
                     <NavLink to="/sobre-nos" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Sobre Nós</NavLink>
                     <NavLink to="/cartas" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Cartas Contempladas</NavLink>
                     <NavLink to="/contato" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Contato</NavLink>
+                                        <NavLink to="/aplicativos" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Aplicativos</NavLink>
                     <Link to="/login" onClick={() => setIsMenuOpen(false)} className="mt-8 border-2 border-fenix-orange text-fenix-orange font-semibold py-3 px-8 rounded-full">
                         Área Restrita
                     </Link>
