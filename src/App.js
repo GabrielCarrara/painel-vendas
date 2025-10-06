@@ -37,6 +37,11 @@ function App() {
         <Route path="/gerente" element={<PainelGerente />} />
         <Route path="/diretor" element={<PainelDiretor />} />
         
+        {/* ROTA DINÂMICA DO CONSULTOR (sem o menu principal) */}
+        <Route path="/:slug" element={<ConsultorPage />} />
+        
+        <Route path="*" element={<Navigate to="/" />} />
+        
         {/* Redirecionamento para a página inicial caso a rota não exista */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
