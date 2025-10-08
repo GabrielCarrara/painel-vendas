@@ -83,7 +83,7 @@ export default function AplicativosPage() {
                         logo={logoGazin}
                         title="Gazin Consórcios"
                         siteLink="https://consorciogazin.com.br/area-do-cliente"
-                        iosLink="https://apps.apple.com/br/app/gazin-cons%C3%B3rcio/id674813846"
+                        iosLink="https://apps.apple.com/br/app/gazin-cons%C3%B3rcio/id6748138462"
                         androidLink="https://play.google.com/store/apps/details?id=br.com.gazin.consorcio&pcampaignid=web_share"
                         instructions={instructionsGazin}
                     />
