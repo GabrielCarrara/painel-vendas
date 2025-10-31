@@ -64,15 +64,15 @@ serve(async (req) => {
 
     const { error: profileError } = await supabaseAdmin
       .from('usuarios_custom')
-      .insert({
-        id: newUserId,
+      .update({
         nome: nome,
         email: email,
         cargo: cargo, 
-id_filial: parseInt(id_filial, 10) || null,
+        id_filial: parseInt(id_filial, 10) || null,
         telefone: telefone,
         ativo: true
       })
+      .eq('id', newUserId)
 
     if (profileError) {
       await supabaseAdmin.auth.admin.deleteUser(newUserId)
