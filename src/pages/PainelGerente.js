@@ -1,36 +1,48 @@
-// src/pages/PainelGerente.js (Versão com Filtro de Mês na Aba Ranking)
+// src/pages/PainelGerente.js (Versão 100% Completa e Corrigida)
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
 import 'dayjs/locale/pt-br';
-import LembretesLeads from '../components/LembretesLeads'; // <-- ADICIONE ESTA LINHA
+import LembretesLeads from '../components/LembretesLeads';
 import { 
     FaChartBar, FaUsers, FaPlusCircle, FaTrophy, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, 
     FaDollarSign, FaUserTie, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs,
-    FaFileInvoiceDollar, // <-- ÍCONE ADICIONADO AQUI
+    FaFileInvoiceDollar,
     FaTh,
     FaBullseye
-} from "react-icons/fa"; // <--- CORRIGIDO
+} from "react-icons/fa";
+
+// --- NOVOS IMPORTS ---
+import { useNavigate } from 'react-router-dom';
+import { FaSignOutAlt, FaUserCircle } from 'react-icons/fa';
+import MinhaContaModal from '../components/MinhaContaModal'; // Verifique se o caminho está correto
+// --- FIM DOS NOVOS IMPORTS ---
+
 // Componentes importados (verifique os caminhos)
 import PainelCRM from "./PainelCRM";
 import PainelContempladas from "./PainelContempladas";
-import HSCotas from './HSCotas'; // Verifique se o caminho está correto
-const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0]; // Comissão: 1.2% total (0.6, 0.3, 0.3). Parcela 4 não tem comissão.
-const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0]; // Comissão: 0.6% total (0.3, 0.15, 0.15). Parcela 4 não tem comissão.
+import HSCotas from './HSCotas';
+
+// --- Constantes ---
+const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0];
+const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0];
 const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO'];
+
 // --- Componentes de UI Reutilizáveis ---
-const StatCard = ({ icon, label, value, color }) => ( // Note que a prop se chama 'label'
+const StatCard = ({ icon, label, value, color }) => (
   <div className="bg-gray-800 p-5 rounded-xl shadow-lg flex items-center space-x-4 transition-transform hover:scale-105">
     <div className={`p-3 rounded-full ${color}`}>{icon}</div>
     <div>
-      <p className="text-sm text-gray-400">{label}</p> {/* <-- LINHA ADICIONADA/CORRIGIDA */}
+      <p className="text-sm text-gray-400">{label}</p>
       <p className="text-2xl font-bold text-white">{(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
     </div>
   </div>
 );
+
 const LoadingSpinner = () => (
     <div className="flex justify-center items-center h-screen bg-gray-900"><div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500"></div></div>
 );
+
 const EmptyStateRow = ({ message, colSpan }) => (
     <tr><td colSpan={colSpan} className="text-center py-10"><div className="flex flex-col items-center gap-2 text-gray-500"><FaExclamationTriangle size={32} /><p className="font-semibold">{message}</p></div></td></tr>
 );
@@ -39,6 +51,7 @@ const EmptyStateRow = ({ message, colSpan }) => (
 export default function PainelGerenteAprimorado() {
   dayjs.locale('pt-br'); 
 
+  // --- States do Painel ---
   const [aba, setAba] = useState("vendas");
   const [vendas, setVendas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -46,59 +59,81 @@ export default function PainelGerenteAprimorado() {
   const [editandoId, setEditandoId] = useState(null);
   const [vendaEditada, setVendaEditada] = useState({});
   const [novaVenda, setNovaVenda] = useState({ cliente: "", grupo: "", cota: "", administradora: "GAZIN", valor: "", parcela: "cheia", mes: dayjs().format("YYYY-MM"), usuario_id: "" });
-  const [usuarioAtual, setUsuarioAtual] = useState(null);
+  const [usuarioAtual, setUsuarioAtual] = useState(null); // Auth user
   const [loading, setLoading] = useState(true);
   const [configuracoes, setConfiguracoes] = useState({ meta_geral: 0, duplas: [] });
   const [comissoesLiberadasMes, setComissoesLiberadasMes] = useState(0);
-  const [perfilUsuario, setPerfilUsuario] = useState(null); // <-- ADICIONE ESTA LINHA
+  const [perfilUsuario, setPerfilUsuario] = useState(null); // Perfil da tabela usuarios_custom
+
+  // --- NOVOS STATES (Conta e Logout) ---
+  const navigate = useNavigate();
+  const [modalContaVisivel, setModalContaVisivel] = useState(false);
+
+  // --- NOVA FUNÇÃO DE LOGOUT ---
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
+
+  // --- Funções de Busca de Dados ---
   const buscarUsuarios = async (perfil) => {
-let query = supabase.from("usuarios_custom").select("id, nome, id_filial").order('nome', { ascending: true });
-  // APLICA O FILTRO APENAS SE O CARGO FOR 'gerente'
-  if (perfil && perfil.tipo === 'gerente') {
-    query = query.eq('id_filial', perfil.id_filial);
-  }
-
-  const { data } = await query;
-  if (data) setUsuarios(data);
-};
-  const buscarVendas = async (perfil) => {
-  let queryVendas = supabase.from("vendas").select("*").order("created_at", { ascending: false });
-
-  // APLICA O FILTRO DE FILIAL APENAS PARA O CARGO 'gerente'
-  if (perfil && perfil.tipo === 'gerente') {
-    // 1. Pega os IDs de todos os usuários da filial do gerente
-    const { data: usuariosDaFilial } = await supabase
-      .from('usuarios_custom')
-      .select('id')
-      .eq('id_filial', perfil.id_filial);
-
-    if (usuariosDaFilial && usuariosDaFilial.length > 0) {
-      // 2. Cria um array apenas com os IDs
-      const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
-      // 3. Filtra as vendas
-      queryVendas = queryVendas.in('usuario_id', idsDosUsuarios);
-    } else {
-      // Se não encontrar usuários na filial, força a busca a não retornar nenhuma venda
-      queryVendas = queryVendas.in('usuario_id', []); 
+    let query = supabase.from("usuarios_custom").select("id, nome, id_filial").order('nome', { ascending: true });
+    
+    // APLICA O FILTRO APENAS SE O CARGO FOR 'gerente'
+    if (perfil && perfil.cargo?.toLowerCase() === 'gerente') { // Usando 'cargo'
+      query = query.eq('id_filial', perfil.id_filial);
     }
-  }
 
-  const { data } = await queryVendas;
-  if (data) setVendas(data);
-};
-// PainelGerente.js
+    const { data } = await query;
+    if (data) setUsuarios(data);
+  };
+
+  const buscarVendas = async (perfil) => {
+    let queryVendas = supabase.from("vendas").select("*").order("created_at", { ascending: false });
+
+    // APLICA O FILTRO DE FILIAL APENAS PARA O CARGO 'gerente'
+    if (perfil && perfil.cargo?.toLowerCase() === 'gerente') { // Usando 'cargo'
+      const { data: usuariosDaFilial } = await supabase
+        .from('usuarios_custom')
+        .select('id')
+        .eq('id_filial', perfil.id_filial);
+
+      if (usuariosDaFilial && usuariosDaFilial.length > 0) {
+        const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
+        queryVendas = queryVendas.in('usuario_id', idsDosUsuarios);
+      } else {
+        queryVendas = queryVendas.in('usuario_id', []); 
+      }
+    }
+
+    const { data } = await queryVendas;
+    if (data) setVendas(data);
+  };
+
   const buscarComissoesLiberadas = useCallback(async () => {
     const mesAtual = dayjs().format('YYYY-MM');
     
-    // A query agora busca apenas pagamentos de parcelas que NÃO SÃO a primeira (neq = not equal to).
     let query = supabase
       .from('pagamentos_comissao')
       .select('valor_comissao')
       .eq('mes_pagamento', mesAtual)
-      .neq('parcela_index', 1); // <-- MUDANÇA PRINCIPAL AQUI
+      .neq('parcela_index', 1);
 
     if (filtros.vendedor) {
       query = query.eq('usuario_id', filtros.vendedor);
+    }
+    
+    // FILTRA COMISSÕES PELA FILIAL DO GERENTE
+    if (perfilUsuario) {
+        const { data: usuariosDaFilial } = await supabase
+            .from('usuarios_custom')
+            .select('id')
+            .eq('id_filial', perfilUsuario.id_filial);
+        
+        if (usuariosDaFilial) {
+            const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
+            query = query.in('usuario_id', idsDosUsuarios);
+        }
     }
 
     const { data, error } = await query;
@@ -114,75 +149,77 @@ let query = supabase.from("usuarios_custom").select("id, nome, id_filial").order
     } else {
       setComissoesLiberadasMes(0);
     }
-  }, [filtros.vendedor]);
+  }, [filtros.vendedor, perfilUsuario]);
   
-const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
-  if (!id_filial) return; // Não busca se não souber a filial
-  const { data } = await supabase
-    .from('configuracoes_mensais')
-    .select('*')
-    .eq('mes', mes)
-    .eq('id_filial', id_filial) // <-- FILTRO ADICIONADO
-    .single();
+  const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
+    if (!id_filial) return;
+    const { data } = await supabase
+      .from('configuracoes_mensais')
+      .select('*')
+      .eq('mes', mes)
+      .eq('id_filial', id_filial)
+      .single();
 
-  if (data) {
-    setConfiguracoes(data);
-  } else {
-    // Se não achar, cria uma configuração padrão vazia para aquela filial
-    setConfiguracoes({ mes, id_filial, meta_geral: 10000000, duplas: [] });
-  }
-}, []);
+    if (data) {
+      setConfiguracoes(data);
+    } else {
+      setConfiguracoes({ mes, id_filial, meta_geral: 10000000, duplas: [] });
+    }
+  }, []);
 
-  // PainelGerente.js
-  
+  // --- UseEffects (Carregamento de Dados) ---
   useEffect(() => {
     const carregarDadosIniciais = async () => {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
 
-      if (user) {
-        setUsuarioAtual(user);
-        setNovaVenda(prev => ({ ...prev, usuario_id: user.id }));
+      if (!user) {
+        navigate('/login');
+        return;
+      }
 
-        // 1. Busca o perfil completo do usuário para obter o cargo e a filial
-        const { data: perfilData } = await supabase
-          .from('usuarios_custom')
-          .select('*') // Pega tudo: id, nome, cargo, tipo, id_filial, etc.
-          .eq('id', user.id)
-          .single();
+      setUsuarioAtual(user);
+      setNovaVenda(prev => ({ ...prev, usuario_id: user.id }));
 
-        if (perfilData) {
-          setPerfilUsuario(perfilData); // 2. Salva o perfil no estado
+      const { data: perfilData } = await supabase
+        .from('usuarios_custom')
+        .select('*') // Pega tudo, incluindo foto_url e telefone
+        .eq('id', user.id)
+        .single();
 
-          // 3. Busca os outros dados, passando o perfil para as funções de filtro
-          await Promise.all([
-            buscarUsuarios(perfilData),
-            buscarVendas(perfilData),
-            fetchConfiguracoes(filtros.mes, perfilData.id_filial),
-            buscarComissoesLiberadas()
-          ]);
-        }
+      if (perfilData) {
+        setPerfilUsuario(perfilData);
+
+        await Promise.all([
+          buscarUsuarios(perfilData),
+          buscarVendas(perfilData),
+          fetchConfiguracoes(filtros.mes, perfilData.id_filial),
+          // buscarComissoesLiberadas() será chamado no próximo useEffect
+        ]);
       }
       setLoading(false);
     };
 
     carregarDadosIniciais();
-  }, [fetchConfiguracoes, buscarComissoesLiberadas, filtros.mes]);
+  }, [fetchConfiguracoes, filtros.mes, navigate]);
   
   useEffect(() => { 
-  if(filtros.mes && perfilUsuario) { // Adicionada verificação do perfil
-      fetchConfiguracoes(filtros.mes, perfilUsuario.id_filial); // Passa a filial
-  }
-}, [filtros.mes, fetchConfiguracoes, perfilUsuario]);
+    if(filtros.mes && perfilUsuario) {
+        fetchConfiguracoes(filtros.mes, perfilUsuario.id_filial);
+    }
+  }, [filtros.mes, fetchConfiguracoes, perfilUsuario]);
+
   useEffect(() => {
-    buscarComissoesLiberadas();
-  }, [filtros.vendedor, buscarComissoesLiberadas]);
+    // Busca comissões apenas quando o perfil (para filtrar a filial) estiver carregado
+    if (perfilUsuario) {
+        buscarComissoesLiberadas();
+    }
+  }, [filtros.vendedor, perfilUsuario, buscarComissoesLiberadas]);
 
-  
-
+  // --- Funções de Ação (CRUD Vendas) ---
   const nomeVendedor = (id) => usuarios.find((u) => u.id === id)?.nome || "Desconhecido";
 
- const cadastrarVenda = async () => {
+  const cadastrarVenda = async () => {
     if (!usuarioAtual) return alert("Usuário não autenticado.");
     if (!novaVenda.cliente || !novaVenda.valor || !novaVenda.usuario_id) return alert("Cliente, Valor e Vendedor são obrigatórios.");
     
@@ -193,14 +230,12 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
         valor: valorNumerico, 
         cliente: novaVenda.cliente.toUpperCase(), 
         mes: dayjs(novaVenda.mes).format("YYYY-MM"),
-        // Define o status inicial de todas as parcelas
         status_parcela_1: 'PAGO',
         status_parcela_2: 'PENDENTE',
         status_parcela_3: 'PENDENTE',
         status_parcela_4: 'PENDENTE',
     };
 
-    // Insere a venda e recupera o registro inserido
     const { data: vendaInserida, error } = await supabase.from('vendas').insert([dadosParaSalvar]).select().single();
     
     if (error) {
@@ -208,7 +243,6 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
         return;
     }
 
-    // REGISTRA O PAGAMENTO DA 1ª COMISSÃO IMEDIATAMENTE
     const percentuais = vendaInserida.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
     const valorComissao1 = vendaInserida.valor * percentuais[0];
 
@@ -222,31 +256,34 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
         });
     }
 
-    // Recarrega os dados, limpa o formulário e volta para a aba de vendas
-    await buscarVendas();
+    await buscarVendas(perfilUsuario); // Recarrega com filtro
     setNovaVenda({ cliente: "", grupo: "", cota: "", administradora: "GAZIN", valor: "", parcela: "cheia", mes: dayjs().format("YYYY-MM"), usuario_id: "" });
     setAba("vendas");
     alert("Venda cadastrada com sucesso!");
   };
   
   const editarVenda = (venda) => { setEditandoId(venda.id); setVendaEditada({ ...venda, valor: venda.valor.toString() }); };
+  
   const salvarEdicao = async () => { 
     const dadosParaAtualizar = { ...vendaEditada, valor: parseFloat(vendaEditada.valor) };
     await supabase.from("vendas").update(dadosParaAtualizar).eq("id", editandoId); 
-    setEditandoId(null); setVendaEditada({}); buscarVendas(); 
+    setEditandoId(null); setVendaEditada({}); 
+    await buscarVendas(perfilUsuario); // Recarrega com filtro
   };
-  const excluirVenda = async (id) => { if (window.confirm("Tem certeza?")) { await supabase.from("vendas").delete().eq("id", id); buscarVendas(); } };
- // Substitua sua função handleStatusChange atual por esta
+  
+  const excluirVenda = async (id) => { 
+    if (window.confirm("Tem certeza?")) { 
+      await supabase.from("vendas").delete().eq("id", id); 
+      await buscarVendas(perfilUsuario); // Recarrega com filtro
+    } 
+  };
+
   const handleStatusChange = async (venda, parcelaIndex, novoStatus) => {
     const nomeColuna = `status_parcela_${parcelaIndex}`;
     const statusAntigo = venda[nomeColuna];
 
-    if (statusAntigo === novoStatus) {
-        console.log(`O status da Parcela ${parcelaIndex} já é ${novoStatus}.`);
-        return;
-    }
+    if (statusAntigo === novoStatus) return;
 
-    // 1. ATUALIZA O STATUS NA TABELA DE VENDAS
     const { error: updateError } = await supabase
         .from("vendas")
         .update({ [nomeColuna]: novoStatus })
@@ -257,9 +294,7 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
         return;
     }
 
-    // 2. LÓGICA PARA ADICIONAR OU REMOVER PAGAMENTO
     if (novoStatus === 'PAGO') {
-        // Se o novo status é PAGO, INSERE o registro de pagamento
         const percentuais = venda.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
         const valorComissao = venda.valor * percentuais[parcelaIndex - 1];
 
@@ -273,7 +308,6 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
             });
         }
     } else if (statusAntigo === 'PAGO') {
-        // Se o status ANTIGO era PAGO e o novo NÃO É, REMOVE o registro de pagamento
         await supabase
           .from('pagamentos_comissao')
           .delete()
@@ -281,13 +315,12 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
           .eq('parcela_index', parcelaIndex);
     }
     
-    // 3. RECARREGA OS DADOS PARA ATUALIZAR A INTERFACE
-    buscarVendas(); 
-    buscarComissoesLiberadas();
+    await buscarVendas(perfilUsuario); // Recarrega com filtro
+    await buscarComissoesLiberadas();
   };
 
-// COLE ESTE BLOCO CORRIGIDO NO LUGAR DO SEU calculosDoMes ATUAL
-const calculosDoMes = useMemo(() => {
+  // --- Cálculos e Memos ---
+  const calculosDoMes = useMemo(() => {
     const vendasFiltradas = vendas.filter((v) => {
         const matchVendedor = !filtros.vendedor || v.usuario_id === filtros.vendedor;
         const matchMes = !filtros.mes || v.mes === filtros.mes;
@@ -314,10 +347,8 @@ const calculosDoMes = useMemo(() => {
         totalMesTodos += valor;
       }
       
-      // Lógica de cálculo da comissão P1
       if (filtros.vendedor && venda.usuario_id === filtros.vendedor && venda.mes === mesBase) {
         const percentuais = venda.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
-        // Linha corrigida para calcular APENAS a P1
         const comissaoP1DaVenda = valor * percentuais[0];
         totalComissaoVendedor += comissaoP1DaVenda;
       }
@@ -326,99 +357,162 @@ const calculosDoMes = useMemo(() => {
     return { vendasFiltradas, totaisPorVendedor, totalMesTodos, totalComissaoVendedor };
   }, [vendas, usuarios, filtros]);
 
-
-  // CAMINHO DE ABAS
+  // --- Abas e Renderização ---
   const abas = [
     { id: 'vendas', label: 'Dashboard de Vendas', icon: <FaChartBar /> },
     { id: 'ranking', label: 'Ranking', icon: <FaTrophy /> },
     { id: 'nova_venda', label: 'Nova Venda', icon: <FaPlusCircle /> },
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
     { id: 'crm', label: 'CRM', icon: <FaUsers /> },
-    { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> }, // Ícone FaTh precisa ser importado
+    { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
   ];
   
   const renderContent = () => {
     switch (aba) {
      case 'vendas': return <AbaVendas 
-  vendasFiltradas={calculosDoMes.vendasFiltradas}
-  totalMesTodos={calculosDoMes.totalMesTodos}
-  totalComissaoVendedor={calculosDoMes.totalComissaoVendedor}
-  usuarios={usuarios}
-  filtros={filtros} setFiltros={setFiltros} 
-  nomeVendedor={nomeVendedor} 
-  editandoId={editandoId} setEditandoId={setEditandoId} 
-  vendaEditada={vendaEditada} setVendaEditada={setVendaEditada}
-  editarVenda={editarVenda} salvarEdicao={salvarEdicao} 
-  excluirVenda={excluirVenda} 
-  handleStatusChange={handleStatusChange} // <-- CORRIGIDO para a nova função
-  comissoesLiberadasMes={comissoesLiberadasMes}
-  />;
-        // CASES PARA ROTAS
-case 'ranking':
-  // Se o usuário for gerente, filtra os dados. Se não, passa tudo.
-  const usuariosParaRanking = perfilUsuario?.cargo?.toLowerCase() === 'gerente'
-    ? usuarios.filter(u => u.id_filial === perfilUsuario.id_filial)
-    : usuarios;
-
-  const vendasParaRanking = perfilUsuario?.cargo?.toLowerCase() === 'gerente'
-    ? vendas.filter(v => usuariosParaRanking.some(u => u.id === v.usuario_id))
-    : vendas;
-
-  return <AbaRanking 
-         perfilUsuario={perfilUsuario} // <-- ADICIONE ESTA LINHA FALTANTE
-         vendas={vendasParaRanking} 
-         usuarios={usuariosParaRanking} 
-         filtros={filtros} 
-         setFiltros={setFiltros} 
-         configuracoes={configuracoes} 
-         onSave={fetchConfiguracoes} 
-       />;
-      case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
-      case 'crm': return <PainelCRM />; 
+        vendasFiltradas={calculosDoMes.vendasFiltradas}
+        totalMesTodos={calculosDoMes.totalMesTodos}
+        totalComissaoVendedor={calculosDoMes.totalComissaoVendedor}
+        usuarios={usuarios}
+        filtros={filtros} setFiltros={setFiltros} 
+        nomeVendedor={nomeVendedor} 
+        editandoId={editandoId} setEditandoId={setEditandoId} 
+        vendaEditada={vendaEditada} setVendaEditada={setVendaEditada}
+        editarVenda={editarVenda} salvarEdicao={salvarEdicao} 
+        excluirVenda={excluirVenda} 
+        handleStatusChange={handleStatusChange}
+        comissoesLiberadasMes={comissoesLiberadasMes}
+      />;
+      
+      case 'ranking':
+        return <AbaRanking 
+                perfilUsuario={perfilUsuario}
+                vendas={vendas} // Passa todas as vendas da filial
+                usuarios={usuarios} // Passa todos os usuários da filial
+                filtros={filtros} 
+                setFiltros={setFiltros} 
+                configuracoes={configuracoes} 
+                onSave={fetchConfiguracoes}
+                listaFiliais={[]} // Gerente não vê outras filiais
+                filialSelecionadaId={perfilUsuario?.id_filial} // ID da filial do gerente
+                setFilialSelecionadaId={() => {}} // Função vazia, gerente não muda
+              />;
+      
+      case 'nova_venda': 
+        return <AbaNovaVenda 
+                novaVenda={novaVenda} 
+                setNovaVenda={setNovaVenda} 
+                cadastrarVenda={cadastrarVenda} 
+                usuarios={usuarios} 
+                usuarioAtual={usuarioAtual} 
+              />;
+      
+      case 'crm': return <PainelCRM usuarioId={perfilUsuario?.id} />; // Passa o ID do gerente
       case 'contempladas': return <PainelContempladas usuario={perfilUsuario} />;
       case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;     
       default: return null;
     }
   };
   
+  // --- JSX Principal ---
   if (loading) return <LoadingSpinner />;
   
   return (
     <div className="bg-gray-900 text-gray-200 min-h-screen p-4 md:p-8">
       <div className="container mx-auto">
+        
+        {/* --- CABEÇALHO ATUALIZADO --- */}
         <header className="mb-8">
-          <h1 className="text-4xl font-bold text-white">Painel do Gerente</h1>
-          <p className="text-gray-400 mt-1">Gerencie vendas, comissões, rankings e sua equipe.</p>
+          <div className="flex justify-between items-center mb-6">
+              <div>
+                  <h1 className="text-4xl font-bold text-white">Painel do Gerente</h1>
+                  <p className="text-gray-400 mt-1">Gerencie as vendas e o desempenho da sua filial.</p>
+              </div>
+              <div className="flex items-center gap-4">
+                  <button 
+                      onClick={() => setModalContaVisivel(true)}
+                      className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                  >
+                      <FaUserCircle /> Minha Conta
+                  </button>
+                  <button 
+                      onClick={handleLogout}
+                      className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                  >
+                      <FaSignOutAlt /> Sair
+                  </button>
+              </div>
+          </div>
           <nav className="mt-6 flex flex-wrap gap-2 border-b border-gray-700 pb-2">
-            {abas.map((item) => (
-              <button key={item.id} onClick={() => setAba(item.id)} className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-semibold transition-all ${aba === item.id ? 'bg-gray-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:bg-gray-700/50'}`}>
-                {item.icon} {item.label}
-              </button>
-            ))}
+              {abas.map((item) => (
+                  <button 
+                    key={item.id} 
+                    onClick={() => setAba(item.id)} 
+                    className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-semibold transition-all ${aba === item.id ? 'bg-gray-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:bg-gray-700/50'}`}
+                  >
+                    {item.icon} {item.label}
+                  </button>
+              ))}
           </nav>
         </header>
-                <LembretesLeads />
+        {/* --- FIM DO CABEÇALHO --- */}
+        
+        <LembretesLeads />
         <div className="mt-6">{renderContent()}</div>
+        
+        {/* --- MODAL DA CONTA (CORRIGIDO) --- */}
+        {modalContaVisivel && perfilUsuario && (
+            <MinhaContaModal 
+                usuario={perfilUsuario} // Passa o perfil completo
+                onClose={() => setModalContaVisivel(false)}
+                onUpdate={() => {
+                    // Recarrega os dados do perfil após a atualização
+                    const reFetchProfile = async () => {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (user) {
+                            const { data: perfilData } = await supabase
+                              .from('usuarios_custom')
+                              .select('*') // Pega tudo (incluindo a nova foto_url/telefone)
+                              .eq('id', user.id)
+                              .single();
+                            if (perfilData) setPerfilUsuario(perfilData); // Atualiza o perfil
+                        }
+                    };
+                    reFetchProfile();
+                    // Recarrega a lista de usuários da filial (caso o gerente mude o nome, etc.)
+                    if(perfilUsuario) buscarUsuarios(perfilUsuario); 
+                }}
+            />
+        )}
+        {/* --- FIM DO MODAL --- */}
+        
       </div>
     </div>
   );
 }
 
+
 // --- Componente da Aba de Vendas (Dashboard) ---
-const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes }) => {    const mesSelecionadoLabel = dayjs(filtros.mes).format("MMMM [de] YYYY");
+const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes }) => {
+    const mesSelecionadoLabel = dayjs(filtros.mes).format("MMMM [de] YYYY");
     return (
     <div className="animate-fade-in space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <StatCard icon={<FaDollarSign size={24} />} title={`Total Vendido em ${mesSelecionadoLabel}`} value={totalMesTodos} color="bg-green-500/20 text-green-400" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* CORREÇÃO AQUI: 'title' -> 'label' */}
+            <StatCard icon={<FaDollarSign size={24} />} label={`Total Vendido em ${mesSelecionadoLabel}`} value={totalMesTodos} color="bg-green-500/20 text-green-400" />
             {filtros.vendedor && (
-<StatCard icon={<FaUserTie size={24} />} title={`Comissão P1 (Vendas de ${mesSelecionadoLabel})`} value={totalComissaoVendedor} color="bg-yellow-500/20 text-yellow-400" />)}    
-<StatCard icon={<FaFileInvoiceDollar size={24} />} title={`Comissões Anteriores Liberadas em ${dayjs().format('MMMM')}`} value={comissoesLiberadasMes} color="bg-blue-500/20 text-blue-400" />        </div>
+              <StatCard icon={<FaUserTie size={24} />} label={`Comissão P1 (Vendas de ${mesSelecionadoLabel})`} value={totalComissaoVendedor} color="bg-yellow-500/20 text-yellow-400" />
+            )}    
+            <StatCard icon={<FaFileInvoiceDollar size={24} />} label={`Comissões Anteriores Liberadas em ${dayjs().format('MMMM')}`} value={comissoesLiberadasMes} color="bg-blue-500/20 text-blue-400" />
+        </div>
         
         <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6">
             <div className="flex flex-wrap items-center gap-4 mb-6 pb-6 border-b border-gray-700">
                 <h2 className="text-xl font-semibold flex items-center gap-2 whitespace-nowrap"><FaFilter /> Filtros</h2>
                 <select value={filtros.vendedor} onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500">
+                    {/* // --- ERRO CORRIGIDO AQUI --- */}
                     <option value="">Todos os Vendedores</option>
+                    {/* // --- FIM DA CORREÇÃO --- */}
                     {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
                 </select>
                 <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500" />
@@ -440,26 +534,26 @@ const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usua
                                 <tr key={venda.id} className="border-b border-gray-700/50 hover:bg-gray-700/50 transition-colors">
                                     {editandoId === venda.id ? (
                                         <>
-    <td className="p-2"><input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-2 rounded w-full"/></td>
-    <td className="p-2 space-y-2">
-        <input placeholder="Admin" value={vendaEditada.administradora || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-        <input placeholder="Grupo" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-        <input placeholder="Cota" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-        <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-2 rounded w-full">
-            <option value="cheia">Parcela Cheia</option>
-            <option value="meia">Parcela Meia</option>
-        </select>
-    </td>
-    <td className="p-2"><input type="number" value={vendaEditada.valor || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, valor: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
-    <td className="p-2">{nomeVendedor(venda.usuario_id)}</td>
-    <td className="p-2 text-center">-</td>
-    <td className="p-2">
-        <div className="flex gap-2 justify-center">
-            <button onClick={salvarEdicao} className="p-2 text-green-400 hover:text-green-300"><FaSave size={18} /></button>
-            <button onClick={() => setEditandoId(null)} className="p-2 text-gray-400 hover:text-gray-200"><FaTimes size={18} /></button>
-        </div>
-    </td>
-</>
+                                          <td className="p-2"><input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-2 rounded w-full"/></td>
+                                          <td className="p-2 space-y-2">
+                                              <input placeholder="Admin" value={vendaEditada.administradora || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
+                                              <input placeholder="Grupo" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
+                                              <input placeholder="Cota" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
+                                              <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-2 rounded w-full">
+                                                  <option value="cheia">Parcela Cheia</option>
+                                                  <option value="meia">Parcela Meia</option>
+                                              </select>
+                                          </td>
+                                          <td className="p-2"><input type="number" value={vendaEditada.valor || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, valor: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
+                                          <td className="p-2">{nomeVendedor(venda.usuario_id)}</td>
+                                          <td className="p-2 text-center">-</td>
+                                          <td className="p-2">
+                                              <div className="flex gap-2 justify-center">
+                                                  <button onClick={salvarEdicao} className="p-2 text-green-400 hover:text-green-300"><FaSave size={18} /></button>
+                                                  <button onClick={() => setEditandoId(null)} className="p-2 text-gray-400 hover:text-gray-200"><FaTimes size={18} /></button>
+                                              </div>
+                                          </td>
+                                        </>
                                     ) : (
                                         <>
                                             <td className="px-4 py-3 font-medium">{venda.cliente.toUpperCase()}</td>
@@ -471,33 +565,32 @@ const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usua
                                             </td>
                                             <td className="px-4 py-3 text-green-400 font-semibold">{parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
                                             <td className="px-4 py-3">{nomeVendedor(venda.usuario_id)}</td>
-<td className="px-4 py-3">
-    <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
-        {/* Parcela 1 é apenas informativa, não editável aqui */}
-        <span className={`px-2 py-1 text-xs rounded-md font-medium whitespace-nowrap ${venda.status_parcela_1 === 'PAGO' ? 'bg-green-500/20 text-green-300' : 'bg-gray-700'}`}>
-            P1: {venda.status_parcela_1 || 'PENDENTE'}
-        </span>
+                                            <td className="px-4 py-3">
+                                                <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
+                                                    <span className={`px-2 py-1 text-xs rounded-md font-medium whitespace-nowrap ${venda.status_parcela_1 === 'PAGO' ? 'bg-green-500/20 text-green-300' : 'bg-gray-700'}`}>
+                                                        P1: {venda.status_parcela_1 || 'PENDENTE'}
+                                                    </span>
+                                                    {[2, 3, 4].map((i) => {
+                                                        const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
+                                                        let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
+                                                        if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
+                                                        if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
+                                                        if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
 
-        {/* Parcelas 2, 3 e 4 são editáveis pelo gerente */}
-        {[2, 3, 4].map((i) => {
-            const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
-            let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
-            if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
-            if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
-            if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
-
-            return (
-                <select 
-                    key={i}
-                    value={statusAtual}
-onChange={(e) => handleStatusChange(venda, i, e.target.value)}                    className={`p-1 text-xs rounded-md border focus:ring-2 focus:ring-indigo-400 font-medium ${corSeletor}`}
-                >
-                    {STATUS_OPCOES.map(opt => <option key={opt} value={opt}>{`P${i}: ${opt}`}</option>)}
-                </select>
-            );
-        })}
-    </div>
-</td>                                            <td className="px-4 py-3"><div className="flex gap-3 justify-center"><button onClick={() => editarVenda(venda)} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={18} /></button><button onClick={() => excluirVenda(venda.id)} className="p-2 text-red-500 hover:text-red-400"><FaTrash size={18} /></button></div></td>
+                                                        return (
+                                                            <select 
+                                                                key={i}
+                                                                value={statusAtual}
+                                                                onChange={(e) => handleStatusChange(venda, i, e.target.value)}
+                                                                className={`p-1 text-xs rounded-md border focus:ring-2 focus:ring-indigo-400 font-medium ${corSeletor}`}
+                                                            >
+                                                                {STATUS_OPCOES.map(opt => <option key={opt} value={opt}>{`P${i}: ${opt}`}</option>)}
+                                                            </select>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3"><div className="flex gap-3 justify-center"><button onClick={() => editarVenda(venda)} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={18} /></button><button onClick={() => excluirVenda(venda.id)} className="p-2 text-red-500 hover:text-red-400"><FaTrash size={18} /></button></div></td>
                                         </>
                                     )}
                                 </tr>
@@ -510,6 +603,7 @@ onChange={(e) => handleStatusChange(venda, i, e.target.value)}                  
     </div>
     );
 };
+
 
 // --- Componente da Aba de Nova Venda ---
 const AbaNovaVenda = ({ novaVenda, setNovaVenda, cadastrarVenda, usuarios, usuarioAtual }) => {
@@ -543,11 +637,11 @@ const AbaNovaVenda = ({ novaVenda, setNovaVenda, cadastrarVenda, usuarios, usuar
     );
 };
 
+
 // --- Componente da Aba de Ranking ---
-// --- Componente da Aba de Ranking (VERSÃO FINAL CORRIGIDA) ---
 const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, configuracoes: initialConfig, onSave, listaFiliais, filialSelecionadaId, setFilialSelecionadaId }) => {
     const [config, setConfig] = useState(initialConfig);
-    const [modalConfigVisivel, setModalConfigVisivel] = useState(false); // <-- ADICIONE ESTA LINHA
+    const [modalConfigVisivel, setModalConfigVisivel] = useState(false);
     const [selecaoDupla, setSelecaoDupla] = useState([]);
     const [textoRanking, setTextoRanking] = useState('');
 
@@ -555,7 +649,6 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
         setConfig(initialConfig);
     }, [initialConfig]);
 
-    // Funções para calcular os totais
     const totaisPorVendedor = useMemo(() => {
         const totais = {};
         const vendasDoMes = vendas.filter(v => v.mes === filtros.mes);
@@ -580,7 +673,6 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
     const vendidoGeral = useMemo(() => rankingIndividual.reduce((acc, v) => acc + v.vendido, 0), [rankingIndividual]);
     const faltaParaMeta = useMemo(() => (config.meta_geral || 0) - vendidoGeral, [config.meta_geral, vendidoGeral]);
 
-    // Componente para exibir o card de ranking
     const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
         const medalhas = ['🥇', '🥈', '🥉'];
         const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold">{posicao + 1}º</span>;
@@ -592,7 +684,6 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
         );
     };
 
-    // Funções para gerenciar as duplas
     const adicionarDupla = () => {
         if (selecaoDupla.length !== 2) return;
         const novaListaDuplas = [...(config.duplas || []), selecaoDupla];
@@ -605,7 +696,6 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
         setConfig({ ...config, duplas: novaListaDuplas });
     };
     
-    // Função para salvar as configurações
     const handleSalvarConfig = async () => {
         const id_filial_atual = filialSelecionadaId || perfilUsuario?.id_filial;
         if (!id_filial_atual) {
@@ -617,15 +707,24 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
         if (error) { alert('Erro ao salvar configurações: ' + error.message); }
         else { alert('Configurações salvas com sucesso!'); onSave(filtros.mes, id_filial_atual); }
     };
+
+    const calcularDiasUteisRestantes = () => {
+        const hoje = dayjs();
+        const ultimoDiaDoMes = hoje.endOf('month').date();
+        let diasUteis = 0;
+        for (let dia = hoje.date(); dia <= ultimoDiaDoMes; dia++) {
+            const dataVerificada = hoje.date(dia);
+            if (dataVerificada.day() !== 0) { // Conta Sábado, ignora Domingo
+                diasUteis++;
+            }
+        }
+        return diasUteis > 0 ? diasUteis : 1;
+    };
     
-    // ==================================================================
-    // FUNÇÃO PRINCIPAL PARA GERAR O TEXTO DO WHATSAPP (VERSÃO ATUALIZADA)
-    // ==================================================================
     const gerarTextoRanking = useCallback(() => {
         const mesFormatado = dayjs(filtros.mes).format('MMMM');
         const emojisIndividuais = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
         const emojisDuplas = ['🏆', '🥇', '🥈', '🥉'];
-
         const formatarValor = (valor) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
         let texto = `Muito bom dia!\nSegue o rank mensal de ${mesFormatado} para acompanhamento.\n\n`;
@@ -644,13 +743,14 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
             });
         }
         
-        const divisaoMeta = faltaParaMeta > 0 ? faltaParaMeta / 5 : 0;
+        const diasRestantes = calcularDiasUteisRestantes();
+        const divisaoMeta = faltaParaMeta > 0 ? faltaParaMeta / diasRestantes : 0;
 
         texto += `\nESCRITÓRIO:\n\n`;
         texto += `META GERAL: ${formatarValor(config.meta_geral || 0)}\n`;
         texto += `VENDIDO GERAL: ${formatarValor(vendidoGeral)}\n`;
         texto += `FALTA PARA META: ${formatarValor(faltaParaMeta > 0 ? faltaParaMeta : 0)}\n`;
-        texto += `DIVISÃO POR 5 DIAS DE VENDAS: ${formatarValor(divisaoMeta)}\n`;
+        texto += `DIVISÃO POR ${diasRestantes} DIAS DE VENDAS: ${formatarValor(divisaoMeta)}\n`;
 
         setTextoRanking(texto);
     }, [filtros.mes, rankingIndividual, totaisDuplas, vendidoGeral, faltaParaMeta, config.meta_geral]);
@@ -661,78 +761,67 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
 
     const copiarParaClipboard = () => { navigator.clipboard.writeText(textoRanking); alert('Ranking copiado!'); };
 
-    // PARTE VISUAL DO COMPONENTE
     return (
         <div className="animate-fade-in space-y-8">
-            {/* --- SEÇÃO DE FILTROS --- */}
             <div className="flex flex-wrap items-center gap-4 p-4 bg-gray-800/50 rounded-xl">
                 <h3 className="text-xl font-bold flex items-center gap-2"><FaFilter /> Visualizar Dados de:</h3>
                 <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="w-full md:w-auto bg-gray-700 p-3 rounded-lg border border-gray-600" />
-                {perfilUsuario?.cargo?.toLowerCase() === 'diretor' && (
-                    <select value={filialSelecionadaId || ''} onChange={(e) => setFilialSelecionadaId(e.target.value)} className="w-full md:w-auto bg-gray-700 p-3 rounded-lg border border-gray-600">
-                        <option value="" disabled>Selecione uma filial</option>
-                        {listaFiliais.map(filial => (<option key={filial.id} value={filial.id}>{filial.nome}</option>))}
-                    </select>
-                )}
+                {/* O gerente não pode trocar de filial, ele vê apenas a dele */}
             </div>
 
-           {/* --- BOTÃO PARA ABRIR O MODAL DE CONFIGURAÇÕES --- */}
-<div className="flex justify-end">
-    <button 
-        onClick={() => setModalConfigVisivel(true)}
-        className="bg-gray-700 hover:bg-gray-600 px-5 py-2 rounded-lg font-semibold flex items-center gap-2"
-    >
-        <FaCogs /> Configurar Metas e Duplas
-    </button>
-</div>
+            <div className="flex justify-end">
+                <button 
+                    onClick={() => setModalConfigVisivel(true)}
+                    className="bg-gray-700 hover:bg-gray-600 px-5 py-2 rounded-lg font-semibold flex items-center gap-2"
+                >
+                    <FaCogs /> Configurar Metas e Duplas
+                </button>
+            </div>
             
-            {/* --- MODAL DE CONFIGURAÇÕES --- */}
-{modalConfigVisivel && (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-        <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl border border-gray-700 animate-fade-in">
-            <header className="p-4 flex justify-between items-center border-b border-gray-700">
-                <h3 className="text-lg font-semibold flex items-center gap-2"><FaCogs /> Configurações de {dayjs(filtros.mes).format('MMMM')}</h3>
-                <button onClick={() => setModalConfigVisivel(false)} className="p-2 text-gray-500 hover:text-white rounded-full"><FaTimes size={20} /></button>
-            </header>
-            <div className="p-6 grid md:grid-cols-2 gap-6">
-                {/* ... cole aqui o conteúdo do antigo div de configurações ... */}
-                <div>
-                    <label className="block mb-1 text-sm font-medium text-gray-400">Meta Geral do Escritório (R$)</label>
-                    <input type="number" value={config.meta_geral || ''} onChange={e => setConfig({...config, meta_geral: parseFloat(e.target.value) || 0})} className="w-full bg-gray-700 p-3 rounded-lg border border-gray-600" />
-                </div>
-                <div>
-                    <label className="block mb-1 text-sm font-medium text-gray-400">Formar Duplas para o Mês</label>
-                    <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
-                        <div className="mb-4 space-y-2">
-                            {config.duplas && config.duplas.map((dupla, index) => (
-                                <div key={index} className="flex justify-between items-center bg-gray-800 p-2 rounded">
-                                    <span>{dupla.join(' e ')}</span>
-                                    <button onClick={() => removerDupla(index)} className="text-red-500 hover:text-red-400"><FaTimes /></button>
+            {modalConfigVisivel && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+                    <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl border border-gray-700 animate-fade-in">
+                        <header className="p-4 flex justify-between items-center border-b border-gray-700">
+                            <h3 className="text-lg font-semibold flex items-center gap-2"><FaCogs /> Configurações de {dayjs(filtros.mes).format('MMMM')}</h3>
+                            <button onClick={() => setModalConfigVisivel(false)} className="p-2 text-gray-500 hover:text-white rounded-full"><FaTimes size={20} /></button>
+                        </header>
+                        <div className="p-6 grid md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block mb-1 text-sm font-medium text-gray-400">Meta Geral do Escritório (R$)</label>
+                                <input type="number" value={config.meta_geral || ''} onChange={e => setConfig({...config, meta_geral: parseFloat(e.target.value) || 0})} className="w-full bg-gray-700 p-3 rounded-lg border border-gray-600" />
+                            </div>
+                            <div>
+                                <label className="block mb-1 text-sm font-medium text-gray-400">Formar Duplas para o Mês</label>
+                                <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
+                                    <div className="mb-4 space-y-2">
+                                        {config.duplas && config.duplas.map((dupla, index) => (
+                                            <div key={index} className="flex justify-between items-center bg-gray-800 p-2 rounded">
+                                                <span>{dupla.join(' e ')}</span>
+                                                <button onClick={() => removerDupla(index)} className="text-red-500 hover:text-red-400"><FaTimes /></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <select multiple value={selecaoDupla} onChange={(e) => setSelecaoDupla(Array.from(e.target.selectedOptions, option => option.value))} className="w-full bg-gray-600 p-2 rounded-lg border border-gray-500" style={{ height: '100px' }}>
+                                            {usuarios.filter(u => !config.duplas?.flat().includes(u.nome)).map(user => (
+                                                <option key={user.id} value={user.nome}>{user.nome}</option>
+                                            ))}
+                                        </select>
+                                        <button onClick={adicionarDupla} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-semibold h-full" disabled={selecaoDupla.length !== 2}>
+                                            <FaPlusCircle />
+                                        </button>
+                                    </div>
                                 </div>
-                            ))}
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <select multiple value={selecaoDupla} onChange={(e) => setSelecaoDupla(Array.from(e.target.selectedOptions, option => option.value))} className="w-full bg-gray-600 p-2 rounded-lg border border-gray-500" style={{ height: '100px' }}>
-                                {usuarios.filter(u => !config.duplas?.flat().includes(u.nome)).map(user => (
-                                    <option key={user.id} value={user.nome}>{user.nome}</option>
-                                ))}
-                            </select>
-                            <button onClick={adicionarDupla} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-semibold h-full" disabled={selecaoDupla.length !== 2}>
-                                <FaPlusCircle />
-                            </button>
-                        </div>
+                        <footer className="p-4 flex justify-end gap-3 border-t border-gray-700">
+                            <button onClick={() => setModalConfigVisivel(false)} type="button" className="bg-gray-600 hover:bg-gray-500 px-5 py-2 rounded-lg font-semibold">Cancelar</button>
+                            <button onClick={() => { handleSalvarConfig(); setModalConfigVisivel(false); }} className="bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2"><FaSave /> Salvar e Fechar</button>
+                        </footer>
                     </div>
                 </div>
-            </div>
-            <footer className="p-4 flex justify-end gap-3 border-t border-gray-700">
-                <button onClick={() => setModalConfigVisivel(false)} type="button" className="bg-gray-600 hover:bg-gray-500 px-5 py-2 rounded-lg font-semibold">Cancelar</button>
-                <button onClick={() => { handleSalvarConfig(); setModalConfigVisivel(false); }} className="bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2"><FaSave /> Salvar e Fechar</button>
-            </footer>
-        </div>
-    </div>
-)}
+            )}
 
-            {/* --- SEÇÃO DAS METAS --- */}
             <div>
                 <h3 className="text-xl font-semibold mb-4 text-indigo-400">METAS DO ESCRITÓRIO</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -742,7 +831,6 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
                 </div>
             </div>
 
-            {/* --- SEÇÃO DOS RANKINGS --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
                     <h3 className="text-xl font-semibold mb-4 text-indigo-400">RANKING INDIVIDUAL</h3>
@@ -762,7 +850,6 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
                 </div>
             </div>
             
-            {/* --- SEÇÃO DE PRÉ-VISUALIZAÇÃO E CÓPIA --- */}
             <div className="bg-gray-800/50 rounded-xl p-6">
                 <h3 className="text-xl font-bold mb-4">Pré-visualização do Ranking para WhatsApp</h3>
                 <textarea readOnly value={textoRanking} className="w-full h-64 bg-gray-900/50 p-3 rounded-lg text-sm font-mono whitespace-pre-wrap" />

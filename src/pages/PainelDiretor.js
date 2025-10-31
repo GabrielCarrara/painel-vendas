@@ -3,20 +3,29 @@ import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
 import 'dayjs/locale/pt-br';
 import LembretesLeads from '../components/LembretesLeads'; // <-- ADICIONE ESTA LINHA
+import { useNavigate } from 'react-router-dom'; // <-- ADICIONE
+import { FaSignOutAlt, FaUserCircle } from 'react-icons/fa'; // <-- ADICIONE
+import MinhaContaModal from '../components/MinhaContaModal';
 import { 
     FaChartBar, FaUsers, FaPlusCircle, FaTrophy, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, 
     FaDollarSign, FaUserTie, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs,
     FaFileInvoiceDollar, // <-- ÍCONE ADICIONADO AQUI
     FaTh,
-    FaBullseye
+    FaBullseye, 
+    FaUserPlus
 } from "react-icons/fa"; // <--- CORRIGIDO
 
 import PainelCRM from "./PainelCRM";
+import { FaPrint } from 'react-icons/fa'; // <-- ADICIONE
+import RelatorioHSModal from '../components/RelatorioHSModal'; // <-- ADICIONE
+import RelatorioGeralModal from '../components/RelatorioGeralModal'; // <-- ADICIONE ESTA LINHA
 import PainelContempladas from "./PainelContempladas";
+import AbaGerenciarUsuarios from './AbaGerenciarUsuarios';
 import HSCotas from './HSCotas'; // Verifique se o caminho está correto
 const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0]; // Comissão: 1.2% total (0.6, 0.3, 0.3). Parcela 4 não tem comissão.
 const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0]; // Comissão: 0.6% total (0.3, 0.15, 0.15). Parcela 4 não tem comissão.
 const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO'];
+
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, label, value, color }) => ( // Note que a prop se chama 'label'
   <div className="bg-gray-800 p-5 rounded-xl shadow-lg flex items-center space-x-4 transition-transform hover:scale-105">
@@ -51,11 +60,23 @@ const [filtros, setFiltros] = useState({ vendedor: "", mes: dayjs().format("YYYY
 const [perfilUsuario, setPerfilUsuario] = useState(null);
 const [listaFiliais, setListaFiliais] = useState([]); // <-- ADICIONE ESTA LINHA
 const [filialSelecionadaId, setFilialSelecionadaId] = useState(null);
+const navigate = useNavigate(); // <-- ADICIONE
+const [modalContaVisivel, setModalContaVisivel] = useState(false); // <-- ADICIONE
+const [modalRelatorioHS, setModalRelatorioHS] = useState(false); // <-- ADICIONE
+const [modalRelatorioGeral, setModalRelatorioGeral] = useState(false); // <-- ADICIONE
+
+const handleLogout = async () => { // <-- ADICIONE ESTA FUNÇÃO
+    await supabase.auth.signOut();
+    navigate('/login');
+};
 const buscarUsuarios = async () => {
-    const { data } = await supabase.from("usuarios_custom").select("id, nome, id_filial").order('nome', { ascending: true });
+    const { data } = await supabase
+      .from("usuarios_custom")
+      // ADICIONE os campos: email, cargo, telefone
+      .select("id, nome, id_filial, email, cargo, telefone, ativo, foto_url")
+      .order('nome', { ascending: true });
     if (data) setUsuarios(data);
 };
-
 const buscarVendas = async () => {
     const { data } = await supabase.from("vendas").select("*").order("created_at", { ascending: false });
     if (data) setVendas(data);
@@ -326,7 +347,8 @@ const calculosDoMes = useMemo(() => {
     { id: 'nova_venda', label: 'Nova Venda', icon: <FaPlusCircle /> },
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
     { id: 'crm', label: 'CRM', icon: <FaUsers /> },
-    { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> }, // Ícone FaTh precisa ser importado
+    { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
+    { id: 'usuarios', label: 'Gerenciar Usuários', icon: <FaUserPlus /> } // Ícone FaTh precisa ser importado
   ];
   
   const renderContent = () => {
@@ -345,6 +367,8 @@ const calculosDoMes = useMemo(() => {
   excluirVenda={excluirVenda} 
   handleStatusChange={handleStatusChange} // <-- CORRIGIDO para a nova função
   comissoesLiberadasMes={comissoesLiberadasMes}
+  onAbrirModalRelatorioGeral={() => setModalRelatorioGeral(true)}
+  onAbrirModalRelatorioHS={() => setModalRelatorioHS(true)} // <-- ADICIONE ESTA LINHA
   />;
         // CASES PARA ROTAS
 case 'ranking': {
@@ -379,8 +403,13 @@ case 'ranking': {
         case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
       case 'crm': return <PainelCRM />; 
       case 'contempladas': return <PainelContempladas usuario={perfilUsuario} />;
-      case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;     
-      default: return null;
+      case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;  
+case 'usuarios': 
+  return <AbaGerenciarUsuarios 
+    listaFiliais={listaFiliais} 
+    listaUsuarios={usuarios} // <-- PASSE A LISTA DE USUÁRIOS
+    onRefreshUsuarios={buscarUsuarios} // <-- PASSE A FUNÇÃO DE RECARREGAR
+  />;      default: return null;
     }
   };
   
@@ -390,38 +419,100 @@ case 'ranking': {
     <div className="bg-gray-900 text-gray-200 min-h-screen p-4 md:p-8">
       <div className="container mx-auto">
         <header className="mb-8">
-          <h1 className="text-4xl font-bold text-white">Painel do Diretor</h1>
-          <p className="text-gray-400 mt-1">Gerencie vendas, comissões, rankings e sua equipe.</p>
-          <nav className="mt-6 flex flex-wrap gap-2 border-b border-gray-700 pb-2">
-            {abas.map((item) => (
-              <button key={item.id} onClick={() => setAba(item.id)} className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-semibold transition-all ${aba === item.id ? 'bg-gray-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:bg-gray-700/50'}`}>
-                {item.icon} {item.label}
-              </button>
-            ))}
-          </nav>
+            <div className="flex justify-between items-center mb-6"> {/* <-- Wrapper Flex */}
+                <div>
+                    <h1 className="text-4xl font-bold text-white">Painel do Diretor</h1>
+                    <p className="text-gray-400 mt-1">Gerencie vendas, comissões, rankings e sua equipe.</p>
+                </div>
+                {/* --- BOTÕES ADICIONADOS --- */}
+                <div className="flex items-center gap-4">
+                    
+                    <button 
+                        onClick={() => setModalContaVisivel(true)}
+                        className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                    >
+                        <FaUserCircle /> Minha Conta
+                    </button>
+                    <button 
+                        onClick={handleLogout}
+                        className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                    >
+                        <FaSignOutAlt /> Sair
+                    </button>
+                </div>
+                {/* --- FIM DOS BOTÕES --- */}
+            </div>
+            <nav className="mt-6 flex flex-wrap gap-2 border-b border-gray-700 pb-2">
+                {abas.map((item) => (
+                    <button key={item.id} onClick={() => setAba(item.id)} className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-semibold transition-all ${aba === item.id ? 'bg-gray-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:bg-gray-700/50'}`}>
+                        {item.icon} {item.label}
+                    </button>
+                ))}
+            </nav>
         </header>
-                <LembretesLeads />
+        
+        <LembretesLeads />
         <div className="mt-6">{renderContent()}</div>
+
+        {/* --- LOCAL CORRETO PARA O MODAL --- */}
+        {modalContaVisivel && perfilUsuario && (
+            <MinhaContaModal 
+                usuario={perfilUsuario} 
+                onClose={() => setModalContaVisivel(false)}
+                onUpdate={() => {
+                    // Função para recarregar os dados do perfil após a atualização
+                    const reFetchProfile = async () => {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (user) {
+                            const { data: perfilData } = await supabase
+                              .from('usuarios_custom')
+                              .select('*') // Pega tudo para garantir
+                              .eq('id', user.id)
+                              .single();
+                            if (perfilData) setPerfilUsuario(perfilData);
+                        }
+                    };
+                    reFetchProfile();
+                    buscarUsuarios(); // Recarrega a lista de usuários tbm (caso mude o telefone)
+                }}
+            />
+        )}
+        {/* --- FIM DO MODAL --- */}
+        {/* --- MODAL DO RELATÓRIO HS ADICIONADO --- */}
+    {modalRelatorioHS && (
+        <RelatorioHSModal
+            vendas={vendas}
+            usuarios={usuarios}
+            onClose={() => setModalRelatorioHS(false)}
+        />
+    )}
+    {/* --- FIM DO MODAL --- */}
+    {/* --- MODAL DO RELATÓRIO GERAL ADICIONADO --- */}
+{modalRelatorioGeral && (
+    <RelatorioGeralModal
+        vendas={vendas}
+        usuarios={usuarios}
+        filtros={filtros}
+        listaFiliais={listaFiliais}
+        onClose={() => setModalRelatorioGeral(false)}
+    />
+)}
+{/* --- FIM DO MODAL --- */}
+
       </div>
     </div>
   );
-}
+} // <-- FIM DO COMPONENTE PainelDiretor
+
 
 // --- Componente da Aba de Vendas (Dashboard) ---
-const AbaVendas = ({ listaFiliais, vendasFiltradas, totalMesTodos, totalComissaoVendedor, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes }) => {
+const AbaVendas = ({ listaFiliais, vendasFiltradas, totalMesTodos, totalComissaoVendedor, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes, onAbrirModalRelatorioGeral, onAbrirModalRelatorioHS }) => {
     const mesSelecionadoLabel = dayjs(filtros.mes).format("MMMM [de] YYYY");
 
-    // 1. CRIA UMA LISTA DE VENDEDORES QUE REAGE AO FILTRO DE FILIAL
-     const vendedoresFiltradosParaDropdown = useMemo(() => {
-        // --- Linhas de Diagnóstico ---
-        console.log("ID da Filial selecionada no filtro:", filtros.filial);
-        console.log("Dados dos usuários (verifique o id_filial de cada um):", usuarios);
-        // -----------------------------
-
+    const vendedoresFiltradosParaDropdown = useMemo(() => {
         if (!filtros.filial) {
-            return usuarios; // Se "Todas as Filiais" estiver selecionado, mostra todos.
+            return usuarios; 
         }
-        // Usamos '==' para comparar, que é mais flexível com texto vs número (ex: 1 == "1")
         return usuarios.filter(u => u.id_filial == filtros.filial);
     }, [usuarios, filtros.filial]);
 
@@ -436,77 +527,103 @@ const AbaVendas = ({ listaFiliais, vendasFiltradas, totalMesTodos, totalComissao
             <StatCard icon={<FaFileInvoiceDollar size={24} />} label={`Comissões Anteriores Liberadas em ${dayjs().format('MMMM')}`} value={comissoesLiberadasMes} color="bg-blue-500/20 text-blue-400" />
         </div>
         
-        <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6">
-            {/* 2. FILTROS REORDENADOS E COM LÓGICA ATUALIZADA */}
-            <div className="flex flex-wrap items-center gap-4 mb-6 pb-6 border-b border-gray-700">
-                <h2 className="text-xl font-semibold flex items-center gap-2 whitespace-nowrap"><FaFilter /> Filtros</h2>
+        {/* Removido "printable-area" daqui */}
+        <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6"> 
+
+            {/* O TÍTULO QUE ESTAVA AQUI FOI REMOVIDO (pois ele está dentro do modal) */}
+
+            {/* --- DIV DE FILTROS E BOTÕES (LAYOUT CORRIGIDO) --- */}
+            <div className="print-hidden mb-6 pb-6 border-b border-gray-700">
                 
-                {/* Filtro de Mês */}
-                <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500" />
+                {/* Agrupador para Filtros */}
+                <div className="flex flex-wrap items-center gap-4">
+                    <h2 className="text-xl font-semibold flex items-center gap-2 whitespace-nowrap"><FaFilter /> Filtros</h2>
+                    
+                    <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500" />
 
-                {/* Filtro de Filial */}
-                <select 
-                    value={filtros.filial} 
-                    // 3. Ao mudar a filial, o filtro de vendedor é resetado
-                    onChange={(e) => setFiltros({ ...filtros, filial: e.target.value, vendedor: "" })} 
-                    className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
-                >
-                    <option value="">Todas as Filiais</option>
-                    {listaFiliais.map((filial) => (
-                        <option key={filial.id} value={filial.id}>{filial.nome}</option>
-                    ))}
-                </select>
+                    <select 
+                        value={filtros.filial} 
+                        onChange={(e) => setFiltros({ ...filtros, filial: e.target.value, vendedor: "" })} 
+                        className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="">Todas as Filiais</option>
+                        {listaFiliais.map((filial) => (
+                            <option key={filial.id} value={filial.id}>{filial.nome}</option>
+                        ))}
+                    </select>
 
-                {/* Filtro de Vendedor (agora usa a lista filtrada) */}
-                <select 
-                    value={filtros.vendedor} 
-                    onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} 
-                    className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
-                >
-                    <option value="">Todos os Vendedores</option>
-                    {/* 4. Mapeia a nova lista de vendedores que depende da filial */}
-                    {vendedoresFiltradosParaDropdown.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-                </select>
+                    <select 
+                        value={filtros.vendedor} 
+                        onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} 
+                        className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="">Todos os Vendedores</option>
+                        {vendedoresFiltradosParaDropdown.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                    </select>
 
-                {/* Filtro de Administradora */}
-                <select value={filtros.administradora} onChange={(e) => setFiltros({ ...filtros, administradora: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Todas Administradoras</option>
-                    <option value="HS">HS</option><option value="GAZIN">GAZIN</option>
-                </select>
+                    <select value={filtros.administradora} onChange={(e) => setFiltros({ ...filtros, administradora: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Todas Administradoras</option>
+                        <option value="HS">HS</option><option value="GAZIN">GAZIN</option>
+                    </select>
+                </div>
+
+                {/* Agrupador para Botões (separado, para quebrar a linha) */}
+                <div className="flex flex-wrap items-center gap-4 mt-4 justify-end">
+                    <button 
+                        onClick={onAbrirModalRelatorioHS}
+                        className="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                    >
+                        <FaChartLine /> Relatório HS
+                    </button>
+                    <button 
+                        onClick={onAbrirModalRelatorioGeral} 
+                        className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                    >
+                        <FaPrint /> Imprimir Relatório Geral
+                    </button>
+                </div>
             </div>
+            {/* --- FIM DA DIV DE FILTROS E BOTÕES --- */}
             
+            {/* Tabela de Lançamentos */}
             <div>
                 <h3 className="text-xl font-bold mb-4 text-white">Lançamentos de Vendas</h3>
                 <div className="overflow-x-auto">
                     <table className="min-w-full text-sm text-left">
                         <thead className="border-b border-gray-700"><tr className="text-gray-400 uppercase">
-                            <th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Produto</th><th className="px-4 py-3">Valor</th><th className="px-4 py-3">Vendedor</th><th className="px-4 py-3 text-center">Comissões</th><th className="px-4 py-3 text-center">Ações</th>
+                            <th className="px-4 py-3">Cliente</th>
+                            <th className="px-4 py-3">Produto</th>
+                            <th className="px-4 py-3">Valor</th>
+                            <th className="px-4 py-3">Vendedor</th>
+                            {/* Removido 'print-hidden' (não é mais necessário) */}
+                            <th className="px-4 py-3 text-center">Comissões</th>
+                            <th className="px-4 py-3 text-center">Ações</th>
                         </tr></thead>
                         <tbody>
                             {vendasFiltradas.length > 0 ? vendasFiltradas.map((venda) => (
                                 <tr key={venda.id} className="border-b border-gray-700/50 hover:bg-gray-700/50 transition-colors">
                                     {editandoId === venda.id ? (
                                         <>
-    <td className="p-2"><input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-2 rounded w-full"/></td>
-    <td className="p-2 space-y-2">
-        <input placeholder="Admin" value={vendaEditada.administradora || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-        <input placeholder="Grupo" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-        <input placeholder="Cota" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-        <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-2 rounded w-full">
-            <option value="cheia">Parcela Cheia</option>
-            <option value="meia">Parcela Meia</option>
-        </select>
-    </td>
-    <td className="p-2"><input type="number" value={vendaEditada.valor || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, valor: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
-    <td className="p-2">{nomeVendedor(venda.usuario_id)}</td>
-    <td className="p-2 text-center">-</td>
-    <td className="p-2">
-        <div className="flex gap-2 justify-center">
-            <button onClick={salvarEdicao} className="p-2 text-green-400 hover:text-green-300"><FaSave size={18} /></button>
-            <button onClick={() => setEditandoId(null)} className="p-2 text-gray-400 hover:text-gray-200"><FaTimes size={18} /></button>
-        </div>
-    </td>
-</>
+                                            <td className="p-2"><input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-2 rounded w-full"/></td>
+                                            <td className="p-2 space-y-2">
+                                                <input placeholder="Admin" value={vendaEditada.administradora || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
+                                                <input placeholder="Grupo" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
+                                                <input placeholder="Cota" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
+                                                <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-2 rounded w-full">
+                                                    <option value="cheia">Parcela Cheia</option>
+                                                    <option value="meia">Parcela Meia</option>
+                                                </select>
+                                            </td>
+                                            <td className="p-2"><input type="number" value={vendaEditada.valor || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, valor: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
+                                            <td className="p-2">{nomeVendedor(venda.usuario_id)}</td>
+                                            <td className="p-2 text-center">-</td>
+                                            <td className="p-2">
+                                                <div className="flex gap-2 justify-center">
+                                                    <button onClick={salvarEdicao} className="p-2 text-green-400 hover:text-green-300"><FaSave size={18} /></button>
+                                                    <button onClick={() => setEditandoId(null)} className="p-2 text-gray-400 hover:text-gray-200"><FaTimes size={18} /></button>
+                                                </div>
+                                            </td>
+                                        </>
                                     ) : (
                                         <>
                                             <td className="px-4 py-3 font-medium">{venda.cliente.toUpperCase()}</td>
@@ -518,33 +635,37 @@ const AbaVendas = ({ listaFiliais, vendasFiltradas, totalMesTodos, totalComissao
                                             </td>
                                             <td className="px-4 py-3 text-green-400 font-semibold">{parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
                                             <td className="px-4 py-3">{nomeVendedor(venda.usuario_id)}</td>
-<td className="px-4 py-3">
-    <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
-        {/* Parcela 1 é apenas informativa, não editável aqui */}
-        <span className={`px-2 py-1 text-xs rounded-md font-medium whitespace-nowrap ${venda.status_parcela_1 === 'PAGO' ? 'bg-green-500/20 text-green-300' : 'bg-gray-700'}`}>
-            P1: {venda.status_parcela_1 || 'PENDENTE'}
-        </span>
-
-        {/* Parcelas 2, 3 e 4 são editáveis pelo gerente */}
-        {[2, 3, 4].map((i) => {
-            const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
-            let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
-            if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
-            if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
-            if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
-
-            return (
-                <select 
-                    key={i}
-                    value={statusAtual}
-onChange={(e) => handleStatusChange(venda, i, e.target.value)}                    className={`p-1 text-xs rounded-md border focus:ring-2 focus:ring-indigo-400 font-medium ${corSeletor}`}
-                >
-                    {STATUS_OPCOES.map(opt => <option key={opt} value={opt}>{`P${i}: ${opt}`}</option>)}
-                </select>
-            );
-        })}
-    </div>
-</td>                                            <td className="px-4 py-3"><div className="flex gap-3 justify-center"><button onClick={() => editarVenda(venda)} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={18} /></button><button onClick={() => excluirVenda(venda.id)} className="p-2 text-red-500 hover:text-red-400"><FaTrash size={18} /></button></div></td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
+                                                    <span className={`px-2 py-1 text-xs rounded-md font-medium whitespace-nowrap ${venda.status_parcela_1 === 'PAGO' ? 'bg-green-500/20 text-green-300' : 'bg-gray-700'}`}>
+                                                        P1: {venda.status_parcela_1 || 'PENDENTE'}
+                                                    </span>
+                                                    {[2, 3, 4].map((i) => {
+                                                        const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
+                                                        let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
+                                                        if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
+                                                        if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
+                                                        if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
+    
+                                                        return (
+                                                            <select 
+                                                                key={i}
+                                                                value={statusAtual}
+                                                                onChange={(e) => handleStatusChange(venda, i, e.target.value)}
+                                                                className={`p-1 text-xs rounded-md border focus:ring-2 focus:ring-indigo-400 font-medium ${corSeletor}`}
+                                                            >
+                                                                {STATUS_OPCOES.map(opt => <option key={opt} value={opt}>{`P${i}: ${opt}`}</option>)}
+                                                            </select>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex gap-3 justify-center">
+                                                    <button onClick={() => editarVenda(venda)} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={18} /></button>
+                                                    <button onClick={() => excluirVenda(venda.id)} className="p-2 text-red-500 hover:text-red-400"><FaTrash size={18} /></button>
+                                                </div>
+                                            </td>
                                         </>
                                     )}
                                 </tr>
@@ -840,6 +961,7 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
                     </a>
                 </div>
             </div>
+            
         </div>
     );
 };

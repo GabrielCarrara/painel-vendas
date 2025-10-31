@@ -1,4 +1,4 @@
-// src/pages/PainelVendedor.js (Versão com erros de compilação corrigidos)
+// src/pages/PainelVendedor.js (Versão 100% Completa com Minha Conta e Sair)
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import LembretesLeads from '../components/LembretesLeads'; // Verifique o caminho
 import { supabase } from '../supabaseClient';
@@ -7,11 +7,13 @@ import PainelCRM from './PainelCRM';
 import {
   FaDollarSign, FaHandHoldingUsd, FaChevronDown, FaChevronUp, FaEdit, FaTrash, FaSave,
   FaFileInvoiceDollar, FaUsers, FaTrophy, FaCar, FaHome, FaBlender, FaSpinner, FaExclamationTriangle,
-  FaBullseye, FaChartLine, FaTh, FaFilter, FaLandmark // Ícones corrigidos e organizados
+  FaBullseye, FaChartLine, FaTh, FaFilter, FaLandmark,
+  FaSignOutAlt, FaUserCircle // <-- ÍCONES ADICIONADOS
 } from 'react-icons/fa';
 import dayjs from 'dayjs';
 import HSCotas from './HSCotas';
 import PainelContempladasAprimorado from './PainelContempladas'; 
+import MinhaContaModal from '../components/MinhaContaModal'; // <-- MODAL IMPORTADO
 
 // --- Constantes de Comissão ---
 const PERCENT_CHEIA = [0.006, 0.003, 0.003];
@@ -36,7 +38,7 @@ const SaleCard = ({ venda, onEdit, onDelete }) => (
         {venda.parcela === 'cheia' ? 'PARCELA CHEIA' : 'PARCELA MEIA'}
       </span>
     </header>
-            <LembretesLeads />
+            {/* <LembretesLeads /> */} {/* Removido Lembretes de dentro do card, estava estranho */}
     
     <div className="p-4 grid grid-cols-2 gap-4 text-sm flex-grow">
       <div><p className="text-gray-400">Valor</p><p className="font-semibold">{Number(venda.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
@@ -104,7 +106,6 @@ const CartaCard = ({ item }) => (
     </div>
 );
 
-// --- COMPONENTE QUE FALTAVA ---
 const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
     const medalhas = ['🥇', '🥈', '🥉'];
     const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold">{posicao + 1}º</span>;
@@ -128,7 +129,7 @@ export default function PainelVendedor() {
   const [allVendas, setAllVendas] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [usuario, setUsuario] = useState(null);
+  const [usuario, setUsuario] = useState(null); // Armazena o perfil completo
   const [mesFiltro, setMesFiltro] = useState(dayjs().format('YYYY-MM'));
   const [editandoId, setEditandoId] = useState(null);
   const [formVisivel, setFormVisivel] = useState(false);
@@ -137,11 +138,21 @@ export default function PainelVendedor() {
   const [comissaoLiberadaMes, setComissaoLiberadaMes] = useState(0);
   const navigate = useNavigate();
 
+  // --- NOVOS STATES E FUNÇÕES ---
+  const [modalContaVisivel, setModalContaVisivel] = useState(false);
+
+  const handleLogout = async () => {
+      await supabase.auth.signOut();
+      navigate('/login');
+  };
+  // --- FIM DOS NOVOS STATES E FUNÇÕES ---
+
+
 const carregarTodosDados = useCallback(async (mes, userId) => {
     if (!userId) return;
     setLoading(true);
 
-    // 1. Busca o perfil do usuário atual para descobrir sua filial
+    // 1. Busca o perfil do usuário atual (que já foi pego no useEffect anterior)
     const { data: perfil } = await supabase
       .from('usuarios_custom')
       .select('id_filial')
@@ -154,26 +165,23 @@ const carregarTodosDados = useCallback(async (mes, userId) => {
       return;
     }
 
-    // 2. Monta as queries para buscar os dados, agora usando o ID da filial do vendedor
+    // 2. Monta as queries
     const [vendasRes, usersRes, contempladasRes, configRes, pagamentosRes] = await Promise.all([
-      // Filtra vendas de usuários da mesma filial
       supabase.from('vendas')
         .select('*, usuarios_custom(id_filial)')
         .eq('usuarios_custom.id_filial', perfil.id_filial)
         .order('created_at', { ascending: false }),
       
-      // Filtra usuários da mesma filial
       supabase.from('usuarios_custom')
         .select('id, nome')
         .eq('id_filial', perfil.id_filial),
 
       supabase.from('contempladas').select('*'),
       
-      // MUDANÇA PRINCIPAL AQUI: Filtra as configurações pela filial do vendedor
       supabase.from('configuracoes_mensais')
               .select('*')
               .eq('mes', mes)
-              .eq('id_filial', perfil.id_filial) // <-- FILTRO DE FILIAL ADICIONADO
+              .eq('id_filial', perfil.id_filial) 
               .single(),
 
       supabase.from('pagamentos_comissao')
@@ -182,7 +190,7 @@ const carregarTodosDados = useCallback(async (mes, userId) => {
               .eq('mes_pagamento', dayjs().format('YYYY-MM'))
     ]);
 
-    // O restante da função para processar os dados continua o mesmo...
+    // 3. Processa os dados
     if (vendasRes.data) setAllVendas(vendasRes.data);
     if (usersRes.data) setAllUsers(usersRes.data);
     if (contempladasRes.data) {
@@ -192,41 +200,45 @@ const carregarTodosDados = useCallback(async (mes, userId) => {
     if (configRes.data) {
         setConfiguracoes(configRes.data);
     } else {
-        // Se não houver configuração para a filial, mostra um padrão
         setConfiguracoes({ mes: mes, meta_geral: 0, duplas: [] });
     }
     if (pagamentosRes.data) {
         const totalLiberado = pagamentosRes.data.reduce((acc, item) => acc + item.valor_comissao, 0);
-setComissaoLiberadaMes(totalLiberado);    }
+        setComissaoLiberadaMes(totalLiberado);
+    }
 
     setLoading(false);
 }, []);
   
   useEffect(() => {
-  const getUserAndData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate('/login'); return; }
+    const getUserAndData = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { navigate('/login'); return; }
 
-      // Busca o perfil completo na tabela usuarios_custom
-      const { data: perfilData } = await supabase
-        .from('usuarios_custom')
-        .select('id, nome, email, cargo') // Puxa o cargo junto
-        .eq('id', user.id)
-        .single();
+        // --- ATUALIZADO AQUI ---
+        // Busca o perfil completo na tabela usuarios_custom
+        const { data: perfilData } = await supabase
+          .from('usuarios_custom')
+          .select('id, nome, email, cargo, telefone, foto_url') // <-- Pega foto e telefone
+          .eq('id', user.id)
+          .single();
+        // --- FIM DA ATUALIZAÇÃO ---
 
-      // Salva o perfil completo no estado 'usuario'
-      if (perfilData) {
-        setUsuario(perfilData);
-      } else {
-        setUsuario(user); // Fallback caso não ache o perfil
-      }
-  }
-  getUserAndData();
-}, [navigate]);
+        // Salva o perfil completo no estado 'usuario'
+        if (perfilData) {
+          setUsuario(perfilData);
+        } else {
+          // Fallback (menos ideal)
+          setUsuario({ id: user.id, email: user.email, nome: user.email.split('@')[0] }); 
+        }
+    }
+    getUserAndData();
+  }, [navigate]);
 
   useEffect(() => {
     if (usuario) {
-        carregarTodosDados(mesFiltro, usuario.id);    }
+        carregarTodosDados(mesFiltro, usuario.id);
+    }
   }, [usuario, mesFiltro, carregarTodosDados]);
   
   const formatInputMoeda = (txt) => {
@@ -243,18 +255,23 @@ setComissaoLiberadaMes(totalLiberado);    }
 
 const handleSave = async (e) => {
     e.preventDefault();
-    const valorDesformatado = desformatarMoeda(formulario.valor);
-    const dadosParaSalvar = { ...formulario, valor: valorDesformatado, mes: editandoId ? formulario.mes : dayjs(mesFiltro).format('YYYY-MM'), usuario_id: usuario.id, cliente: formulario.cliente.toUpperCase() };
+    if (!usuario) return alert('Usuário não encontrado.');
 
-    // Se for uma NOVA VENDA
+    const valorDesformatado = desformatarMoeda(formulario.valor);
+    const dadosParaSalvar = { 
+        ...formulario, 
+        valor: valorDesformatado, 
+        mes: editandoId ? formulario.mes : dayjs(mesFiltro).format('YYYY-MM'), 
+        usuario_id: usuario.id, 
+        cliente: formulario.cliente.toUpperCase() 
+    };
+
     if (!editandoId) {
-        // Define o status inicial de todas as parcelas
         dadosParaSalvar.status_parcela_1 = 'PAGO';
         dadosParaSalvar.status_parcela_2 = 'PENDENTE';
         dadosParaSalvar.status_parcela_3 = 'PENDENTE';
         dadosParaSalvar.status_parcela_4 = 'PENDENTE';
         
-        // Insere a venda e recupera o registro inserido
         const { data: vendaInserida, error } = await supabase.from('vendas').insert([dadosParaSalvar]).select().single();
         
         if (error) {
@@ -262,7 +279,6 @@ const handleSave = async (e) => {
             return;
         }
 
-        // REGISTRA O PAGAMENTO DA 1ª COMISSÃO IMEDIATAMENTE
         const percentuais = vendaInserida.parcela === 'cheia' ? [0.006, 0.003, 0.003, 0] : [0.003, 0.0015, 0.0015, 0];
         const valorComissao1 = vendaInserida.valor * percentuais[0];
 
@@ -276,12 +292,11 @@ const handleSave = async (e) => {
             });
         }
 
-    } else { // Se estiver apenas EDITANDO uma venda existente
+    } else { 
         const { error } = await supabase.from('vendas').update(dadosParaSalvar).eq('id', editandoId);
         if (error) { alert('Erro ao atualizar: ' + error.message); return; }
     }
 
-    // Recarrega todos os dados e limpa o formulário
     await carregarTodosDados(mesFiltro, usuario.id);
     limparFormulario();
 };
@@ -294,13 +309,14 @@ const handleSave = async (e) => {
 
   const excluirVenda = async (id) => {
     if (!window.confirm('Tem certeza?')) return;
+    if (!usuario) return;
     setLoading(true);
     const { error } = await supabase.from('vendas').delete().eq('id', id);
     if(error) {
         alert('Erro ao excluir: ' + error.message);
         setLoading(false);
     } else {
-await carregarTodosDados(mesFiltro, usuario.id);
+        await carregarTodosDados(mesFiltro, usuario.id);
         alert('Venda excluída com sucesso!');
     }
   };
@@ -316,7 +332,6 @@ await carregarTodosDados(mesFiltro, usuario.id);
  const totaisPessoais = useMemo(() => {
     const totalMes = minhasVendasDoMes.reduce((s, v) => s + Number(v.valor), 0);
     
-    // Lógica corrigida: "Comissão Prevista" agora calcula com base no status 'PAGO' das parcelas daquele mês.
     const comissaoRecebida = minhasVendasDoMes.reduce((s, venda) => {
         const base = Number(venda.valor);
         const pc = venda.parcela === 'cheia' ? [0.006, 0.003, 0.003] : [0.003, 0.0015, 0.0015];
@@ -345,10 +360,8 @@ await carregarTodosDados(mesFiltro, usuario.id);
     { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
   ];
   
-  // COLE ESTE BLOCO CORRIGIDO NO LUGAR DA SUA FUNÇÃO renderContent ATUAL
-
 const renderContent = () => {
-      if (loading) return <LoadingSpinner />;
+      if (loading && !usuario) return <LoadingSpinner />; // Mostra spinner se estiver carregando o usuário
       
       switch(aba) {
           case 'vendas': 
@@ -368,6 +381,7 @@ const renderContent = () => {
                   iniciarEdicao={iniciarEdicao} 
                   excluirVenda={excluirVenda} 
                   formatInputMoeda={formatInputMoeda} 
+                  loading={loading} // Passa o estado de loading
               />;
           
           case 'ranking': 
@@ -378,6 +392,7 @@ const renderContent = () => {
                   setMesFiltro={setMesFiltro} 
                   configuracoes={configuracoes} 
                   usuarioAtual={usuario} 
+                  loading={loading} // Passa o estado de loading
               />;
 
           case 'crm': 
@@ -399,11 +414,32 @@ const renderContent = () => {
               return null;
       }
   };
+  
+  // --- JSX PRINCIPAL (COM HEADER ATUALIZADO) ---
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 animate-fade-in">
+        {/* --- HEADER ATUALIZADO --- */}
         <header className="mb-8">
-            <h1 className="text-4xl font-bold text-white">Painel do Vendedor</h1>
-            <p className="text-gray-400 mt-1">Bem-vindo(a) de volta, {(usuario?.user_metadata?.nome || usuario?.email.split('@')[0] || '').split(' ')[0]}!</p>
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h1 className="text-4xl font-bold text-white">Painel do Vendedor</h1>
+                    <p className="text-gray-400 mt-1">Bem-vindo(a) de volta, {(usuario?.nome || usuario?.email?.split('@')[0] || '').split(' ')[0]}!</p>
+                </div>
+                <div className="flex items-center gap-4">
+                    <button 
+                        onClick={() => setModalContaVisivel(true)}
+                        className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                    >
+                        <FaUserCircle /> Minha Conta
+                    </button>
+                    <button 
+                        onClick={handleLogout}
+                        className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                    >
+                        <FaSignOutAlt /> Sair
+                    </button>
+                </div>
+            </div>
             <nav className="mt-6 flex flex-wrap gap-2 border-b border-gray-700 pb-2">
                 {abas.map((item) => (
                     <button key={item.id} onClick={() => setAba(item.id)} className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-semibold transition-all ${aba === item.id ? 'bg-gray-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:bg-gray-700/50'}`}>
@@ -412,17 +448,48 @@ const renderContent = () => {
                 ))}
             </nav>
         </header>
-        <main>{renderContent()}</main>
+        {/* --- FIM DO HEADER ATUALIZADO --- */}
+
+        {/* Adiciona o LembretesLeads aqui, fora do card */}
+        <LembretesLeads />
+        
+        <main className="mt-6">{renderContent()}</main>
+
+        {/* --- MODAL DA CONTA ADICIONADO --- */}
+        {modalContaVisivel && usuario && (
+            <MinhaContaModal 
+                usuario={usuario} 
+                onClose={() => setModalContaVisivel(false)}
+                onUpdate={() => {
+                    // Função para recarregar os dados do perfil após a atualização
+                    const reFetchProfile = async () => {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (user) {
+                            const { data: perfilData } = await supabase
+                              .from('usuarios_custom')
+                              .select('id, nome, email, cargo, telefone, foto_url') // Mesmo select do useEffect
+                              .eq('id', user.id)
+                              .single();
+                            if (perfilData) setUsuario(perfilData);
+                        }
+                    };
+                    reFetchProfile();
+                }}
+            />
+        )}
+        {/* --- FIM DO MODAL --- */}
+
     </div>
   );
 }
 
-const AbaMinhasVendas = ({ totais, comissaoLiberada, mesFiltro, setMesFiltro, formVisivel, setFormVisivel, formulario, setFormulario, handleSave, editandoId, limparFormulario, minhasVendas, iniciarEdicao, excluirVenda, formatInputMoeda }) => (
+// --- COMPONENTE AbaMinhasVendas ---
+const AbaMinhasVendas = ({ totais, comissaoLiberada, mesFiltro, setMesFiltro, formVisivel, setFormVisivel, formulario, setFormulario, handleSave, editandoId, limparFormulario, minhasVendas, iniciarEdicao, excluirVenda, formatInputMoeda, loading }) => (
     <div className="animate-fade-in">
-        <div className="grid sm:grid-cols-2 gap-6 mb-8">
-            <StatCard icon={<FaDollarSign size={24} />} label="Minhas Vendas no Mês" value={totais.totalMes} color="bg-green-500/20" />
-            <StatCard icon={<FaHandHoldingUsd size={24} />} label="Minha Comissão Prevista" value={totais.comissaoRecebida} color="bg-yellow-500/20" />
-                <StatCard icon={<FaFileInvoiceDollar size={24} />} label="Comissão Liberada este Mês" value={comissaoLiberada} color="bg-blue-500/20" />
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <StatCard icon={<FaDollarSign size={24} />} label="Minhas Vendas no Mês" value={totais.totalMes} color="bg-green-500/20 text-green-300" />
+            <StatCard icon={<FaHandHoldingUsd size={24} />} label="Minha Comissão Prevista" value={totais.comissaoRecebida} color="bg-yellow-500/20 text-yellow-300" />
+            <StatCard icon={<FaFileInvoiceDollar size={24} />} label="Comissão Liberada este Mês" value={comissaoLiberada} color="bg-blue-500/20 text-blue-300" />
         </div>
         <div className="bg-gray-800/50 rounded-xl shadow-2xl p-6">
             <div className="flex justify-between items-center mb-4">
@@ -436,7 +503,7 @@ const AbaMinhasVendas = ({ totais, comissaoLiberada, mesFiltro, setMesFiltro, fo
                 {formVisivel && (
                     <form onSubmit={handleSave} className="pb-4 space-y-4 animate-fade-in">
                         <div className="grid md:grid-cols-3 gap-4">
-                            <input name="cliente" value={formulario.cliente} onChange={(e) => setFormulario(prev => ({...prev, cliente: e.target.value}))} placeholder="Nome do cliente" className="p-3 bg-gray-700 rounded-lg border border-gray-600" required />
+                            <input name="cliente" value={formulario.cliente} onChange={(e) => setFormulario(prev => ({...prev, cliente: e.target.value.toUpperCase()}))} placeholder="Nome do cliente" className="p-3 bg-gray-700 rounded-lg border border-gray-600" required />
                             <input name="valor" value={formulario.valor} onChange={(e) => setFormulario(prev => ({...prev, valor: formatInputMoeda(e.target.value)}))} placeholder="Valor da venda" className="p-3 bg-gray-700 rounded-lg border border-gray-600" required />
                             <select name="administradora" value={formulario.administradora} onChange={(e) => setFormulario(prev => ({...prev, administradora: e.target.value}))} className="p-3 bg-gray-700 rounded-lg border border-gray-600"><option>GAZIN</option><option>HS</option></select>
                             <input name="grupo" value={formulario.grupo} onChange={(e) => setFormulario(prev => ({...prev, grupo: e.target.value}))} placeholder="Grupo" className="p-3 bg-gray-700 rounded-lg border border-gray-600" required />
@@ -447,25 +514,41 @@ const AbaMinhasVendas = ({ totais, comissaoLiberada, mesFiltro, setMesFiltro, fo
                     </form>
                 )}
             </div>
-            {minhasVendas.length > 0 ? <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">{minhasVendas.map((v) => <SaleCard key={v.id} venda={v} onEdit={() => iniciarEdicao(v)} onDelete={() => excluirVenda(v.id)} />)}</div> : <EmptyState title="Nenhuma Venda no Mês" message="Você ainda não lançou vendas para este período." />}
+            {loading ? <LoadingSpinner text="Carregando vendas..." /> : (
+                minhasVendas.length > 0 ? 
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">{minhasVendas.map((v) => <SaleCard key={v.id} venda={v} onEdit={() => iniciarEdicao(v)} onDelete={() => excluirVenda(v.id)} />)}</div> 
+                : <EmptyState title="Nenhuma Venda no Mês" message="Você ainda não lançou vendas para este período." />
+            )}
         </div>
     </div>
 );
 
-const AbaRankingVendedor = ({ vendas, usuarios, mesFiltro, setMesFiltro, configuracoes, usuarioAtual }) => {
+// --- COMPONENTE AbaRankingVendedor ---
+const AbaRankingVendedor = ({ vendas, usuarios, mesFiltro, setMesFiltro, configuracoes, usuarioAtual, loading }) => {
     const totaisPorVendedor = useMemo(() => {
         const totais = {}; const vendasDoMes = vendas.filter(v => v.mes === mesFiltro);
         usuarios.forEach(u => { totais[u.id] = { id: u.id, nome: u.nome, vendido: 0 }; });
         vendasDoMes.forEach((venda) => { if (totais[venda.usuario_id]) { totais[venda.usuario_id].vendido += parseFloat(venda.valor) || 0; } });
         return totais;
     }, [vendas, mesFiltro, usuarios]);
+    
     const rankingIndividual = useMemo(() => Object.values(totaisPorVendedor).filter(v => v.vendido > 0).sort((a, b) => b.vendido - a.vendido), [totaisPorVendedor]);
+    
     const totaisDuplas = useMemo(() => {
         const duplasParaCalculo = configuracoes.duplas || [];
-        return duplasParaCalculo.map(dupla => { const total = dupla.reduce((acc, nome) => { const vendedor = Object.values(totaisPorVendedor).find(v => v.nome === nome); return acc + (vendedor ? vendedor.vendido : 0); }, 0); return { nomes: dupla.join(' e '), total, membros: dupla }; }).sort((a, b) => b.total - a.total);
+        return duplasParaCalculo.map(dupla => { 
+            const total = dupla.reduce((acc, nome) => { 
+                const vendedor = Object.values(totaisPorVendedor).find(v => v.nome === nome); 
+                return acc + (vendedor ? vendedor.vendido : 0); 
+            }, 0); 
+            return { nomes: dupla.join(' e '), total, membros: dupla }; 
+        }).sort((a, b) => b.total - a.total);
     }, [configuracoes.duplas, totaisPorVendedor]);
+
     const vendidoGeral = useMemo(() => rankingIndividual.reduce((acc, v) => acc + v.vendido, 0), [rankingIndividual]);
     const faltaParaMeta = (configuracoes.meta_geral || 0) - vendidoGeral;
+
+    if (loading) return <LoadingSpinner text="Carregando ranking..." />;
 
     return (
         <div className="animate-fade-in space-y-8">
@@ -480,7 +563,7 @@ const AbaRankingVendedor = ({ vendas, usuarios, mesFiltro, setMesFiltro, configu
                 </div>
                 <div>
                     <h3 className="text-xl font-semibold mb-4 text-indigo-400">RANKING DE DUPLAS</h3>
-                    <div className="space-y-3">{totaisDuplas.length > 0 ? totaisDuplas.map((dupla, index) => ( <RankingCard key={dupla.nomes} posicao={index} nome={dupla.nomes} valor={dupla.total} isCurrentUser={dupla.membros.includes(usuarioAtual?.user_metadata?.nome)} /> )) : <p className="text-gray-500">Duplas não configuradas.</p>}</div>
+                    <div className="space-y-3">{totaisDuplas.length > 0 ? totaisDuplas.map((dupla, index) => ( <RankingCard key={dupla.nomes} posicao={index} nome={dupla.nomes} valor={dupla.total} isCurrentUser={dupla.membros.includes(usuarioAtual?.nome)} /> )) : <p className="text-gray-500">Duplas não configuradas.</p>}</div>
                 </div>
             </div>
             <div>
@@ -488,10 +571,9 @@ const AbaRankingVendedor = ({ vendas, usuarios, mesFiltro, setMesFiltro, configu
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <StatCard icon={<FaBullseye size={24} />} label="Meta Geral" value={configuracoes.meta_geral} color="bg-indigo-500/20" />
                     <StatCard icon={<FaDollarSign size={24} />} label="Vendido Geral" value={vendidoGeral} color="bg-green-500/20" />
-                    <StatCard icon={<FaChartLine size={24} />} label="Falta para a Meta" value={faltaParaMeta} color="bg-red-500/20" />
+                    <StatCard icon={<FaChartLine size={24} />} label="Falta para a Meta" value={faltaParaMeta > 0 ? faltaParaMeta : 0} color={faltaParaMeta > 0 ? "bg-red-500/20" : "bg-green-500/20"} />
                 </div>
             </div>
         </div>
     );
 };
-
