@@ -75,7 +75,7 @@ serve(async (req) => {
     const profileData = { ...payload };
     delete profileData.password; 
     
-    if (profileData.id_filial) {
+   if (profileData.id_filial !== undefined) {
       profileData.id_filial = parseInt(profileData.id_filial, 10) || null;
     }
 
