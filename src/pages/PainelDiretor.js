@@ -22,8 +22,8 @@ import RelatorioGeralModal from '../components/RelatorioGeralModal'; // <-- ADIC
 import PainelContempladas from "./PainelContempladas";
 import AbaGerenciarUsuarios from './AbaGerenciarUsuarios';
 import HSCotas from './HSCotas'; // Verifique se o caminho está correto
-const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0]; // Comissão: 1.2% total (0.6, 0.3, 0.3). Parcela 4 não tem comissão.
-const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0]; // Comissão: 0.6% total (0.3, 0.15, 0.15). Parcela 4 não tem comissão.
+const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0.003]; // P4 corrigida
+const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0.0015]; // P4 corrigida
 const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO'];
 
 // --- Componentes de UI Reutilizáveis ---
@@ -88,18 +88,31 @@ const buscarTodasFiliais = async () => {
     }
 };
 // PainelGerente.js
-  const buscarComissoesLiberadas = useCallback(async () => {
+// Em PainelDiretor.js
+
+  const buscarComissoesLiberadas = async () => {
     const mesAtual = dayjs().format('YYYY-MM');
-    
-    // A query agora busca apenas pagamentos de parcelas que NÃO SÃO a primeira (neq = not equal to).
+
     let query = supabase
       .from('pagamentos_comissao')
       .select('valor_comissao')
       .eq('mes_pagamento', mesAtual)
-      .neq('parcela_index', 1); // <-- MUDANÇA PRINCIPAL AQUI
+      .neq('parcela_index', 1);
 
-    if (filtros.vendedor) {
-      query = query.eq('usuario_id', filtros.vendedor);
+    // REMOVEMOS O BLOCO 'if (filtros.vendedor)' DAQUI
+
+    // Filtra pela filial (se uma filial estiver selecionada no filtro)
+    // Isso está CORRETO.
+    if (filtros.filial) {
+        const { data: usuariosDaFilial } = await supabase
+            .from('usuarios_custom')
+            .select('id')
+            .eq('id_filial', filtros.filial);
+
+        if (usuariosDaFilial) {
+            const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
+            query = query.in('usuario_id', idsDosUsuarios);
+        }
     }
 
     const { data, error } = await query;
@@ -115,25 +128,24 @@ const buscarTodasFiliais = async () => {
     } else {
       setComissoesLiberadasMes(0);
     }
-  }, [filtros.vendedor]);
-  
-  const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
-  if (!id_filial) return; // Não busca se não souber a filial
-  const { data } = await supabase
-    .from('configuracoes_mensais')
-    .select('*')
-    .eq('mes', mes)
-    .eq('id_filial', id_filial) // <-- FILTRO ADICIONADO
-    .single();
+  };
 
-  if (data) {
-    setConfiguracoes(data);
-  } else {
-    // Se não achar, cria uma configuração padrão vazia para aquela filial
-    setConfiguracoes({ mes, id_filial, meta_geral: 10000000, duplas: [] });
-  }
-}, []);
+const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
+    if (!id_filial) return; // Não busca se não souber a filial
+    const { data } = await supabase
+      .from('configuracoes_mensais')
+      .select('*')
+      .eq('mes', mes)
+      .eq('id_filial', id_filial) // <-- FILTRO ADICIONADO
+      .single();
 
+    if (data) {
+      setConfiguracoes(data);
+    } else {
+      // Se não achar, cria uma configuração padrão vazia para aquela filial
+      setConfiguracoes({ mes, id_filial, meta_geral: 10000000, duplas: [] });
+    }
+  }, []);
   // PainelGerente.js
   
  useEffect(() => {
@@ -179,8 +191,7 @@ const buscarTodasFiliais = async () => {
 
 useEffect(() => {
     buscarComissoesLiberadas();
-  }, [filtros.vendedor, buscarComissoesLiberadas]);
-
+  }, [filtros.filial]); // <-- Correto (atualiza se o Diretor mudar a filial)
   
 
   const nomeVendedor = (id) => usuarios.find((u) => u.id === id)?.nome || "Desconhecido";
@@ -285,8 +296,8 @@ useEffect(() => {
     }
     
     // 3. RECARREGA OS DADOS PARA ATUALIZAR A INTERFACE
-    buscarVendas(); 
-    buscarComissoesLiberadas();
+    await buscarVendas(); 
+    await buscarComissoesLiberadas();
   };
 
 // COLE ESTE BLOCO CORRIGIDO NO LUGAR DO SEU calculosDoMes ATUAL

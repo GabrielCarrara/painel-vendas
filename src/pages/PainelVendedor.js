@@ -16,8 +16,8 @@ import PainelContempladasAprimorado from './PainelContempladas';
 import MinhaContaModal from '../components/MinhaContaModal'; // <-- MODAL IMPORTADO
 
 // --- Constantes de Comissão ---
-const PERCENT_CHEIA = [0.006, 0.003, 0.003];
-const PERCENT_MEIA = [0.003, 0.0015, 0.0015];
+const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0.003]; // P4 adicionada
+const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0.0015]; // P4 adicionada
 
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, label, value, color }) => (
@@ -337,10 +337,11 @@ const handleSave = async (e) => {
         const pc = venda.parcela === 'cheia' ? [0.006, 0.003, 0.003] : [0.003, 0.0015, 0.0015];
         
         if (venda.status_parcela_1 === 'PAGO') s += base * pc[0];
-        if (venda.status_parcela_2 === 'PAGO') s += base * pc[1];
-        if (venda.status_parcela_3 === 'PAGO') s += base * pc[2];
-        
-        return s;
+    if (venda.status_parcela_2 === 'PAGO') s += base * pc[1];
+    if (venda.status_parcela_3 === 'PAGO') s += base * pc[2];
+    if (venda.status_parcela_4 === 'PAGO') s += base * pc[3]; // <-- LINHA ADICIONADA
+
+    return s;
     }, 0);
 
     return { totalMes, comissaoRecebida };

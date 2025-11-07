@@ -24,8 +24,8 @@ import PainelContempladas from "./PainelContempladas";
 import HSCotas from './HSCotas';
 
 // --- Constantes ---
-const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0];
-const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0];
+const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0.003]; // P4 corrigida
+const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0.0015]; // P4 corrigida
 const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO'];
 
 // --- Componentes de UI Reutilizáveis ---
@@ -110,26 +110,28 @@ export default function PainelGerenteAprimorado() {
     if (data) setVendas(data);
   };
 
-  const buscarComissoesLiberadas = useCallback(async () => {
+// Em PainelGerente.js, substitua a função buscarComissoesLiberadas
+
+// Em PainelGerente.js
+
+  const buscarComissoesLiberadas = async () => {
     const mesAtual = dayjs().format('YYYY-MM');
-    
+
     let query = supabase
       .from('pagamentos_comissao')
       .select('valor_comissao')
       .eq('mes_pagamento', mesAtual)
       .neq('parcela_index', 1);
 
-    if (filtros.vendedor) {
-      query = query.eq('usuario_id', filtros.vendedor);
-    }
-    
-    // FILTRA COMISSÕES PELA FILIAL DO GERENTE
+    // REMOVEMOS O BLOCO 'if (filtros.vendedor)' DAQUI
+
+    // O filtro pela filial do gerente (perfilUsuario) está CORRETO.
     if (perfilUsuario) {
         const { data: usuariosDaFilial } = await supabase
             .from('usuarios_custom')
             .select('id')
             .eq('id_filial', perfilUsuario.id_filial);
-        
+
         if (usuariosDaFilial) {
             const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
             query = query.in('usuario_id', idsDosUsuarios);
@@ -149,9 +151,10 @@ export default function PainelGerenteAprimorado() {
     } else {
       setComissoesLiberadasMes(0);
     }
-  }, [filtros.vendedor, perfilUsuario]);
+  };
   
-  const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
+  // <-- Fim da função (sem o array de dependência)
+const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
     if (!id_filial) return;
     const { data } = await supabase
       .from('configuracoes_mensais')
@@ -166,7 +169,6 @@ export default function PainelGerenteAprimorado() {
       setConfiguracoes({ mes, id_filial, meta_geral: 10000000, duplas: [] });
     }
   }, []);
-
   // --- UseEffects (Carregamento de Dados) ---
   useEffect(() => {
     const carregarDadosIniciais = async () => {
@@ -209,12 +211,11 @@ export default function PainelGerenteAprimorado() {
     }
   }, [filtros.mes, fetchConfiguracoes, perfilUsuario]);
 
-  useEffect(() => {
-    // Busca comissões apenas quando o perfil (para filtrar a filial) estiver carregado
+useEffect(() => {
     if (perfilUsuario) {
         buscarComissoesLiberadas();
     }
-  }, [filtros.vendedor, perfilUsuario, buscarComissoesLiberadas]);
+  }, [perfilUsuario]); // <-- Correto (só precisa rodar quando o perfil carregar)// <-- Removido 'buscarComissoesLiberadas'
 
   // --- Funções de Ação (CRUD Vendas) ---
   const nomeVendedor = (id) => usuarios.find((u) => u.id === id)?.nome || "Desconhecido";
