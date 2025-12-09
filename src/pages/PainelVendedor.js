@@ -1,6 +1,6 @@
-// src/pages/PainelVendedor.js (Versão 100% Completa com Minha Conta e Sair)
+// src/pages/PainelVendedor.js (VERSÃO CORRIGIDA)
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import LembretesLeads from '../components/LembretesLeads'; // Verifique o caminho
+import LembretesLeads from '../components/LembretesLeads';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import PainelCRM from './PainelCRM';
@@ -8,16 +8,17 @@ import {
   FaDollarSign, FaHandHoldingUsd, FaChevronDown, FaChevronUp, FaEdit, FaTrash, FaSave,
   FaFileInvoiceDollar, FaUsers, FaTrophy, FaCar, FaHome, FaBlender, FaSpinner, FaExclamationTriangle,
   FaBullseye, FaChartLine, FaTh, FaFilter, FaLandmark,
-  FaSignOutAlt, FaUserCircle // <-- ÍCONES ADICIONADOS
+  FaSignOutAlt, FaUserCircle
 } from 'react-icons/fa';
 import dayjs from 'dayjs';
 import HSCotas from './HSCotas';
 import PainelContempladasAprimorado from './PainelContempladas'; 
-import MinhaContaModal from '../components/MinhaContaModal'; // <-- MODAL IMPORTADO
+import MinhaContaModal from '../components/MinhaContaModal';
 
-// --- Constantes de Comissão ---
+// --- Constantes de Comissão (Corretas) ---
 const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0.003]; // P4 adicionada
 const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0.0015]; // P4 adicionada
+// (Não precisamos de STATUS_OPCOES aqui, pois o vendedor não pode editar)
 
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, label, value, color }) => (
@@ -30,6 +31,7 @@ const StatCard = ({ icon, label, value, color }) => (
   </div>
 );
 
+// SaleCard (Correto - sem <select> de status)
 const SaleCard = ({ venda, onEdit, onDelete }) => (
   <div className="bg-gray-800/70 rounded-xl shadow-lg flex flex-col border border-gray-700/50">
     <header className="p-4 flex justify-between items-center border-b border-gray-700">
@@ -38,7 +40,6 @@ const SaleCard = ({ venda, onEdit, onDelete }) => (
         {venda.parcela === 'cheia' ? 'PARCELA CHEIA' : 'PARCELA MEIA'}
       </span>
     </header>
-            {/* <LembretesLeads /> */} {/* Removido Lembretes de dentro do card, estava estranho */}
     
     <div className="p-4 grid grid-cols-2 gap-4 text-sm flex-grow">
       <div><p className="text-gray-400">Valor</p><p className="font-semibold">{Number(venda.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
@@ -46,24 +47,24 @@ const SaleCard = ({ venda, onEdit, onDelete }) => (
       <div><p className="text-gray-400">Grupo</p><p className="font-semibold">{venda.grupo}</p></div>
       <div><p className="text-gray-400">Cota</p><p className="font-semibold">{venda.cota}</p></div>
     </div>
-<div className="px-4 pb-4 text-xs">
-    <p className="text-gray-400 mb-1">Status das Comissões:</p>
-    <div className="flex gap-2 flex-wrap">
-        {[1, 2, 3, 4].map(i => {
-            const status = venda[`status_parcela_${i}`] || 'PENDENTE';
-            let cor = 'text-gray-500';
-            if (status === 'PAGO') cor = 'text-green-400';
-            if (status === 'VENCIDO' || status === 'ESTORNO') cor = 'text-red-400';
-            if (status === 'PENDENTE') cor = 'text-yellow-400';
+    <div className="px-4 pb-4 text-xs">
+        <p className="text-gray-400 mb-1">Status das Comissões:</p>
+        <div className="flex gap-2 flex-wrap">
+            {[1, 2, 3, 4].map(i => {
+                const status = venda[`status_parcela_${i}`] || 'PENDENTE';
+                let cor = 'text-gray-500';
+                if (status === 'PAGO') cor = 'text-green-400';
+                if (status === 'VENCIDO' || status === 'ESTORNO') cor = 'text-red-400';
+                if (status === 'PENDENTE') cor = 'text-yellow-400';
 
-            return (
-                <span key={i} className={`font-semibold ${cor}`}>
-                    P{i}: {status}
-                </span>
-            );
-        })}
+                return (
+                    <span key={i} className={`font-semibold ${cor}`}>
+                        P{i}: {status}
+                    </span>
+                );
+            })}
+        </div>
     </div>
-</div>
     <footer className="p-3 border-t border-gray-700/50 flex justify-end">
       <div className="flex gap-2">
         <button onClick={onEdit} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={16} /></button>
@@ -78,16 +79,13 @@ const LoadingSpinner = ({ text = "Carregando..." }) => (
         <FaSpinner className="animate-spin text-indigo-400" size={48} /><p className="mt-4 text-lg">{text}</p>
     </div>
 );
-
 const EmptyState = ({ title, message }) => (
     <div className="text-center py-20 bg-gray-800/50 rounded-xl">
         <FaExclamationTriangle className="mx-auto text-gray-500" size={48} /><h3 className="mt-4 text-xl font-semibold text-white">{title}</h3><p className="text-gray-400 mt-1">{message}</p>
     </div>
 );
-
 const getStatusStyle = (status) => ({ 'DISPONÍVEL': 'bg-green-500/20 text-green-400', 'RESERVADO': 'bg-yellow-500/20 text-yellow-400', 'EM ANÁLISE': 'bg-blue-500/20 text-blue-400', 'VENDIDO': 'bg-red-500/20 text-red-400' }[status] || 'bg-gray-500/20 text-gray-400');
 const getTypeIcon = (tipo) => ({ 'AUTOMÓVEL': <FaCar />, 'IMÓVEL': <FaHome />, 'ELETRO': <FaBlender /> }[tipo] || null);
-
 const CartaCard = ({ item }) => (
     <div className="bg-gray-800/70 rounded-xl shadow-lg flex flex-col border border-gray-700/50">
         <header className={`p-4 rounded-t-xl flex justify-between items-center border-b border-gray-700 ${getStatusStyle(item.status)} bg-opacity-30`}>
@@ -105,11 +103,9 @@ const CartaCard = ({ item }) => (
         </footer>
     </div>
 );
-
 const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
     const medalhas = ['🥇', '🥈', '🥉'];
     const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold">{posicao + 1}º</span>;
-
     return (
         <div className={`p-4 rounded-xl flex items-center justify-between transition-all ${isCurrentUser ? 'bg-indigo-600/30 ring-2 ring-indigo-500' : 'bg-gray-800'}`}>
             <div className="flex items-center gap-4">
@@ -129,7 +125,7 @@ export default function PainelVendedor() {
   const [allVendas, setAllVendas] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [usuario, setUsuario] = useState(null); // Armazena o perfil completo
+  const [usuario, setUsuario] = useState(null); 
   const [mesFiltro, setMesFiltro] = useState(dayjs().format('YYYY-MM'));
   const [editandoId, setEditandoId] = useState(null);
   const [formVisivel, setFormVisivel] = useState(false);
@@ -137,22 +133,44 @@ export default function PainelVendedor() {
   const [configuracoes, setConfiguracoes] = useState({ meta_geral: 0, duplas: [] });
   const [comissaoLiberadaMes, setComissaoLiberadaMes] = useState(0);
   const navigate = useNavigate();
-
-  // --- NOVOS STATES E FUNÇÕES ---
   const [modalContaVisivel, setModalContaVisivel] = useState(false);
 
   const handleLogout = async () => {
       await supabase.auth.signOut();
       navigate('/login');
   };
-  // --- FIM DOS NOVOS STATES E FUNÇÕES ---
 
+  // --- Função separada para buscar comissões ---
+  const buscarComissoesLiberadas = useCallback(async (userId) => {
+    if (!userId) return;
+    
+    const mesAtual = dayjs().format('YYYY-MM');
+    
+    const { data, error } = await supabase
+      .from('pagamentos_comissao')
+      .select('valor_comissao')
+      .eq('mes_pagamento', mesAtual) // Pagamentos no mês atual
+      .eq('usuario_id', userId)      // Apenas deste vendedor
+      .neq('parcela_index', 1);      // Que não sejam P1
 
-const carregarTodosDados = useCallback(async (mes, userId) => {
+    if (error) {
+      console.error("Erro ao buscar comissões liberadas:", error);
+      setComissaoLiberadaMes(0);
+      return;
+    }
+    
+    if (data) {
+      const totalLiberado = data.reduce((acc, item) => acc + item.valor_comissao, 0);
+      setComissaoLiberadaMes(totalLiberado);
+    } else {
+      setComissaoLiberadaMes(0);
+    }
+  }, []); // Dependência vazia, será chamada manualmente
+
+  const carregarTodosDados = useCallback(async (mes, userId) => {
     if (!userId) return;
     setLoading(true);
 
-    // 1. Busca o perfil do usuário atual (que já foi pego no useEffect anterior)
     const { data: perfil } = await supabase
       .from('usuarios_custom')
       .select('id_filial')
@@ -165,32 +183,22 @@ const carregarTodosDados = useCallback(async (mes, userId) => {
       return;
     }
 
-    // 2. Monta as queries
-    const [vendasRes, usersRes, contempladasRes, configRes, pagamentosRes] = await Promise.all([
+    const [vendasRes, usersRes, contempladasRes, configRes] = await Promise.all([
       supabase.from('vendas')
         .select('*, usuarios_custom(id_filial)')
         .eq('usuarios_custom.id_filial', perfil.id_filial)
         .order('created_at', { ascending: false }),
-      
       supabase.from('usuarios_custom')
         .select('id, nome')
         .eq('id_filial', perfil.id_filial),
-
       supabase.from('contempladas').select('*'),
-      
       supabase.from('configuracoes_mensais')
               .select('*')
               .eq('mes', mes)
               .eq('id_filial', perfil.id_filial) 
               .single(),
-
-      supabase.from('pagamentos_comissao')
-              .select('valor_comissao')
-              .eq('usuario_id', userId)
-              .eq('mes_pagamento', dayjs().format('YYYY-MM'))
     ]);
 
-    // 3. Processa os dados
     if (vendasRes.data) setAllVendas(vendasRes.data);
     if (usersRes.data) setAllUsers(usersRes.data);
     if (contempladasRes.data) {
@@ -202,33 +210,24 @@ const carregarTodosDados = useCallback(async (mes, userId) => {
     } else {
         setConfiguracoes({ mes: mes, meta_geral: 0, duplas: [] });
     }
-    if (pagamentosRes.data) {
-        const totalLiberado = pagamentosRes.data.reduce((acc, item) => acc + item.valor_comissao, 0);
-        setComissaoLiberadaMes(totalLiberado);
-    }
+    
+    await buscarComissoesLiberadas(userId); // Busca comissões
 
     setLoading(false);
-}, []);
+  }, [buscarComissoesLiberadas]); // Adiciona a função como dependência
   
   useEffect(() => {
     const getUserAndData = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { navigate('/login'); return; }
-
-        // --- ATUALIZADO AQUI ---
-        // Busca o perfil completo na tabela usuarios_custom
         const { data: perfilData } = await supabase
           .from('usuarios_custom')
-          .select('id, nome, email, cargo, telefone, foto_url') // <-- Pega foto e telefone
+          .select('id, nome, email, cargo, telefone, foto_url')
           .eq('id', user.id)
           .single();
-        // --- FIM DA ATUALIZAÇÃO ---
-
-        // Salva o perfil completo no estado 'usuario'
         if (perfilData) {
           setUsuario(perfilData);
         } else {
-          // Fallback (menos ideal)
           setUsuario({ id: user.id, email: user.email, nome: user.email.split('@')[0] }); 
         }
     }
@@ -279,7 +278,11 @@ const handleSave = async (e) => {
             return;
         }
 
-        const percentuais = vendaInserida.parcela === 'cheia' ? [0.006, 0.003, 0.003, 0] : [0.003, 0.0015, 0.0015, 0];
+        // ===========================================
+        // --- BUG 1 CORRIGIDO AQUI ---
+        // (Usando as constantes globais PERCENT_CHEIA/PERCENT_MEIA)
+        const percentuais = vendaInserida.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
+        // ===========================================
         const valorComissao1 = vendaInserida.valor * percentuais[0];
 
         if (valorComissao1 > 0) {
@@ -327,6 +330,9 @@ const handleSave = async (e) => {
       setFormVisivel(false);
   };
 
+  // Vendedor NÃO PODE alterar status, então esta função é removida.
+  // const handleStatusChange = ...
+
   const minhasVendasDoMes = useMemo(() => allVendas.filter(v => v.usuario_id === usuario?.id && v.mes === mesFiltro), [allVendas, usuario, mesFiltro]);
 
  const totaisPessoais = useMemo(() => {
@@ -334,14 +340,18 @@ const handleSave = async (e) => {
     
     const comissaoRecebida = minhasVendasDoMes.reduce((s, venda) => {
         const base = Number(venda.valor);
-        const pc = venda.parcela === 'cheia' ? [0.006, 0.003, 0.003] : [0.003, 0.0015, 0.0015];
+        // ===========================================
+        // --- BUG 2 CORRIGIDO AQUI ---
+        // (Usando as constantes globais PERCENT_CHEIA/PERCENT_MEIA)
+        const pc = venda.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
+        // ===========================================
         
         if (venda.status_parcela_1 === 'PAGO') s += base * pc[0];
-    if (venda.status_parcela_2 === 'PAGO') s += base * pc[1];
-    if (venda.status_parcela_3 === 'PAGO') s += base * pc[2];
-    if (venda.status_parcela_4 === 'PAGO') s += base * pc[3]; // <-- LINHA ADICIONADA
+        if (venda.status_parcela_2 === 'PAGO') s += base * pc[1];
+        if (venda.status_parcela_3 === 'PAGO') s += base * pc[2];
+        if (venda.status_parcela_4 === 'PAGO') s += base * pc[3]; // <-- Linha corrigida
 
-    return s;
+        return s;
     }, 0);
 
     return { totalMes, comissaoRecebida };
@@ -362,7 +372,7 @@ const handleSave = async (e) => {
   ];
   
 const renderContent = () => {
-      if (loading && !usuario) return <LoadingSpinner />; // Mostra spinner se estiver carregando o usuário
+      if (loading && !usuario) return <LoadingSpinner />;
       
       switch(aba) {
           case 'vendas': 
@@ -382,7 +392,8 @@ const renderContent = () => {
                   iniciarEdicao={iniciarEdicao} 
                   excluirVenda={excluirVenda} 
                   formatInputMoeda={formatInputMoeda} 
-                  loading={loading} // Passa o estado de loading
+                  loading={loading}
+                  // onStatusChange NÃO é passado, pois o vendedor não pode alterar
               />;
           
           case 'ranking': 
@@ -393,33 +404,27 @@ const renderContent = () => {
                   setMesFiltro={setMesFiltro} 
                   configuracoes={configuracoes} 
                   usuarioAtual={usuario} 
-                  loading={loading} // Passa o estado de loading
+                  loading={loading}
               />;
-
           case 'crm': 
               return <PainelCRM 
                   usuarioId={usuario?.id} 
               />;
-
           case 'contempladas': 
               return <PainelContempladasAprimorado 
                   usuario={usuario} 
               />;
-
           case 'hs_cotas': 
               return <HSCotas 
                   usuario={usuario} 
               />;
-
           default: 
               return null;
       }
   };
   
-  // --- JSX PRINCIPAL (COM HEADER ATUALIZADO) ---
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 animate-fade-in">
-        {/* --- HEADER ATUALIZADO --- */}
         <header className="mb-8">
             <div className="flex justify-between items-center mb-6">
                 <div>
@@ -449,26 +454,22 @@ const renderContent = () => {
                 ))}
             </nav>
         </header>
-        {/* --- FIM DO HEADER ATUALIZADO --- */}
 
-        {/* Adiciona o LembretesLeads aqui, fora do card */}
         <LembretesLeads />
         
         <main className="mt-6">{renderContent()}</main>
 
-        {/* --- MODAL DA CONTA ADICIONADO --- */}
         {modalContaVisivel && usuario && (
             <MinhaContaModal 
                 usuario={usuario} 
                 onClose={() => setModalContaVisivel(false)}
                 onUpdate={() => {
-                    // Função para recarregar os dados do perfil após a atualização
                     const reFetchProfile = async () => {
                         const { data: { user } } = await supabase.auth.getUser();
                         if (user) {
                             const { data: perfilData } = await supabase
                               .from('usuarios_custom')
-                              .select('id, nome, email, cargo, telefone, foto_url') // Mesmo select do useEffect
+                              .select('id, nome, email, cargo, telefone, foto_url')
                               .eq('id', user.id)
                               .single();
                             if (perfilData) setUsuario(perfilData);
@@ -478,19 +479,18 @@ const renderContent = () => {
                 }}
             />
         )}
-        {/* --- FIM DO MODAL --- */}
 
     </div>
   );
 }
 
 // --- COMPONENTE AbaMinhasVendas ---
-const AbaMinhasVendas = ({ totais, comissaoLiberada, mesFiltro, setMesFiltro, formVisivel, setFormVisivel, formulario, setFormulario, handleSave, editandoId, limparFormulario, minhasVendas, iniciarEdicao, excluirVenda, formatInputMoeda, loading }) => (
+const AbaMinhasVendas = ({ totais, comissaoLiberada, mesFiltro, setMesFiltro, formVisivel, setFormVisivel, formulario, setFormulario, handleSave, editandoId, limparFormulario, minhasVendas, iniciarEdicao, excluirVenda, formatInputMoeda, loading, onStatusChange }) => (
     <div className="animate-fade-in">
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <StatCard icon={<FaDollarSign size={24} />} label="Minhas Vendas no Mês" value={totais.totalMes} color="bg-green-500/20 text-green-300" />
-            <StatCard icon={<FaHandHoldingUsd size={24} />} label="Minha Comissão Prevista" value={totais.comissaoRecebida} color="bg-yellow-500/20 text-yellow-300" />
-            <StatCard icon={<FaFileInvoiceDollar size={24} />} label="Comissão Liberada este Mês" value={comissaoLiberada} color="bg-blue-500/20 text-blue-300" />
+            <StatCard icon={<FaHandHoldingUsd size={24} />} label="Minha Comissão Prevista (Pagas)" value={totais.comissaoRecebida} color="bg-yellow-500/20 text-yellow-300" />
+            <StatCard icon={<FaFileInvoiceDollar size={24} />} label="Comissão Liberada (P2+)" value={comissaoLiberada} color="bg-blue-500/20 text-blue-300" />
         </div>
         <div className="bg-gray-800/50 rounded-xl shadow-2xl p-6">
             <div className="flex justify-between items-center mb-4">
@@ -517,7 +517,15 @@ const AbaMinhasVendas = ({ totais, comissaoLiberada, mesFiltro, setMesFiltro, fo
             </div>
             {loading ? <LoadingSpinner text="Carregando vendas..." /> : (
                 minhasVendas.length > 0 ? 
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">{minhasVendas.map((v) => <SaleCard key={v.id} venda={v} onEdit={() => iniciarEdicao(v)} onDelete={() => excluirVenda(v.id)} />)}</div> 
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">{minhasVendas.map((v) => 
+                    <SaleCard 
+                        key={v.id} 
+                        venda={v} 
+                        onEdit={() => iniciarEdicao(v)} 
+                        onDelete={() => excluirVenda(v.id)} 
+                        // Vendedor não pode mudar o status, então onStatusChange não é passado
+                    />
+                )}</div> 
                 : <EmptyState title="Nenhuma Venda no Mês" message="Você ainda não lançou vendas para este período." />
             )}
         </div>

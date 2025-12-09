@@ -110,11 +110,10 @@ export default function PainelGerenteAprimorado() {
     if (data) setVendas(data);
   };
 
-// Em PainelGerente.js, substitua a função buscarComissoesLiberadas
-
-// Em PainelGerente.js
-
-  const buscarComissoesLiberadas = async () => {
+// =========================================================================
+// --- FUNÇÃO CORRIGIDA COM useCALLBACK (Garante a atualização do card) ---
+// =========================================================================
+  const buscarComissoesLiberadas = useCallback(async () => {
     const mesAtual = dayjs().format('YYYY-MM');
 
     let query = supabase
@@ -123,9 +122,9 @@ export default function PainelGerenteAprimorado() {
       .eq('mes_pagamento', mesAtual)
       .neq('parcela_index', 1);
 
-    // REMOVEMOS O BLOCO 'if (filtros.vendedor)' DAQUI
+    query = query.order('created_at', { ascending: false });
 
-    // O filtro pela filial do gerente (perfilUsuario) está CORRETO.
+    // O filtro pela filial do gerente (perfilUsuario)
     if (perfilUsuario) {
         const { data: usuariosDaFilial } = await supabase
             .from('usuarios_custom')
@@ -135,6 +134,9 @@ export default function PainelGerenteAprimorado() {
         if (usuariosDaFilial) {
             const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
             query = query.in('usuario_id', idsDosUsuarios);
+        } else {
+             // Garante que não retorne nada se não houver usuários na filial
+             query = query.in('usuario_id', ['99999999-9999-9999-9999-999999999999']);
         }
     }
 
@@ -142,6 +144,7 @@ export default function PainelGerenteAprimorado() {
 
     if (error) {
       console.error("Erro ao buscar comissões liberadas:", error);
+      setComissoesLiberadasMes(0);
       return;
     }
 
@@ -151,9 +154,9 @@ export default function PainelGerenteAprimorado() {
     } else {
       setComissoesLiberadasMes(0);
     }
-  };
+  }, [perfilUsuario, setComissoesLiberadasMes]); // <--- DEPENDÊNCIAS CHAVE
+// =========================================================================
   
-  // <-- Fim da função (sem o array de dependência)
 const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
     if (!id_filial) return;
     const { data } = await supabase
@@ -215,7 +218,7 @@ useEffect(() => {
     if (perfilUsuario) {
         buscarComissoesLiberadas();
     }
-  }, [perfilUsuario]); // <-- Correto (só precisa rodar quando o perfil carregar)// <-- Removido 'buscarComissoesLiberadas'
+  }, [perfilUsuario, buscarComissoesLiberadas]); // <-- Adicionado buscarComissoesLiberadas nas dependências
 
   // --- Funções de Ação (CRUD Vendas) ---
   const nomeVendedor = (id) => usuarios.find((u) => u.id === id)?.nome || "Desconhecido";
@@ -305,7 +308,7 @@ useEffect(() => {
                 usuario_id: venda.usuario_id,
                 parcela_index: parcelaIndex,
                 valor_comissao: valorComissao,
-                mes_pagamento: dayjs().format('YYYY-MM')
+                mes_pagamento: dayjs().format('YYYY-MM') // Mês atual!
             });
         }
     } else if (statusAntigo === 'PAGO') {
@@ -317,7 +320,7 @@ useEffect(() => {
     }
     
     await buscarVendas(perfilUsuario); // Recarrega com filtro
-    await buscarComissoesLiberadas();
+    await buscarComissoesLiberadas(); // CHAMA A VERSÃO CORRIGIDA DA FUNÇÃO
   };
 
   // --- Cálculos e Memos ---

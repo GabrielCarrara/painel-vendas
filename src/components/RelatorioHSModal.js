@@ -1,19 +1,19 @@
-// src/components/RelatorioHSModal.js (Versão Corrigida)
+// src/components/RelatorioHSModal.js (Versão Corrigida com Seletor de Mês)
 import React, { useMemo, useState } from 'react';
 import { FaTimes, FaClipboard } from 'react-icons/fa';
 import dayjs from 'dayjs';
 
 export default function RelatorioHSModal({ vendas, usuarios, onClose }) {
   const [copySuccess, setCopySuccess] = useState('');
+  const [mesSelecionado, setMesSelecionado] = useState(dayjs().format('YYYY-MM'));
 
-  const mesAtualFormatado = dayjs().format('YYYY-MM');
-  const mesLabel = dayjs().format('MMMM [de] YYYY');
+  const mesLabel = dayjs(mesSelecionado).format('MMMM [de] YYYY');
 
   const relatorioHS = useMemo(() => {
-    // 1. Filtra apenas vendas da HS e do mês atual
+    // 1. Filtra apenas vendas da HS e do mês selecionado
     const vendasHSMes = vendas.filter(v => 
       v.administradora === 'HS' && 
-      v.mes === mesAtualFormatado
+      v.mes === mesSelecionado
     );
 
     // 2. Agrupa por vendedor (usuario_id)
@@ -39,7 +39,7 @@ export default function RelatorioHSModal({ vendas, usuarios, onClose }) {
     .filter(item => item.cargo?.toLowerCase() === 'vendedor') // Filtra Diretores/Gerentes
     .sort((a, b) => b.valor - a.valor); // Ordena
 
-  }, [vendas, usuarios, mesAtualFormatado]);
+  }, [vendas, usuarios, mesSelecionado]);
 
   const formatarMoeda = (valor) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -68,6 +68,18 @@ export default function RelatorioHSModal({ vendas, usuarios, onClose }) {
           <h3 className="text-lg font-semibold text-white">Relatório de Vendas HS - {mesLabel}</h3>
           <button onClick={onClose} className="p-2 text-gray-500 hover:text-white rounded-full"><FaTimes size={20} /></button>
         </header>
+        
+        {/* Seletor de Mês */}
+        <div className="p-4 border-b border-gray-700 bg-gray-800/50">
+          <label className="block text-sm font-medium text-gray-300 mb-2">Selecionar Mês:</label>
+          <input 
+            type="month" 
+            value={mesSelecionado} 
+            onChange={(e) => setMesSelecionado(e.target.value)}
+            className="w-full md:w-64 bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500 text-white"
+          />
+        </div>
+
         <div className="p-6 max-h-[70vh] overflow-y-auto">
           <pre 
             id="relatorio-hs-texto" 
