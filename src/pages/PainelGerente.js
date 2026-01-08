@@ -9,7 +9,8 @@ import {
     FaDollarSign, FaUserTie, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs,
     FaFileInvoiceDollar,
     FaTh,
-    FaBullseye
+    FaBullseye,
+    FaCalendarAlt
 } from "react-icons/fa";
 
 // --- NOVOS IMPORTS ---
@@ -22,6 +23,8 @@ import MinhaContaModal from '../components/MinhaContaModal'; // Verifique se o c
 import PainelCRM from "./PainelCRM";
 import PainelContempladas from "./PainelContempladas";
 import HSCotas from './HSCotas';
+import PainelAcoes from './PainelAcoes';
+import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria';
 
 // --- Constantes ---
 const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0.003]; // P4 corrigida
@@ -369,6 +372,7 @@ useEffect(() => {
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
     { id: 'crm', label: 'CRM', icon: <FaUsers /> },
     { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
+    { id: 'acoes', label: 'Ações', icon: <FaCalendarAlt /> },
   ];
   
   const renderContent = () => {
@@ -387,7 +391,13 @@ useEffect(() => {
         handleStatusChange={handleStatusChange}
         comissoesLiberadasMes={comissoesLiberadasMes}
       />;
-      
+      case 'acoes':
+  return <PainelAcoes 
+    usuario={perfilUsuario}
+    podeEditar={false}
+    filiais={[]}
+    usuarios={usuarios}
+  />;
       case 'ranking':
         return <AbaRanking 
                 perfilUsuario={perfilUsuario}
@@ -464,6 +474,7 @@ useEffect(() => {
         <LembretesLeads />
         <div className="mt-6">{renderContent()}</div>
         
+        {perfilUsuario && <LembreteAcaoDiaria usuario={perfilUsuario} />}
         {/* --- MODAL DA CONTA (CORRIGIDO) --- */}
         {modalContaVisivel && perfilUsuario && (
             <MinhaContaModal 
@@ -511,6 +522,7 @@ const AbaVendas = ({ vendasFiltradas, totalMesTodos, totalComissaoVendedor, usua
         </div>
         
         <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6">
+
             <div className="flex flex-wrap items-center gap-4 mb-6 pb-6 border-b border-gray-700">
                 <h2 className="text-xl font-semibold flex items-center gap-2 whitespace-nowrap"><FaFilter /> Filtros</h2>
                 <select value={filtros.vendedor} onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500">

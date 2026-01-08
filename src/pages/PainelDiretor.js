@@ -12,8 +12,10 @@ import {
     FaFileInvoiceDollar,
     FaTh,
     FaBullseye, 
-    FaUserPlus
+    FaUserPlus,
+    FaCalendarAlt
 } from "react-icons/fa";
+
 
 import PainelCRM from "./PainelCRM";
 import { FaPrint } from 'react-icons/fa';
@@ -22,6 +24,8 @@ import RelatorioGeralModal from '../components/RelatorioGeralModal';
 import PainelContempladas from "./PainelContempladas";
 import AbaGerenciarUsuarios from './AbaGerenciarUsuarios';
 import HSCotas from './HSCotas';
+import PainelAcoes from './PainelAcoes';
+import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria';
 
 const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0.003];
 const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0.0015];
@@ -368,7 +372,8 @@ export default function PainelDiretor() {
       { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
       { id: 'crm', label: 'CRM', icon: <FaUsers /> },
       { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
-      { id: 'usuarios', label: 'Gerenciar Usuários', icon: <FaUserPlus /> }
+      { id: 'usuarios', label: 'Gerenciar Usuários', icon: <FaUserPlus /> },
+      { id: 'acoes', label: 'Ações', icon: <FaCalendarAlt /> },
     ];
     
     const renderContent = () => {
@@ -391,6 +396,13 @@ export default function PainelDiretor() {
     onAbrirModalRelatorioHS={() => setModalRelatorioHS(true)}
     />;
           // CASES PARA ROTAS
+          case 'acoes': 
+  return <PainelAcoes 
+    usuario={perfilUsuario} 
+    podeEditar={true}
+    filiais={listaFiliais}
+    usuarios={usuarios}
+  />;
   case 'ranking': {
       // 1. Filtra os usuários com base na filial selecionada no dropdown
       const usuariosParaRanking = filialSelecionadaId
@@ -431,6 +443,7 @@ export default function PainelDiretor() {
       onRefreshUsuarios={buscarUsuarios}
     />;      default: return null;
       }
+      
     };
     
     if (loading) return <LoadingSpinner />;
@@ -471,7 +484,7 @@ export default function PainelDiretor() {
           
           <LembretesLeads />
           <div className="mt-6">{renderContent()}</div>
-  
+  {perfilUsuario && <LembreteAcaoDiaria usuario={perfilUsuario} />}
           {modalContaVisivel && perfilUsuario && (
               <MinhaContaModal 
                   usuario={perfilUsuario} 

@@ -8,12 +8,14 @@ import {
   FaDollarSign, FaHandHoldingUsd, FaChevronDown, FaChevronUp, FaEdit, FaTrash, FaSave,
   FaFileInvoiceDollar, FaUsers, FaTrophy, FaCar, FaHome, FaBlender, FaSpinner, FaExclamationTriangle,
   FaBullseye, FaChartLine, FaTh, FaFilter, FaLandmark,
-  FaSignOutAlt, FaUserCircle
+  FaSignOutAlt, FaUserCircle, FaCalendarAlt
 } from 'react-icons/fa';
 import dayjs from 'dayjs';
 import HSCotas from './HSCotas';
 import PainelContempladasAprimorado from './PainelContempladas'; 
 import MinhaContaModal from '../components/MinhaContaModal';
+import PainelAcoes from './PainelAcoes';
+import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria'; // <--- ADICIONE ISSO
 
 // --- Constantes de Comissão (Corretas) ---
 const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0.003]; // P4 adicionada
@@ -216,7 +218,27 @@ export default function PainelVendedor() {
     setLoading(false);
   }, [buscarComissoesLiberadas]); // Adiciona a função como dependência
   
-  useEffect(() => {
+ useEffect(() => {
+    const getUserAndData = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { navigate('/login'); return; }
+        
+        const { data: perfilData } = await supabase
+          .from('usuarios_custom')
+          // --- CORREÇÃO AQUI: Adicionado 'id_filial' na lista ---
+          .select('id, nome, email, cargo, telefone, foto_url, id_filial') 
+          .eq('id', user.id)
+          .single();
+
+        if (perfilData) {
+          setUsuario(perfilData);
+        } else {
+          // Fallback caso não tenha perfil customizado, mas idealmente deve ter
+          setUsuario({ id: user.id, email: user.email, nome: user.email.split('@')[0], id_filial: null }); 
+        }
+    }
+    getUserAndData();
+  }, [navigate]); useEffect(() => {
     const getUserAndData = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { navigate('/login'); return; }
@@ -369,6 +391,7 @@ const handleSave = async (e) => {
     { id: 'crm', label: 'CRM', icon: <FaUsers /> },
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
     { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
+    { id: 'acoes', label: 'Ações', icon: <FaCalendarAlt /> }, 
   ];
   
 const renderContent = () => {
@@ -395,7 +418,14 @@ const renderContent = () => {
                   loading={loading}
                   // onStatusChange NÃO é passado, pois o vendedor não pode alterar
               />;
-          
+          case 'acoes':
+            const filialVendedor = usuario?.id_filial ? [{ id: usuario.id_filial, nome: 'Minha Filial' }] : [];
+  return <PainelAcoes 
+    usuario={usuario}
+    podeEditar={false}
+    filiais={filialVendedor}
+    usuarios={[]}
+  />;
           case 'ranking': 
               return <AbaRankingVendedor 
                   vendas={allVendas} 
@@ -457,7 +487,9 @@ const renderContent = () => {
 
         <LembretesLeads />
         
+        
         <main className="mt-6">{renderContent()}</main>
+        {usuario && <LembreteAcaoDiaria usuario={usuario} />}
 
         {modalContaVisivel && usuario && (
             <MinhaContaModal 
@@ -469,7 +501,7 @@ const renderContent = () => {
                         if (user) {
                             const { data: perfilData } = await supabase
                               .from('usuarios_custom')
-                              .select('id, nome, email, cargo, telefone, foto_url')
+                              .select('id, nome, email, cargo, telefone, foto_url, id_filial')
                               .eq('id', user.id)
                               .single();
                             if (perfilData) setUsuario(perfilData);
