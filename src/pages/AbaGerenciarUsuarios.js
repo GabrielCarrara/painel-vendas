@@ -206,7 +206,7 @@ export default function AbaGerenciarUsuarios({ listaFiliais, listaUsuarios = [],
     return grupos;
   }, [listaUsuarios]);
 
-  const nomeFilial = (id) => listaFiliais.find(f => f.id == id)?.nome || 'Sem Filial';
+  const nomeFilial = (id) => listaFiliais.find((f) => String(f.id) === String(id))?.nome || 'Sem Filial';
 
   const abrirModalEdicao = (usuario) => {
     setUsuarioEditando(usuario);

@@ -1,7 +1,7 @@
 // src/components/MinhaContaModal.js
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { FaTimes, FaCamera, FaSpinner, FaSave, FaLock, FaPhone, FaUserCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { FaTimes, FaCamera, FaSpinner, FaSave, FaLock, FaUserCircle, FaExclamationTriangle } from 'react-icons/fa';
 
 export default function MinhaContaModal({ usuario, onClose, onUpdate }) {
   const [aba, setAba] = useState('perfil'); // 'perfil' ou 'seguranca'

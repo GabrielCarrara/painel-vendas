@@ -29,7 +29,6 @@ import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria';
 import {
   PERCENT_CHEIA,
   PERCENT_MEIA,
-  mesReferenciaComissaoP1,
   persistirMudancaStatusParcela,
   totalComissaoP1RecebidaNoMes,
   totaisPagamentosP2P3,
@@ -376,7 +375,6 @@ useEffect(() => {
     let totalVendidoGAZIN = 0;
     let totalVendidoHS = 0;
     vendasBaseParaCards.forEach((venda) => {
-      const id = venda.usuario_id;
       const valor = parseFloat(venda.valor) || 0;
 
       totalMesTodos += valor;

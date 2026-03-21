@@ -167,6 +167,8 @@ export default function PainelDiretor() {
       };
   
       carregarDadosIniciais();
+      // Montagem inicial apenas; fetchConfiguracoes/pagamentos reagem em outros efeitos.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
    
       
@@ -273,7 +275,7 @@ export default function PainelDiretor() {
   const calculosDoMes = useMemo(() => {
       // Primeiro, filtramos os usuários com base na filial selecionada no filtro.
       const usuariosDaFilialFiltrada = filtros.filial
-          ? usuarios.filter(u => u.id_filial == filtros.filial)
+          ? usuarios.filter((u) => String(u.id_filial) === String(filtros.filial))
           : usuarios;
   
       // Criamos uma lista de IDs desses usuários para usar no filtro de vendas.
@@ -308,7 +310,6 @@ export default function PainelDiretor() {
       let totalVendidoHS = 0;
       // Totais dos cards
       vendasBaseParaCards.forEach((venda) => {
-        const id = venda.usuario_id;
         const valor = parseFloat(venda.valor) || 0;
   
         // matchMesBase garante que estamos no mês selecionado
@@ -388,7 +389,7 @@ export default function PainelDiretor() {
   case 'ranking': {
       // 1. Filtra os usuários com base na filial selecionada no dropdown
       const usuariosParaRanking = filialSelecionadaId
-          ? usuarios.filter(u => u.id_filial == filialSelecionadaId)
+          ? usuarios.filter((u) => String(u.id_filial) === String(filialSelecionadaId))
           : usuarios;
   
       // Pega os IDs dos usuários filtrados para usar no filtro de vendas
@@ -599,7 +600,7 @@ export default function PainelDiretor() {
           if (!filtros.filial) {
               return usuarios; 
           }
-          return usuarios.filter(u => u.id_filial == filtros.filial);
+          return usuarios.filter((u) => String(u.id_filial) === String(filtros.filial));
       }, [usuarios, filtros.filial]);
   
       return (

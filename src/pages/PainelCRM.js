@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
-import { FaUsers, FaPlus, FaFire, FaCheckCircle, FaArchive, FaSnowflake, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, FaExclamationTriangle, FaSpinner } from "react-icons/fa";
+import { FaUsers, FaPlus, FaFire, FaCheckCircle, FaArchive, FaSnowflake, FaEdit, FaTrash, FaSave, FaTimes, FaExclamationTriangle, FaSpinner } from "react-icons/fa";
 
 function isoParaInputDate(val) {
   if (!val) return "";

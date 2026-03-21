@@ -1,7 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { supabase } from '../../supabaseClient';
-import { FaWhatsapp, FaUsers, FaBuilding, FaCheckCircle, FaLightbulb, FaCar, FaHome, FaChartLine, FaArrowRight, FaMapMarkerAlt, FaPaperPlane } from 'react-icons/fa';
-import ListaVendedores from './ListaVendedores';
+import React, { useState, useEffect, useRef } from 'react';
+import { FaWhatsapp, FaUsers, FaCheckCircle, FaLightbulb, FaCar, FaHome, FaChartLine, FaArrowRight, FaMapMarkerAlt } from 'react-icons/fa';
 import logoGazin from '../../assets/logo-gazin.png';
 import logoHS from '../../assets/logo-hs.png';
 import minhaImagem from '../../assets/minhaImagem.png';

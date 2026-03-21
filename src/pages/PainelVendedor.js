@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import PainelCRM from './PainelCRM';
 import {
   FaDollarSign, FaHandHoldingUsd, FaChevronDown, FaChevronUp, FaEdit, FaTrash, FaSave,
-  FaFileInvoiceDollar, FaUsers, FaTrophy, FaCar, FaHome, FaBlender, FaSpinner, FaExclamationTriangle, FaCheckCircle,
+  FaFileInvoiceDollar, FaUsers, FaTrophy, FaSpinner, FaExclamationTriangle, FaCheckCircle,
   FaBullseye, FaChartLine, FaTh, FaFilter, FaLandmark,
   FaSignOutAlt, FaUserCircle, FaCalendarAlt
 } from 'react-icons/fa';
@@ -98,25 +98,6 @@ const LoadingSpinner = ({ text = "Carregando..." }) => (
 const EmptyState = ({ title, message }) => (
     <div className="text-center py-20 bg-gray-800/50 rounded-xl">
         <FaExclamationTriangle className="mx-auto text-gray-500" size={48} /><h3 className="mt-4 text-xl font-semibold text-white">{title}</h3><p className="text-gray-400 mt-1">{message}</p>
-    </div>
-);
-const getStatusStyle = (status) => ({ 'DISPONÍVEL': 'bg-green-500/20 text-green-400', 'RESERVADO': 'bg-yellow-500/20 text-yellow-400', 'EM ANÁLISE': 'bg-blue-500/20 text-blue-400', 'VENDIDO': 'bg-red-500/20 text-red-400' }[status] || 'bg-gray-500/20 text-gray-400');
-const getTypeIcon = (tipo) => ({ 'AUTOMÓVEL': <FaCar />, 'IMÓVEL': <FaHome />, 'ELETRO': <FaBlender /> }[tipo] || null);
-const CartaCard = ({ item }) => (
-    <div className="bg-gray-800/70 rounded-xl shadow-lg flex flex-col border border-gray-700/50">
-        <header className={`p-4 rounded-t-xl flex justify-between items-center border-b border-gray-700 ${getStatusStyle(item.status)} bg-opacity-30`}>
-            <div><p className="text-xs font-bold uppercase flex items-center gap-2">{getTypeIcon(item.tipo)} {item.tipo}</p><p className="text-2xl font-bold text-white">{Number(item.valor_credito).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
-            <div className={`px-3 py-1 text-xs font-bold rounded-full ${getStatusStyle(item.status)}`}>{item.status}</div>
-        </header>
-        <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm flex-grow">
-            <div><p className="text-gray-400">Entrada</p><p className="font-semibold">{Number(item.entrada).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
-            <div><p className="text-gray-400">Parcela</p><p className="font-semibold">{Number(item.parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} x {item.meses}</p></div>
-            <div><p className="text-gray-400">Grupo/Cota</p><p className="font-semibold">{item.grupo}/{item.cota}</p></div>
-            <div><p className="text-gray-400">Taxa Transf.</p><p className="font-semibold">{Number(item.taxa_transferencia).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
-        </div>
-        <footer className="px-4 py-3 border-t border-gray-700/50 text-xs">
-            <p className="text-gray-400">Responsável: <span className="text-gray-300 font-medium">{item.responsavel}</span></p>
-        </footer>
     </div>
 );
 const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
@@ -233,9 +214,9 @@ export default function PainelVendedor() {
   const [mesFiltro, setMesFiltro] = useState(dayjs().format('YYYY-MM'));
   const [editandoId, setEditandoId] = useState(null);
   const [formVisivel, setFormVisivel] = useState(false);
-  const [contempladas, setContempladas] = useState([]);
+  const [, setContempladas] = useState([]);
   const [configuracoes, setConfiguracoes] = useState({ meta_geral: 0, duplas: [] });
-  const [comissaoLiberadaMes, setComissaoLiberadaMes] = useState(0);
+  const [, setComissaoLiberadaMes] = useState(0);
   const [pagamentosMes, setPagamentosMes] = useState([]);
   const navigate = useNavigate();
   const [modalContaVisivel, setModalContaVisivel] = useState(false);
@@ -520,28 +501,6 @@ const handleSave = async (e) => {
     );
   }, [allVendas, usuario, mesFiltro]);
 
- const totaisPessoais = useMemo(() => {
-    const totalMes = minhasVendasDoMes.reduce((s, v) => s + Number(v.valor), 0);
-    
-    const comissaoRecebida = minhasVendasDoMes.reduce((s, venda) => {
-        const base = Number(venda.valor);
-        // ===========================================
-        // --- BUG 2 CORRIGIDO AQUI ---
-        // (Usando as constantes globais PERCENT_CHEIA/PERCENT_MEIA)
-        const pc = isParcelaCheia(venda) ? PERCENT_CHEIA : PERCENT_MEIA;
-        // ===========================================
-        
-        if (venda.status_parcela_1 === 'PAGO') s += base * pc[0];
-        if (venda.status_parcela_2 === 'PAGO') s += base * pc[1];
-        if (venda.status_parcela_3 === 'PAGO') s += base * pc[2];
-        if (venda.status_parcela_4 === 'PAGO') s += base * pc[3]; // <-- Linha corrigida
-
-        return s;
-    }, 0);
-
-    return { totalMes, comissaoRecebida };
-}, [minhasVendasDoMes]);
-
   const vendasDoMesEscritorio = useMemo(() => {
     const m = normalizarMesVenda(mesFiltro);
     return allVendas.filter((v) => normalizarMesVenda(v.mes) === m);
@@ -603,12 +562,6 @@ const handleSave = async (e) => {
       itensEstorno,
     };
   }, [minhasVendasDoMes, pagamentosMes, allVendas, usuario, mesFiltro]);
-  
-  const totalDisponivelContempladas = useMemo(() => {
-    return contempladas
-      .filter(c => c.status === 'DISPONÍVEL')
-      .reduce((acc, c) => acc + (Number(c.valor_credito) || 0), 0);
-  }, [contempladas]);
 
   const abas = [
     { id: 'vendas', label: 'Minhas Vendas', icon: <FaFileInvoiceDollar /> },

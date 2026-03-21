@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
-import { FaWhatsapp, FaEnvelope } from 'react-icons/fa';
 import ListaVendedores from './ListaVendedores';
 import ProfileCard from './ProfileCard'; // Apenas importa, não declara de novo
 
@@ -9,7 +8,7 @@ export default function ContatoPage() {
 
     useEffect(() => {
         const buscarLideres = async () => {
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('usuarios_custom')
                 .select('id, nome, cargo, email, telefone, foto_url')
                 .in('cargo', ['diretor', 'gerente']);

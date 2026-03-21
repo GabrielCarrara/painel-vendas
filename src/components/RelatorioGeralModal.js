@@ -48,11 +48,11 @@ export default function RelatorioGeralModal({
     const mesVendaP1 = mesAnteriorYYYYMM(mesComissao);
     const mesVendasP1Label = dayjsMesRef(mesVendaP1).format('MMMM [de] YYYY');
 
-    const filialSelecionada = listaFiliais.find((f) => f.id == filtros.filial);
+    const filialSelecionada = listaFiliais.find((f) => String(f.id) === String(filtros.filial));
     const filialLabel = filialSelecionada ? filialSelecionada.nome : 'Todas as Filiais';
 
     const usuariosFiltrados = filtros.filial
-      ? usuarios.filter((u) => u.id_filial == filtros.filial)
+      ? usuarios.filter((u) => String(u.id_filial) === String(filtros.filial))
       : usuarios;
 
     const vendasPorId = {};

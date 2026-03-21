@@ -6,7 +6,7 @@ import utc from 'dayjs/plugin/utc';
 import isBetween from 'dayjs/plugin/isBetween';
 import {
   FaCalendarAlt, FaPlus, FaEdit, FaTrash, FaTimes, FaSave, FaUsers, FaMapMarkerAlt,
-  FaClock, FaExclamationTriangle, FaSpinner, FaChevronLeft, FaChevronRight, FaEye
+  FaClock, FaSpinner, FaChevronLeft, FaChevronRight, FaEye
 } from 'react-icons/fa';
 
 dayjs.extend(utc);

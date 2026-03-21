@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
-import { FaCalendarAlt, FaMapMarkerAlt, FaClock, FaUsers, FaTimes, FaExclamationCircle } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaClock, FaUsers, FaTimes, FaExclamationCircle } from 'react-icons/fa';
 
 dayjs.locale('pt-br');
 

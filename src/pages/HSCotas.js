@@ -1,7 +1,7 @@
 // src/pages/HSCotas.js (Versão com correção definitiva do Realtime Subscription)
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { FaSpinner, FaCar, FaHome, FaBlender, FaExclamationTriangle, FaSearch, FaSyncAlt, FaEraser } from 'react-icons/fa';
+import { FaSpinner, FaExclamationTriangle, FaSearch, FaSyncAlt, FaEraser } from 'react-icons/fa';
 
 // --- Componente de UI Adicionado ---
 const EmptyState = ({ title, message }) => (
@@ -15,11 +15,16 @@ const EmptyState = ({ title, message }) => (
 
 // --- Componente do Painel de Cotas HS ---
 export default function HSCotas({ usuario, onAviso } = {}) {
-  const aviso = (titulo, texto, variant = 'erro') => {
-    if (typeof onAviso === 'function') onAviso({ titulo, texto, variant });
+  const onAvisoRef = useRef(onAviso);
+  useEffect(() => {
+    onAvisoRef.current = onAviso;
+  }, [onAviso]);
+  const aviso = useCallback((titulo, texto, variant = 'erro') => {
+    const fn = onAvisoRef.current;
+    if (typeof fn === 'function') fn({ titulo, texto, variant });
     else if (titulo) window.alert(`${titulo}\n\n${texto}`);
     else window.alert(texto);
-  };
+  }, []);
   const [cotas, setCotas] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -105,7 +110,7 @@ const podeGerenciar = usuario?.cargo?.toLowerCase() === 'diretor';
       aviso('Erro ao salvar cota', `${cotaNumero}: ${error.message}`);
       setCotas(prev => ({ ...prev, [cotaNumero]: { ...prev[cotaNumero], vendas_count: contagemAtual } }));
     }
-  }, [cotas, usuario]);
+  }, [cotas, usuario, aviso]);
 
   const handleSearch = () => {
     if (!searchTerm) return;

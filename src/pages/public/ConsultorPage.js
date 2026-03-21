@@ -1,9 +1,9 @@
 // src/pages/public/ConsultorPage.js - VERSÃO FINAL CORRIGIDA
 
 import React, { useState, useEffect } from 'react';
-import { useParams, Navigate, Link } from 'react-router-dom';
+import { useParams, Navigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
-import { FaWhatsapp, FaEnvelope, FaCar, FaHome, FaChartLine, FaArrowRight, FaPaperPlane, FaMobileAlt } from 'react-icons/fa';
+import { FaWhatsapp, FaCar, FaArrowRight, FaPaperPlane, FaMobileAlt } from 'react-icons/fa';
 import logo from '../../assets/logo.png';
 import logoGazin from '../../assets/logo-gazin.png';
 import logoHS from '../../assets/logo-hs.png';
