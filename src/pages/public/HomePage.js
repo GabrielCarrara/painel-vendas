@@ -61,7 +61,7 @@ export default function HomePage() {
                             <div className="flex items-center gap-2"><FaHome className="text-fenix-orange"/> <span>Sua Casa Própria</span></div>
                             <div className="flex items-center gap-2"><FaChartLine className="text-fenix-orange"/> <span>Seu Investimento</span></div>
                         </div>
-                        <button onClick={() => setContatoAberto(prev => !prev)} className="bg-fenix-orange hover:bg-fenix-purple font-bold py-4 px-10 rounded-full text-xl transition-all duration-300 transform hover:scale-105 shadow-xl">
+                        <button onClick={() => setContatoAberto(prev => !prev)} className="bg-fenix-orange hover:brightness-110 active:brightness-95 font-bold py-4 px-10 rounded-full text-xl transition-all duration-300 transform hover:scale-105 shadow-xl">
                             Fale Conosco!
                         </button>
                     </div>
@@ -73,7 +73,7 @@ export default function HomePage() {
                 {contatoAberto && (
                     <section className="bg-slate-200 py-20 animate-fade-in">
                         <div className="container mx-auto px-6 text-center">
-                            <h2 className="text-4xl font-bold mb-4 text-fenix-purple">Simulação Rápida</h2>
+                            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-fenix-orange">Simulação Rápida</h2>
                             <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-10">
                                 Preencha os campos abaixo e envie para nosso WhatsApp. Um de nossos especialistas entrará em contato em breve!
                             </p>
@@ -118,7 +118,7 @@ export default function HomePage() {
             {/* --- SEÇÃO "REPRESENTAMOS" --- */}
             <section className="bg-slate-100 py-20">
                 <div className="container mx-auto px-6 text-center">
-                    <h2 className="text-4xl font-bold mb-4 text-fenix-purple">Representamos com Orgulho</h2>
+                    <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-fenix-orange">Representamos com Orgulho</h2>
                     <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-12">
                         Trabalhamos com as administradoras mais sólidas e confiáveis do mercado para garantir a sua segurança e satisfação.
                     </p>
@@ -157,7 +157,7 @@ export default function HomePage() {
             <section className="py-20 bg-white">
                 <div className="container mx-auto px-6">
                     <div className="text-center">
-                        <h2 className="text-4xl font-bold mb-4 text-fenix-purple">Nossa Unidade</h2>
+                        <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-fenix-orange">Nossa Unidade</h2>
                         <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-12">
                             Venha tomar um café conosco. Estamos de portas abertas para ajudar você a planejar seu futuro.
                         </p>

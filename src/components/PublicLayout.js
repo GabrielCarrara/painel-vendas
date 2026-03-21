@@ -1,6 +1,6 @@
 // src/components/PublicLayout.js - VERSÃO COM MENU MOBILE
 
-import React, { useState } from 'react'; // Adicionado useState
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, NavLink } from 'react-router-dom';
 import logo from '../assets/logo.png';
 // Adicionados ícones para o menu mobile
@@ -16,12 +16,28 @@ const Navbar = () => {
     // Estado para controlar se o menu mobile está aberto ou fechado
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+    useEffect(() => {
+        if (!isMenuOpen) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [isMenuOpen]);
+
     return (
         <header className="sticky top-0 z-40 shadow-lg">
             <div className="bg-[#121212] text-white">
-                <nav className="container mx-auto px-6 py-2 flex justify-between items-center">
-                    <Link to="/">
-                        <img src={logo} alt="Fênix Consórcios" className="h-20 transition-transform duration-300 hover:scale-105" />
+                <nav
+                    className="container mx-auto px-4 sm:px-6 pb-2 flex justify-between items-center gap-2"
+                    style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0px))' }}
+                >
+                    <Link to="/" className="shrink-0 min-w-0 pt-0.5">
+                        <img
+                            src={logo}
+                            alt="Fênix Consórcios"
+                            className="h-14 sm:h-16 md:h-20 w-auto max-h-[4.5rem] md:max-h-none transition-transform duration-300 hover:scale-105"
+                        />
                     </Link>
 
                     {/* Menu para Desktop (esconde em telas pequenas) */}
@@ -39,10 +55,18 @@ const Navbar = () => {
                         </Link>
                     </div>
 
-                    {/* Botão do Menu Mobile (só aparece em telas pequenas) */}
-                    <div className="md:hidden">
-                        <button type="button" onClick={() => setIsMenuOpen(true)} className="p-2 text-white hover:text-fenix-orange transition-colors" aria-label="Abrir menu">
-                            <FaEllipsisV size={24} />
+                    {/* Botão do Menu Mobile — safe area direita para não colidir com bateria/rede (PWA iOS) */}
+                    <div
+                        className="md:hidden shrink-0"
+                        style={{ paddingRight: 'max(0.25rem, env(safe-area-inset-right, 0px))' }}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setIsMenuOpen(true)}
+                            className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-white hover:text-fenix-orange active:bg-white/10 rounded-lg transition-colors"
+                            aria-label="Abrir menu"
+                        >
+                            <FaEllipsisV size={22} />
                         </button>
                     </div>
                 </nav>
@@ -50,21 +74,84 @@ const Navbar = () => {
             {/* Faixa fina laranja entre o menu e o conteúdo */}
             <div className="h-px w-full bg-fenix-orange shrink-0" aria-hidden />
 
-            {/* Painel do Menu Mobile (abre e fecha) */}
-            <div className={`fixed inset-0 bg-gray-900/95 backdrop-blur-sm z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'} md:hidden`}>
-                <div className="flex justify-between items-center p-6 border-b border-gray-800">
+            {/* Painel do Menu Mobile: safe area topo/lateral + links sempre legíveis (text-white) */}
+            <div
+                className={`fixed inset-0 bg-gray-900/95 backdrop-blur-sm z-50 flex flex-col md:hidden transform transition-transform duration-300 ease-in-out ${
+                    isMenuOpen ? 'translate-x-0' : 'translate-x-full'
+                }`}
+                style={{
+                    paddingLeft: 'env(safe-area-inset-left, 0px)',
+                    paddingRight: 'env(safe-area-inset-right, 0px)',
+                }}
+            >
+                <div
+                    className="flex shrink-0 justify-between items-center gap-3 px-4 sm:px-6 pb-4 border-b border-gray-800"
+                    style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))' }}
+                >
                     <span className="text-xl font-bold text-fenix-orange">Navegação</span>
-                    <button onClick={() => setIsMenuOpen(false)} className="p-2">
-                        <FaTimes size={28} />
+                    <button
+                        type="button"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-white hover:text-fenix-orange rounded-lg hover:bg-white/10 transition-colors"
+                        aria-label="Fechar menu"
+                    >
+                        <FaTimes size={26} />
                     </button>
                 </div>
-                <div className="flex flex-col items-center justify-center h-full -mt-16 text-2xl space-y-8">
-                    <NavLink to="/" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Home</NavLink>
-                    <NavLink to="/sobre-nos" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Sobre Nós</NavLink>
-                    <NavLink to="/cartas" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Cartas Contempladas</NavLink>
-                    <NavLink to="/contato" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Contato</NavLink>
-                                        <NavLink to="/aplicativos" onClick={() => setIsMenuOpen(false)} className={({ isActive }) => isActive ? "text-fenix-orange font-bold" : ""}>Aplicativos</NavLink>
-                    <Link to="/login" onClick={() => setIsMenuOpen(false)} className="mt-8 border-2 border-fenix-orange text-fenix-orange font-semibold py-3 px-8 rounded-full">
+                <div
+                    className="flex-1 flex flex-col items-center justify-center gap-6 sm:gap-8 px-4 py-8 text-xl sm:text-2xl overflow-y-auto overscroll-contain"
+                    style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))' }}
+                >
+                    <NavLink
+                        to="/"
+                        onClick={() => setIsMenuOpen(false)}
+                        className={({ isActive }) =>
+                            `font-medium transition-colors ${isActive ? 'text-fenix-orange font-bold' : 'text-white hover:text-fenix-orange'}`
+                        }
+                    >
+                        Home
+                    </NavLink>
+                    <NavLink
+                        to="/sobre-nos"
+                        onClick={() => setIsMenuOpen(false)}
+                        className={({ isActive }) =>
+                            `font-medium transition-colors ${isActive ? 'text-fenix-orange font-bold' : 'text-white hover:text-fenix-orange'}`
+                        }
+                    >
+                        Sobre Nós
+                    </NavLink>
+                    <NavLink
+                        to="/cartas"
+                        onClick={() => setIsMenuOpen(false)}
+                        className={({ isActive }) =>
+                            `font-medium transition-colors ${isActive ? 'text-fenix-orange font-bold' : 'text-white hover:text-fenix-orange'}`
+                        }
+                    >
+                        Cartas Contempladas
+                    </NavLink>
+                    <NavLink
+                        to="/contato"
+                        onClick={() => setIsMenuOpen(false)}
+                        className={({ isActive }) =>
+                            `font-medium transition-colors ${isActive ? 'text-fenix-orange font-bold' : 'text-white hover:text-fenix-orange'}`
+                        }
+                    >
+                        Contato
+                    </NavLink>
+                    <NavLink
+                        to="/aplicativos"
+                        onClick={() => setIsMenuOpen(false)}
+                        className={({ isActive }) =>
+                            `font-medium transition-colors ${isActive ? 'text-fenix-orange font-bold' : 'text-white hover:text-fenix-orange'}`
+                        }
+                    >
+                        Aplicativos
+                    </NavLink>
+                    <Link
+                        to="/login"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="mt-4 border-2 border-fenix-orange text-fenix-orange font-semibold py-3 px-8 rounded-full hover:bg-fenix-orange/10 transition-colors"
+                    >
                         Área Restrita
                     </Link>
                 </div>
@@ -76,8 +163,8 @@ const Navbar = () => {
 
 // --- COMPONENTE DE RODAPÉ ATUALIZADO ---
 const Footer = () => (
-    <footer className="bg-[#121212] text-white">
-        <div className="container mx-auto px-6 pt-16 pb-8">
+    <footer className="bg-[#121212] text-white" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 0px))' }}>
+        <div className="container mx-auto px-6 pt-16 pb-2">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
                 {/* Coluna 1: Logo e Slogan */}
                 <div className="col-span-1">
