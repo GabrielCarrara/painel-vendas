@@ -308,7 +308,16 @@ useEffect(() => {
     }
 
     await buscarVendas(perfilUsuario); // Recarrega com filtro
-    setNovaVenda({ cliente: "", grupo: "", cota: "", administradora: "GAZIN", valor: "", parcela: "cheia", mes: dayjs().format("YYYY-MM"), usuario_id: "" });
+    setNovaVenda((prev) => ({
+      cliente: "",
+      grupo: "",
+      cota: "",
+      administradora: "GAZIN",
+      valor: "",
+      parcela: "cheia",
+      mes: dayjs().format("YYYY-MM"),
+      usuario_id: prev.usuario_id || usuarioAtual?.id || "",
+    }));
     setAba("vendas");
     alert("Venda cadastrada com sucesso!");
   };

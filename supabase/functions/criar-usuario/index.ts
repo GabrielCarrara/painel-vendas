@@ -32,11 +32,43 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-    const { email, password, nome, cargo, id_filial, telefone } = await req.json()
+    const body = await req.json()
+    const emailRaw = body.email as string
+    const password = body.password as string
+    const nome = String(body.nome ?? '').trim()
+    const cargo = body.cargo
+    const id_filial = body.id_filial
+    const telefone = body.telefone
+    const email = String(emailRaw ?? '').trim().toLowerCase()
+    if (!email || !password || !nome) {
+      return new Response(JSON.stringify({ error: 'Nome, e-mail e senha são obrigatórios.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+
+    // Evita duplicata por diferença só de maiúsculas (ti@gmail.com vs TI@gmail.com)
+    const emailIlike = email.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+    const { data: jaExiste, error: dupErr } = await supabaseAdmin
+      .from('usuarios_custom')
+      .select('id')
+      .ilike('email', emailIlike)
+      .limit(1)
+    if (dupErr) {
+      throw new Error('Erro ao verificar e-mail: ' + dupErr.message)
+    }
+    if (jaExiste && jaExiste.length > 0) {
+      return new Response(JSON.stringify({ error: 'E-mail já cadastrado.' }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
       password: password,

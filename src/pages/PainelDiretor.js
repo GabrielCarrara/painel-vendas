@@ -233,7 +233,16 @@ export default function PainelDiretor() {
       // Recarrega os dados, limpa o formulário e volta para a aba de vendas
       await buscarVendas();
       await buscarPagamentosDoMes(filtros.mes);
-      setNovaVenda({ cliente: "", grupo: "", cota: "", administradora: "GAZIN", valor: "", parcela: "cheia", mes: dayjs().format("YYYY-MM"), usuario_id: "" });
+      setNovaVenda((prev) => ({
+        cliente: "",
+        grupo: "",
+        cota: "",
+        administradora: "GAZIN",
+        valor: "",
+        parcela: "cheia",
+        mes: dayjs().format("YYYY-MM"),
+        usuario_id: prev.usuario_id || usuarioAtual?.id || "",
+      }));
       setAba("vendas");
       alert("Venda cadastrada com sucesso!");
     };

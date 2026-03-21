@@ -35,9 +35,14 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
-    const { userIdToUpdate, payload } = await req.json()
-    if (!userIdToUpdate || !payload) {
+    const { userIdToUpdate, payload: rawPayload } = await req.json()
+    if (!userIdToUpdate || !rawPayload) {
       throw new Error('ID do usuário ou dados para atualização não fornecidos.')
+    }
+
+    const payload = { ...rawPayload }
+    if (typeof payload.email === 'string') {
+      payload.email = payload.email.trim().toLowerCase()
     }
 
     const authData: { password?: string; email?: string; ban_duration?: string; } = {};
@@ -53,19 +58,11 @@ serve(async (req) => {
 
     // ESTA É A CORREÇÃO DO LOG 'bigint'
     if (profileData.id_filial !== undefined) {
-      profileData.id_filial = parseInt(profileData.id_filial, 10) || null;
+      profileData.id_filial = parseInt(String(profileData.id_filial), 10) || null;
     }
     // FIM DA CORREÇÃO
 
-    if (Object.keys(authData).length > 0) {
-      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-        userIdToUpdate,
-        authData
-      );
-      if (authError) {
-        throw new Error('Erro ao atualizar autenticação: ' + authError.message);
-      }
-    }
+    // Perfil primeiro: inativar / filial / nome passam mesmo se o Auth falhar (ban, e-mail, etc.)
     if (Object.keys(profileData).length > 0) {
       const { error: profileError } = await supabaseAdmin
         .from('usuarios_custom')
@@ -75,7 +72,22 @@ serve(async (req) => {
         throw new Error('Erro ao atualizar perfil: ' + profileError.message);
       }
     }
-    return new Response(JSON.stringify({ message: 'Usuário criado com sucesso!' }), {
+    if (Object.keys(authData).length > 0) {
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+        userIdToUpdate,
+        authData
+      );
+      if (authError) {
+        return new Response(JSON.stringify({
+          message: 'Perfil atualizado no sistema.',
+          warning: 'Autenticação (ban/senha/e-mail): ' + authError.message,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+    return new Response(JSON.stringify({ message: 'Usuário atualizado com sucesso!' }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

@@ -1,7 +1,18 @@
 // src/pages/AbaGerenciarUsuarios.js (Versão com Status Ativo/Inativo)
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { FaSave, FaSpinner, FaExclamationTriangle, FaEdit, FaTimes, FaUserPlus } from 'react-icons/fa';
+
+/** E-mail único no Auth/Postgres deve ser comparado em minúsculas (evita ti@gmail.com + TI@gmail.com). */
+function normalizeEmail(email) {
+  return String(email ?? '').trim().toLowerCase();
+}
+
+function mensagemErroInvoke(data, invokeError) {
+  if (data && typeof data === 'object' && data.error) return String(data.error);
+  if (data && typeof data === 'object' && data.warning) return String(data.warning);
+  return invokeError?.message || 'Ocorreu um erro.';
+}
 
 // COMPONENTE DO MODAL DE EDIÇÃO
 const ModalEditarUsuario = ({ usuario, filiais, onClose, onSave }) => {
@@ -38,11 +49,15 @@ const ModalEditarUsuario = ({ usuario, filiais, onClose, onSave }) => {
 
     // 1. Monta o payload SÓ com o que mudou
     const payload = {};
+    const emailForm = normalizeEmail(formData.email);
+    const emailDb = normalizeEmail(usuario.email);
     if (formData.nome !== usuario.nome) payload.nome = formData.nome;
-    if (formData.email !== usuario.email) payload.email = formData.email;
+    if (emailForm !== emailDb) payload.email = emailForm;
     if (formData.telefone !== usuario.telefone) payload.telefone = formData.telefone;
     if (formData.cargo !== usuario.cargo) payload.cargo = formData.cargo;
-    if (formData.id_filial !== usuario.id_filial) payload.id_filial = formData.id_filial;
+    if (String(formData.id_filial ?? '') !== String(usuario.id_filial ?? '')) {
+      payload.id_filial = formData.id_filial;
+    }
     if (novaSenha) payload.password = novaSenha;
     
     // Compara o booleano do formulário com o estado inicial
@@ -65,11 +80,17 @@ const ModalEditarUsuario = ({ usuario, filiais, onClose, onSave }) => {
         },
       });
 
-      if (invokeError) throw invokeError;
-      if (data.error) throw new Error(data.error);
+      if (invokeError) throw new Error(mensagemErroInvoke(data, invokeError));
+      if (data?.error) throw new Error(String(data.error));
 
       // 3. Sucesso!
-      onSave(); // Chama a função para recarregar a lista e fechar o modal
+      if (data?.warning) {
+        setError('');
+        // Aviso não bloqueante: perfil salvo; auth pode ter falhado parcialmente
+        window.alert(`Alterações salvas.\n\nAviso: ${data.warning}`);
+      }
+      setLoading(false);
+      onSave(); // Recarrega lista e fecha o modal
       
     } catch (err) {
       setError(err.message || 'Ocorreu um erro.');
@@ -144,6 +165,7 @@ export default function AbaGerenciarUsuarios({ listaFiliais, listaUsuarios = [],
   // Estados para o Modal e Lista
   const [modalVisivel, setModalVisivel] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState(null);
+  const criandoUsuarioRef = useRef(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -152,32 +174,44 @@ export default function AbaGerenciarUsuarios({ listaFiliais, listaUsuarios = [],
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (criandoUsuarioRef.current) return;
     setLoading(true);
     setError('');
     setSuccess('');
 
-    if (!formData.nome || !formData.email || !formData.password || !formData.cargo || !formData.id_filial) {
+    const emailNorm = normalizeEmail(formData.email);
+
+    if (!formData.nome || !emailNorm || !formData.password || !formData.cargo || !formData.id_filial) {
       setError('Todos os campos, exceto telefone, são obrigatórios.');
       setLoading(false);
       return;
     }
 
+    const emailJaExiste = listaUsuarios.some(
+      (u) => u.email && normalizeEmail(u.email) === emailNorm
+    );
+    if (emailJaExiste) {
+      setError('Já existe um usuário com este e-mail (a busca ignora maiúsculas/minúsculas).');
+      setLoading(false);
+      return;
+    }
+
+    criandoUsuarioRef.current = true;
     try {
       // Chama a Edge Function 'criar-usuario'
       const { data, error: invokeError } = await supabase.functions.invoke('criar-usuario', {
         body: {
-          nome: formData.nome,
-          email: formData.email,
+          nome: formData.nome.trim(),
+          email: emailNorm,
           password: formData.password,
-          telefone: formData.telefone, 
+          telefone: formData.telefone,
           cargo: formData.cargo,
           id_filial: formData.id_filial,
-          // 'ativo: true' é adicionado automaticamente pelo backend (Edge Function)
         },
       });
 
-      if (invokeError) throw invokeError;
-      if (data.error) throw new Error(data.error);
+      if (invokeError) throw new Error(mensagemErroInvoke(data, invokeError));
+      if (data?.error) throw new Error(String(data.error));
 
       setSuccess(data.message || 'Usuário criado com sucesso!');
       setFormData({ nome: '', email: '', password: '', telefone: '', cargo: 'vendedor', id_filial: '' });
@@ -186,6 +220,7 @@ export default function AbaGerenciarUsuarios({ listaFiliais, listaUsuarios = [],
     } catch (err) {
       setError(err.message || 'Ocorreu um erro desconhecido.');
     } finally {
+      criandoUsuarioRef.current = false;
       setLoading(false);
     }
   };
