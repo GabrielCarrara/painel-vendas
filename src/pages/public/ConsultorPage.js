@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate, Link } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
-import { FaWhatsapp, FaEnvelope, FaInstagram, FaCar, FaHome, FaChartLine, FaArrowRight, FaPaperPlane, FaMobileAlt } from 'react-icons/fa';
+import { FaWhatsapp, FaEnvelope, FaCar, FaHome, FaChartLine, FaArrowRight, FaPaperPlane, FaMobileAlt } from 'react-icons/fa';
 import logo from '../../assets/logo.png';
 import logoGazin from '../../assets/logo-gazin.png';
 import logoHS from '../../assets/logo-hs.png';
@@ -65,7 +65,8 @@ export default function ConsultorPage() {
     const whatsappLinkCartas = `https://wa.me/55${consultor.telefone}?text=${encodeURIComponent(`Olá, ${consultor.nome.split(' ')[0]}. Tenho interesse em ver as cartas contempladas.`)}`;
 
     return (
-<div className="bg-gradient-to-br from-orange-500 via-purple-600 to-purple-800 min-h-screen font-sans">            <div className="container mx-auto p-4 md:p-8 max-w-4xl">
+        <div className="bg-gradient-to-br from-orange-500 via-purple-600 to-purple-800 min-h-[100dvh] min-h-screen w-full max-w-[100vw] overflow-x-hidden font-sans">
+            <div className="container mx-auto p-4 sm:p-6 md:p-8 max-w-4xl w-full">
                 
                 <header className="text-center mb-8">
                     <img src={logo} alt="Fênix Consórcios" className="h-24 mx-auto" />
@@ -127,15 +128,6 @@ export default function ConsultorPage() {
                         </div>
                         <FaArrowRight className="text-slate-400" />
                     </a>
-                    {consultor.instagram_user && (
-                         <a href={`https://instagram.com/${consultor.instagram_user}`} target="_blank" rel="noopener noreferrer" className="w-full bg-white p-4 rounded-lg shadow-lg flex items-center justify-between transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
-                            <div className="flex items-center gap-4">
-                                <FaInstagram className="text-2xl text-fenix-purple" />
-                                <span className="font-semibold text-lg text-slate-800">Ver meu Instagram</span>
-                            </div>
-                            <FaArrowRight className="text-slate-400" />
-                        </a>
-                    )}
                 </section>
                 
                 <section id="acoes" className="bg-white rounded-2xl shadow-xl mt-10 p-8 md:p-10">

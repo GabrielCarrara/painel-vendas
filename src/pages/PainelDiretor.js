@@ -26,10 +26,22 @@ import AbaGerenciarUsuarios from './AbaGerenciarUsuarios';
 import HSCotas from './HSCotas';
 import PainelAcoes from './PainelAcoes';
 import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria';
+import {
+  PERCENT_CHEIA,
+  PERCENT_MEIA,
+  mesReferenciaComissaoP1,
+  persistirMudancaStatusParcela,
+  totalComissaoP1RecebidaNoMes,
+  totaisPagamentosP2P3,
+  calcularEstornoMes,
+  isParcelaCheia,
+  normalizarMesVenda,
+  dayjsMesRef,
+  nomeMesPortuguesUpper,
+} from '../utils/comissoes';
+import { limparFlagsLembreteRetorno } from '../utils/crmLembreteStorage';
 
-const PERCENT_CHEIA = [0.006, 0.003, 0.003, 0.003];
-const PERCENT_MEIA = [0.003, 0.0015, 0.0015, 0.0015];
-const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO'];
+const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO', 'CANCELADO'];
 
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, label, value, color }) => (
@@ -62,7 +74,6 @@ export default function PainelDiretor() {
   const [usuarioAtual, setUsuarioAtual] = useState(null);
   const [loading, setLoading] = useState(true);
   const [configuracoes, setConfiguracoes] = useState({ meta_geral: 0, duplas: [] });
-  const [comissoesLiberadasMes, setComissoesLiberadasMes] = useState(0);
   const [perfilUsuario, setPerfilUsuario] = useState(null);
   const [listaFiliais, setListaFiliais] = useState([]);
   const [filialSelecionadaId, setFilialSelecionadaId] = useState(null);
@@ -70,8 +81,20 @@ export default function PainelDiretor() {
   const [modalContaVisivel, setModalContaVisivel] = useState(false);
   const [modalRelatorioHS, setModalRelatorioHS] = useState(false);
   const [modalRelatorioGeral, setModalRelatorioGeral] = useState(false);
+  const [pagamentosDoMes, setPagamentosDoMes] = useState([]);
+
+  const buscarPagamentosDoMes = useCallback(async (mes) => {
+    if (!mes) return;
+    const { data, error } = await supabase
+      .from('pagamentos_comissao')
+      .select('*')
+      .eq('mes_pagamento', mes);
+    if (!error && data) setPagamentosDoMes(data);
+    else setPagamentosDoMes([]);
+  }, []);
 
   const handleLogout = async () => {
+      limparFlagsLembreteRetorno();
       await supabase.auth.signOut();
       navigate('/login');
   };
@@ -95,54 +118,6 @@ export default function PainelDiretor() {
           setListaFiliais(data);
       }
   };
-  
-  // =========================================================================
-  // --- FUNÇÃO CORRIGIDA FINALMENTE (Dependente apenas do MÊS ATUAL) ---
-  // =========================================================================
-  const buscarComissoesLiberadas = useCallback(async () => {
-      const mesAtual = dayjs().format('YYYY-MM');
-  
-      let query = supabase
-        .from('pagamentos_comissao')
-        .select('valor_comissao, usuario_id')
-        .eq('mes_pagamento', mesAtual) // Filtra pelo mês atual
-        .neq('parcela_index', 1);       // Exclui a P1
-  
-      query = query.order('created_at', { ascending: false });
-  
-      // Filtra pela filial (se uma filial estiver selecionada no filtro)
-      // AQUI USAMOS A FILIAL DO ESTADO 'FILTROS'
-      if (filtros.filial) {
-          const { data: usuariosDaFilial } = await supabase
-              .from('usuarios_custom')
-              .select('id')
-              .eq('id_filial', filtros.filial);
-  
-          if (usuariosDaFilial && usuariosDaFilial.length > 0) {
-              const idsDosUsuarios = usuariosDaFilial.map(u => u.id);
-              query = query.in('usuario_id', idsDosUsuarios);
-          } else {
-              // Se não houver usuários na filial, garante que a busca não retorne nada
-              query = query.in('usuario_id', ['99999999-9999-9999-9999-999999999999']);
-          }
-      }
-  
-      const { data, error } = await query;
-  
-      if (error) {
-        console.error("Erro ao buscar comissões liberadas:", error);
-        setComissoesLiberadasMes(0);
-        return;
-      }
-  
-      if (data) {
-        const totalLiberado = data.reduce((acc, item) => acc + item.valor_comissao, 0);
-        setComissoesLiberadasMes(totalLiberado);
-      } else {
-        setComissoesLiberadasMes(0);
-      }
-  }, [filtros.filial, setComissoesLiberadasMes]); // <--- Depende apenas do filtro de FILIAL
-  // =========================================================================
   
   const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
       if (!id_filial) return;
@@ -183,7 +158,8 @@ export default function PainelDiretor() {
               buscarUsuarios(),
               buscarVendas(),
               fetchConfiguracoes(filtros.mes, perfilData.id_filial),
-              buscarTodasFiliais()
+              buscarTodasFiliais(),
+              buscarPagamentosDoMes(filtros.mes),
             ]);
           }
         }
@@ -194,17 +170,17 @@ export default function PainelDiretor() {
     }, []);
    
       
-    useEffect(() => { 
-      if (filtros.mes && filialSelecionadaId) {
-          fetchConfiguracoes(filtros.mes, filialSelecionadaId);
-        }
-  }, [filtros.mes, filialSelecionadaId, fetchConfiguracoes]);
-  
-  useEffect(() => {
-      // Este useEffect garante que a busca seja refeita quando o filtro de filial MUDAR
-      // ou quando a função buscarComissoesLiberadas for atualizada
-      buscarComissoesLiberadas();
-    }, [filtros.filial, buscarComissoesLiberadas]); // Chama a busca no início e quando o filtro de filial é trocado.
+    useEffect(() => {
+      // Usa a filial do filtro de Vendas (se selecionada) para manter os cards consistentes
+      const filialIdEfetiva = filtros.filial || filialSelecionadaId;
+      if (filtros.mes && filialIdEfetiva) {
+        fetchConfiguracoes(filtros.mes, filialIdEfetiva);
+      }
+    }, [filtros.mes, filtros.filial, filialSelecionadaId, fetchConfiguracoes]);
+
+    useEffect(() => {
+      buscarPagamentosDoMes(filtros.mes);
+    }, [filtros.mes, buscarPagamentosDoMes, vendas]);
     
   
     const nomeVendedor = (id) => usuarios.find((u) => u.id === id)?.nome || "Desconhecido";
@@ -215,6 +191,7 @@ export default function PainelDiretor() {
       
       const valorNumerico = parseFloat(String(novaVenda.valor).replace(/\./g, '').replace(',', '.'));
       
+      const mesConf = dayjs().format('YYYY-MM');
       const dadosParaSalvar = { 
           ...novaVenda, 
           valor: valorNumerico, 
@@ -225,6 +202,8 @@ export default function PainelDiretor() {
           status_parcela_2: 'PENDENTE',
           status_parcela_3: 'PENDENTE',
           status_parcela_4: 'PENDENTE',
+          status_parcela_5: 'PENDENTE',
+          mes_conferencia_parcela_1: mesConf,
       };
   
       // Insere a venda e recupera o registro inserido
@@ -236,7 +215,7 @@ export default function PainelDiretor() {
       }
   
       // REGISTRA O PAGAMENTO DA 1ª COMISSÃO IMEDIATAMENTE
-      const percentuais = vendaInserida.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
+      const percentuais = isParcelaCheia(vendaInserida) ? PERCENT_CHEIA : PERCENT_MEIA;
       const valorComissao1 = vendaInserida.valor * percentuais[0];
   
       if (valorComissao1 > 0) {
@@ -245,12 +224,13 @@ export default function PainelDiretor() {
               usuario_id: vendaInserida.usuario_id,
               parcela_index: 1,
               valor_comissao: valorComissao1,
-              mes_pagamento: dayjs().format('YYYY-MM')
+              mes_pagamento: mesReferenciaComissaoP1(vendaInserida.mes),
           });
       }
   
       // Recarrega os dados, limpa o formulário e volta para a aba de vendas
       await buscarVendas();
+      await buscarPagamentosDoMes(filtros.mes);
       setNovaVenda({ cliente: "", grupo: "", cota: "", administradora: "GAZIN", valor: "", parcela: "cheia", mes: dayjs().format("YYYY-MM"), usuario_id: "" });
       setAba("vendas");
       alert("Venda cadastrada com sucesso!");
@@ -269,48 +249,24 @@ export default function PainelDiretor() {
       const statusAntigo = venda[nomeColuna];
   
       if (statusAntigo === novoStatus) {
-          console.log(`O status da Parcela ${parcelaIndex} já é ${novoStatus}.`);
           return;
       }
-  
-      // 1. ATUALIZA O STATUS NA TABELA DE VENDAS
-      const { error: updateError } = await supabase
-          .from("vendas")
-          .update({ [nomeColuna]: novoStatus })
-          .eq("id", venda.id);
-  
-      if (updateError) {
-          alert('Erro ao atualizar status da venda: ' + updateError.message);
-          return;
+
+      const res = await persistirMudancaStatusParcela(
+        supabase,
+        venda,
+        parcelaIndex,
+        novoStatus,
+        statusAntigo
+      );
+
+      if (!res.ok) {
+        alert('Erro ao atualizar status da venda: ' + (res.error?.message || 'desconhecido'));
+        return;
       }
-  
-      // 2. LÓGICA PARA ADICIONAR OU REMOVER PAGAMENTO
-      if (novoStatus === 'PAGO') {
-          // Se o novo status é PAGO, INSERE o registro de pagamento
-          const percentuais = venda.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
-          const valorComissao = venda.valor * percentuais[parcelaIndex - 1];
-  
-          if (valorComissao > 0) {
-              await supabase.from('pagamentos_comissao').insert({
-                  venda_id: venda.id,
-                  usuario_id: venda.usuario_id,
-                  parcela_index: parcelaIndex,
-                  valor_comissao: valorComissao,
-                  mes_pagamento: dayjs().format('YYYY-MM') // Mês atual!
-              });
-          }
-      } else if (statusAntigo === 'PAGO') {
-          // Se o status ANTIGO era PAGO e o novo NÃO É, REMOVE o registro de pagamento
-          await supabase
-            .from('pagamentos_comissao')
-            .delete()
-            .eq('venda_id', venda.id)
-            .eq('parcela_index', parcelaIndex);
-      }
-      
-      // 3. RECARREGA OS DADOS PARA ATUALIZAR A INTERFACE
-      await buscarVendas(); 
-      await buscarComissoesLiberadas(); // Chama a busca
+
+      await buscarVendas();
+      await buscarPagamentosDoMes(filtros.mes);
     };
   
   // COLE ESTE BLOCO CORRIGIDO NO LUGAR DO SEU calculosDoMes ATUAL
@@ -323,45 +279,67 @@ export default function PainelDiretor() {
       // Criamos uma lista de IDs desses usuários para usar no filtro de vendas.
       const idsUsuariosDaFilial = usuariosDaFilialFiltrada.map(u => u.id);
   
+      const mesFiltroNorm = filtros.mes ? normalizarMesVenda(filtros.mes) : '';
+
       const vendasFiltradas = vendas.filter((v) => {
           // Nova condição: a venda pertence a um usuário da filial selecionada?
           const matchFilial = !filtros.filial || idsUsuariosDaFilial.includes(v.usuario_id);
   
           const matchVendedor = !filtros.vendedor || v.usuario_id === filtros.vendedor;
-          const matchMes = !filtros.mes || v.mes === filtros.mes;
+          const matchMes = !mesFiltroNorm || normalizarMesVenda(v.mes) === mesFiltroNorm;
           const matchAdm = !filtros.administradora || v.administradora === filtros.administradora;
   
           return matchFilial && matchVendedor && matchMes && matchAdm;
       });
   
+      // Totais dos cards: independentes de vendedor e administradora (apenas mês + filial)
+      const vendasBaseParaCards = vendas.filter((v) => {
+          const matchFilialBase = !filtros.filial || idsUsuariosDaFilial.includes(v.usuario_id);
+          const matchMesBase = !mesFiltroNorm || normalizarMesVenda(v.mes) === mesFiltroNorm;
+          return matchFilialBase && matchMesBase;
+      });
+
       const totaisPorVendedor = {};
       usuarios.forEach(u => { totaisPorVendedor[u.id] = { nome: u.nome, vendido: 0 }; });
   
       let totalMesTodos = 0;
       let totalComissaoVendedor = 0;
-      const mesBase = filtros.mes;
-  
-      vendasFiltradas.forEach((venda) => {
+      let totalVendidoGAZIN = 0;
+      let totalVendidoHS = 0;
+      // Totais dos cards
+      vendasBaseParaCards.forEach((venda) => {
         const id = venda.usuario_id;
         const valor = parseFloat(venda.valor) || 0;
   
-        if(venda.mes === mesBase && totaisPorVendedor[id]) {
+        // matchMesBase garante que estamos no mês selecionado
+        totalMesTodos += valor;
+
+        const percentuais = isParcelaCheia(venda) ? PERCENT_CHEIA : PERCENT_MEIA;
+        const comissaoP1DaVenda = valor * percentuais[0];
+        totalComissaoVendedor += comissaoP1DaVenda;
+
+        if (venda.administradora === 'GAZIN') totalVendidoGAZIN += valor;
+        if (venda.administradora === 'HS') totalVendidoHS += valor;
+      });
+
+      // Totais por vendedor (usados no ranking e texto)
+      vendasFiltradas.forEach((venda) => {
+        const id = venda.usuario_id;
+        const valor = parseFloat(venda.valor) || 0;
+
+        if (totaisPorVendedor[id] && (!mesFiltroNorm || normalizarMesVenda(venda.mes) === mesFiltroNorm)) {
             totaisPorVendedor[id].vendido += valor;
-        }
-  
-        if (venda.mes === mesBase) {
-          totalMesTodos += valor;
-        }
-  
-        if (filtros.vendedor && venda.usuario_id === filtros.vendedor && venda.mes === mesBase) {
-          const percentuais = venda.parcela === 'cheia' ? PERCENT_CHEIA : PERCENT_MEIA;
-          const comissaoP1DaVenda = valor * percentuais[0];
-          totalComissaoVendedor += comissaoP1DaVenda;
         }
       });
   
-      return { vendasFiltradas, totaisPorVendedor, totalMesTodos, totalComissaoVendedor };
+      return { vendasFiltradas, totaisPorVendedor, totalMesTodos, totalComissaoVendedor, totalVendidoGAZIN, totalVendidoHS };
   }, [vendas, usuarios, filtros]);
+
+  const valorFaltanteParaMeta = useMemo(() => {
+      const meta = configuracoes?.meta_geral || 0;
+      const vendido = calculosDoMes?.totalMesTodos || 0;
+      return meta - vendido;
+  }, [configuracoes?.meta_geral, calculosDoMes?.totalMesTodos]);
   
   
     // CAMINHO DE ABAS
@@ -381,8 +359,12 @@ export default function PainelDiretor() {
        case 'vendas': return <AbaVendas 
        listaFiliais={listaFiliais} 
     vendasFiltradas={calculosDoMes.vendasFiltradas}
+    vendasTodas={vendas}
+    pagamentosDoMes={pagamentosDoMes}
     totalMesTodos={calculosDoMes.totalMesTodos}
     totalComissaoVendedor={calculosDoMes.totalComissaoVendedor}
+    totalVendidoGAZIN={calculosDoMes.totalVendidoGAZIN}
+    totalVendidoHS={calculosDoMes.totalVendidoHS}
     usuarios={usuarios}
     filtros={filtros} setFiltros={setFiltros} 
     nomeVendedor={nomeVendedor} 
@@ -391,7 +373,7 @@ export default function PainelDiretor() {
     editarVenda={editarVenda} salvarEdicao={salvarEdicao} 
     excluirVenda={excluirVenda} 
     handleStatusChange={handleStatusChange}
-    comissoesLiberadasMes={comissoesLiberadasMes}
+    valorFaltanteParaMeta={valorFaltanteParaMeta}
     onAbrirModalRelatorioGeral={() => setModalRelatorioGeral(true)}
     onAbrirModalRelatorioHS={() => setModalRelatorioHS(true)}
     />;
@@ -449,7 +431,7 @@ export default function PainelDiretor() {
     if (loading) return <LoadingSpinner />;
     
     return (
-      <div className="bg-gray-900 text-gray-200 min-h-screen p-4 md:p-8">
+      <div className="bg-gray-900 text-gray-200 min-h-[100dvh] min-h-screen w-full max-w-[100vw] overflow-x-hidden p-4 sm:p-6 md:p-8">
         <div className="container mx-auto">
           <header className="mb-8">
               <div className="flex justify-between items-center mb-6">
@@ -482,6 +464,11 @@ export default function PainelDiretor() {
               </nav>
           </header>
           
+          {aba === 'vendas' && (
+            <div className="mt-5 mb-4 print:hidden">
+              <h2 className="text-xl font-bold text-white">Relatório Geral</h2>
+            </div>
+          )}
           <LembretesLeads />
           <div className="mt-6">{renderContent()}</div>
   {perfilUsuario && <LembreteAcaoDiaria usuario={perfilUsuario} />}
@@ -520,6 +507,7 @@ export default function PainelDiretor() {
               usuarios={usuarios}
               filtros={filtros}
               listaFiliais={listaFiliais}
+              pagamentosDoMes={pagamentosDoMes}
               onClose={() => setModalRelatorioGeral(false)}
           />
       )}
@@ -531,9 +519,82 @@ export default function PainelDiretor() {
   
   
   // --- Componente da Aba de Vendas (Dashboard) ---
-  const AbaVendas = ({ listaFiliais, vendasFiltradas, totalMesTodos, totalComissaoVendedor, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes, onAbrirModalRelatorioGeral, onAbrirModalRelatorioHS }) => {
-      const mesSelecionadoLabel = dayjs(filtros.mes).format("MMMM [de] YYYY");
+  const AbaVendas = ({ listaFiliais, vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodos, totalComissaoVendedor, totalVendidoGAZIN, totalVendidoHS, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, valorFaltanteParaMeta, onAbrirModalRelatorioGeral, onAbrirModalRelatorioHS }) => {
+      const dMes = dayjsMesRef(filtros.mes);
+      const mesSelecionadoLabel = dMes.format('MMMM [de] YYYY');
+      const faltaParaMetaClamped = valorFaltanteParaMeta > 0 ? valorFaltanteParaMeta : 0;
+      const mesLabel = dMes.format('MMMM');
+      const [modalEstornoAberto, setModalEstornoAberto] = useState(false);
   
+      const vendedorSelecionadoId = filtros.vendedor;
+      const nomeVendedorSelecionado = vendedorSelecionadoId ? nomeVendedor(vendedorSelecionadoId) : "";
+
+      const formatarMoeda = (valor) => (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      const mesP1VendasLabel = dMes.subtract(1, 'month').format('MMMM [de] YYYY');
+      const mesP1RecebeLabel = dMes.format('MMMM [de] YYYY');
+      const subtituloComissaoP1 = `Comissão P1 (0,30% meia ou 0,60% cheia) das vendas lançadas em ${mesP1VendasLabel}. Você recebe esse valor em ${mesP1RecebeLabel}.`;
+      const mesNomeUpper = nomeMesPortuguesUpper(filtros.mes);
+      const mesSeguinteLabel = dMes.add(1, 'month').format('MMMM [de] YYYY');
+      const subtituloEstornoCard = `Esse valor é seu estorno de clientes que foram excluídos no mês de ${mesLabel} que reflete na comissão de ${mesSeguinteLabel}`;
+      const subtituloTotalReceber = `Valor total que vai receber das comissões em ${mesSeguinteLabel} já descontado o estorno`;
+
+      const totaisVendedorParaPrint = useMemo(() => {
+          const mesRef = filtros.mes;
+          const uid = vendedorSelecionadoId;
+          if (!uid) {
+            return {
+              totalVendidoMes: 0,
+              totalComissaoP1: 0,
+              totalComissaoP2Liberada: 0,
+              totalComissaoP3Liberada: 0,
+              totalEstorno: 0,
+              totalAPagar: 0,
+              itensEstorno: [],
+            };
+          }
+
+          const mesRefNorm = normalizarMesVenda(mesRef);
+          const totalVendidoMes = (vendasTodas || [])
+            .filter((v) => v.usuario_id === uid && normalizarMesVenda(v.mes) === mesRefNorm)
+            .reduce((s, v) => s + (parseFloat(v.valor) || 0), 0);
+
+          const vendasPorId = {};
+          (vendasTodas || []).forEach((v) => {
+            vendasPorId[v.id] = v;
+          });
+
+          const vendasDoVendedor = (vendasTodas || []).filter((v) => v.usuario_id === uid);
+
+          const totalComissaoP1 = totalComissaoP1RecebidaNoMes(vendasDoVendedor, uid, mesRef);
+          const { totalComissaoP2Liberada, totalComissaoP3Liberada } = totaisPagamentosP2P3(
+            pagamentosDoMes,
+            uid,
+            vendasPorId
+          );
+          const { totalEstorno, itens: itensEstorno } = calcularEstornoMes(vendasDoVendedor, mesRef);
+
+          const totalAPagar = totalComissaoP1 + totalComissaoP2Liberada + totalComissaoP3Liberada - totalEstorno;
+
+          return {
+              totalVendidoMes,
+              totalComissaoP1,
+              totalComissaoP2Liberada,
+              totalComissaoP3Liberada,
+              totalEstorno,
+              totalAPagar,
+              itensEstorno,
+          };
+      }, [vendasTodas, pagamentosDoMes, filtros.mes, vendedorSelecionadoId]);
+
+      const PrintMetricCard = ({ title, value, subtitle }) => (
+          <div className="bg-white border border-gray-300 rounded-lg p-3">
+              <p className="text-[11px] font-extrabold text-black">{title}</p>
+              <p className="text-base font-extrabold text-black mt-1">{formatarMoeda(value)}</p>
+              {subtitle ? <p className="text-[10px] text-gray-700 mt-2 leading-snug">{subtitle}</p> : null}
+          </div>
+      );
+
       const vendedoresFiltradosParaDropdown = useMemo(() => {
           if (!filtros.filial) {
               return usuarios; 
@@ -544,15 +605,151 @@ export default function PainelDiretor() {
       return (
       <div className="animate-fade-in space-y-8">
           {/* Cards de estatísticas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 print:hidden">
               <StatCard icon={<FaDollarSign size={24} />} label={`Total Vendido em ${mesSelecionadoLabel}`} value={totalMesTodos} color="bg-green-500/20 text-green-400" />
-              {filtros.vendedor && (
-                  <StatCard icon={<FaUserTie size={24} />} label={`Comissão P1 (Vendas de ${mesSelecionadoLabel})`} value={totalComissaoVendedor} color="bg-yellow-500/20 text-yellow-400" />
-              )}    
-              <StatCard icon={<FaFileInvoiceDollar size={24} />} label={`Comissões Anteriores Liberadas em ${dayjs().format('MMMM')}`} value={comissoesLiberadasMes} color="bg-blue-500/20 text-blue-400" />
+              <StatCard
+                icon={<FaBullseye size={24} />}
+                label={`Valor faltante para atingir a meta de ${mesLabel}`}
+                value={faltaParaMetaClamped}
+                color={faltaParaMetaClamped > 0 ? "bg-red-500/20 text-red-400" : "bg-green-500/20"}
+              />
+              <StatCard
+                icon={<FaDollarSign size={24} />}
+                label={`Total Vendido GAZIN em ${mesSelecionadoLabel}`}
+                value={totalVendidoGAZIN}
+                color="bg-indigo-500/20 text-indigo-300"
+              />
+              <StatCard
+                icon={<FaDollarSign size={24} />}
+                label={`Total Vendido HS em ${mesSelecionadoLabel}`}
+                value={totalVendidoHS}
+                color="bg-purple-500/20 text-purple-300"
+              />
+          </div>
+
+          <div className="print:hidden">
+              <h2 className="text-xl font-bold text-white">Relatório por Vendedor</h2>
+              {vendedorSelecionadoId ? (
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
+                          <p className="text-sm text-gray-400 font-semibold"><FaDollarSign className="inline-block mr-2" />{`TOTAL VENDIDO MÊS DE ${mesNomeUpper}`}</p>
+                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalVendidoMes)}</p>
+                      </div>
+                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
+                          <p className="text-sm text-gray-400 font-semibold"><FaFileInvoiceDollar className="inline-block mr-2" />TOTAL DE COMISSÃO P1</p>
+                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP1)}</p>
+                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">{subtituloComissaoP1}</p>
+                      </div>
+                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
+                          <p className="text-sm text-gray-400 font-semibold"><FaChartLine className="inline-block mr-2" />TOTAL DE COMISSÃO LIBERADA EM P2</p>
+                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP2Liberada)}</p>
+                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">Esse valor é sua comissão de clientes que pagaram a 2º parcela das vendas anteriores</p>
+                      </div>
+                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
+                          <p className="text-sm text-gray-400 font-semibold"><FaChartLine className="inline-block mr-2" />TOTAL DE COMISSÃO LIBERADA EM P3</p>
+                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP3Liberada)}</p>
+                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">Esse valor é sua comissão de clientes que pagaram a 3º parcela das vendas anteriores</p>
+                      </div>
+                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
+                          <p className="text-sm text-gray-400 font-semibold flex items-center gap-2 flex-wrap">
+                            <FaExclamationTriangle className="inline-block" />TOTAL DE ESTORNO
+                            <button
+                              type="button"
+                              title="Ver detalhes dos estornos conferidos neste mês"
+                              onClick={() => setModalEstornoAberto(true)}
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/40 font-bold text-sm"
+                            >
+                              !
+                            </button>
+                          </p>
+                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalEstorno)}</p>
+                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">{subtituloEstornoCard}</p>
+                      </div>
+                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
+                          <p className="text-sm text-gray-400 font-semibold"><FaUserTie className="inline-block mr-2" />TOTAL À RECEBER</p>
+                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalAPagar)}</p>
+                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">{subtituloTotalReceber}</p>
+                      </div>
+                  </div>
+              ) : (
+                  <p className="text-sm text-gray-400 mt-3">Selecione um vendedor nos filtros acima para ver o relatório.</p>
+              )}
+          </div>
+
+          {modalEstornoAberto && vendedorSelecionadoId && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 print:hidden">
+              <div className="bg-gray-800 border border-gray-600 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl">
+                <div className="flex justify-between items-center px-4 py-3 border-b border-gray-700">
+                  <h3 className="text-lg font-bold text-white">Estornos em {mesLabel}</h3>
+                  <button type="button" onClick={() => setModalEstornoAberto(false)} className="text-gray-400 hover:text-white text-xl px-2">&times;</button>
+                </div>
+                <div className="p-4 overflow-y-auto max-h-[60vh] text-sm">
+                  {(totaisVendedorParaPrint.itensEstorno || []).length === 0 ? (
+                    <p className="text-gray-400">Nenhum estorno (P2–P5) conferido neste mês para este vendedor.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {totaisVendedorParaPrint.itensEstorno.map((it, idx) => (
+                        <li key={`${it.vendaId}-${it.parcela}-${idx}`} className="border border-gray-700 rounded-lg p-3 bg-gray-900/50">
+                          <p className="font-semibold text-white">{(it.cliente || '').toUpperCase()}</p>
+                          <p className="text-gray-400 text-xs mt-1">Parcela com estorno: P{it.parcela} · Valor P1 estornado: {formatarMoeda(it.valorEstornoComissaoP1)}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PRINT */}
+          <div className="hidden print:block space-y-4">
+              <h2 className="text-[16px] font-extrabold text-black">Resultados Fênix</h2>
+              <div className="grid grid-cols-4 gap-3">
+                  <PrintMetricCard title={`TOTAL VENDIDO MÊS DE ${mesNomeUpper}`} value={totalMesTodos} />
+                  <PrintMetricCard title={`VALOR FALTANTE PARA A META DE ${mesNomeUpper}`} value={faltaParaMetaClamped} />
+                  <PrintMetricCard title="TOTAL VENDIDO GAZIN" value={totalVendidoGAZIN} />
+                  <PrintMetricCard title="TOTAL VENDIDO HS" value={totalVendidoHS} />
+              </div>
+
+              <h2 className="text-[16px] font-extrabold text-black pt-3">
+                  Resultado do Vendedor: {nomeVendedorSelecionado || '---'}
+              </h2>
+
+              {vendedorSelecionadoId ? (
+                  <div className="grid grid-cols-2 gap-3">
+                      <PrintMetricCard title={`TOTAL VENDIDO MÊS DE ${mesNomeUpper}`} value={totaisVendedorParaPrint.totalVendidoMes} />
+                      <PrintMetricCard
+                          title="TOTAL DE COMISSÃO P1"
+                          value={totaisVendedorParaPrint.totalComissaoP1}
+                          subtitle={subtituloComissaoP1}
+                      />
+                      <PrintMetricCard
+                          title="TOTAL DE COMISSÃO LIBERADA EM P2"
+                          value={totaisVendedorParaPrint.totalComissaoP2Liberada}
+                          subtitle="Esse valor é sua comissão de clientes que pagaram a 2º parcela das vendas anteriores"
+                      />
+                      <PrintMetricCard
+                          title="TOTAL DE COMISSÃO LIBERADA EM P3"
+                          value={totaisVendedorParaPrint.totalComissaoP3Liberada}
+                          subtitle="Esse valor é sua comissão de clientes que pagaram a 3º parcela das vendas anteriores"
+                      />
+                      <PrintMetricCard
+                          title="TOTAL DE ESTORNO"
+                          value={totaisVendedorParaPrint.totalEstorno}
+                          subtitle={subtituloEstornoCard}
+                      />
+                      <PrintMetricCard
+                          title="TOTAL À RECEBER"
+                          value={totaisVendedorParaPrint.totalAPagar}
+                          subtitle={subtituloTotalReceber}
+                      />
+                  </div>
+              ) : (
+                  <p className="text-[11px] text-black/70">Selecione um vendedor para imprimir o resultado.</p>
+              )}
           </div>
           
-          <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6"> 
+          <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6 print:hidden"> 
   
               {/* --- DIV DE FILTROS E BOTÕES (LAYOUT CORRIGIDO) --- */}
               <div className="print-hidden mb-6 pb-6 border-b border-gray-700">
@@ -590,18 +787,18 @@ export default function PainelDiretor() {
                   </div>
   
                   {/* Agrupador para Botões (separado, para quebrar a linha) */}
-                  <div className="flex flex-wrap items-center gap-4 mt-4 justify-end">
+                  <div className="flex flex-wrap items-center gap-4 mt-4 justify-start">
                       <button 
                           onClick={onAbrirModalRelatorioHS}
                           className="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
                       >
-                          <FaChartLine /> Relatório HS
+                          <FaChartLine /> RANK HS
                       </button>
                       <button 
                           onClick={onAbrirModalRelatorioGeral} 
                           className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
                       >
-                          <FaPrint /> Imprimir Relatório Geral
+                          <FaPrint /> Gerar Relatório de Comissão Mensal
                       </button>
                   </div>
               </div>
@@ -651,22 +848,20 @@ export default function PainelDiretor() {
                                               <td className="px-4 py-3">
                                                   <div className="flex flex-col">
                                                       <div><span className="font-semibold">{venda.administradora}</span><span className="text-xs text-gray-400 ml-2">G: {venda.grupo} / C: {venda.cota}</span></div>
-                                                      <div className="mt-1.5"><span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${venda.parcela === 'cheia' ? 'bg-blue-900/70 text-blue-300' : 'bg-yellow-900/70 text-yellow-300'}`}>{venda.parcela === 'cheia' ? 'Parcela Cheia' : 'Parcela Meia'}</span></div>
+                                                      <div className="mt-1.5"><span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${isParcelaCheia(venda) ? 'bg-blue-900/70 text-blue-300' : 'bg-yellow-900/70 text-yellow-300'}`}>{isParcelaCheia(venda) ? 'Parcela Cheia' : 'Parcela Meia'}</span></div>
                                                   </div>
                                               </td>
                                               <td className="px-4 py-3 text-green-400 font-semibold">{parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
                                               <td className="px-4 py-3">{nomeVendedor(venda.usuario_id)}</td>
                                               <td className="px-4 py-3">
                                                   <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
-                                                      <span className={`px-2 py-1 text-xs rounded-md font-medium whitespace-nowrap ${venda.status_parcela_1 === 'PAGO' ? 'bg-green-500/20 text-green-300' : 'bg-gray-700'}`}>
-                                                          P1: {venda.status_parcela_1 || 'PENDENTE'}
-                                                      </span>
-                                                      {[2, 3, 4].map((i) => {
+                                                      {[1, 2, 3, 4, 5].map((i) => {
                                                           const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
                                                           let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
                                                           if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
                                                           if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
                                                           if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
+                                                          if (statusAtual === 'CANCELADO') corSeletor = 'bg-gray-600 border-gray-500 text-gray-200';
       
                                                           return (
                                                               <select 
@@ -746,7 +941,8 @@ export default function PainelDiretor() {
       // Funções para calcular os totais
       const totaisPorVendedor = useMemo(() => {
           const totais = {};
-          const vendasDoMes = vendas.filter(v => v.mes === filtros.mes);
+          const mRank = filtros.mes ? normalizarMesVenda(filtros.mes) : '';
+          const vendasDoMes = vendas.filter((v) => !mRank || normalizarMesVenda(v.mes) === mRank);
           usuarios.forEach(u => { totais[u.id] = { id: u.id, nome: u.nome, vendido: 0 }; });
           vendasDoMes.forEach((venda) => {
             if (totais[venda.usuario_id]) { totais[venda.usuario_id].vendido += parseFloat(venda.valor) || 0; }

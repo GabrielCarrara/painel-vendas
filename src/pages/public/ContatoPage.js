@@ -5,7 +5,6 @@ import ListaVendedores from './ListaVendedores';
 import ProfileCard from './ProfileCard'; // Apenas importa, não declara de novo
 
 export default function ContatoPage() {
-    const [cidadeVisivel, setCidadeVisivel] = useState('');
     const [equipeLider, setEquipeLider] = useState([]);
 
     useEffect(() => {
@@ -37,12 +36,12 @@ export default function ContatoPage() {
     return (
       
         <div 
-            className="bg-slate-50 text-slate-800" 
+            className="bg-slate-50 text-slate-800 w-full max-w-[100vw] overflow-x-hidden min-h-[100dvh] min-h-screen" 
             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23e2e8f0' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }}
         >
-            <div className="container mx-auto px-6 py-12">
+            <div className="container mx-auto px-4 sm:px-6 py-10 sm:py-12 max-w-6xl w-full">
                 <section className="bg-white pt-16 pb-12 text-center border-b border-slate-200">
-                    <h1 className="text-5xl font-extrabold mb-4 text-fenix-purple">Conheça a Nossa Equipe</h1>
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 text-fenix-purple px-2">Conheça a Nossa Equipe</h1>
                     <p className="text-lg text-slate-600 max-w-3xl mx-auto">
                         Somos um time de especialistas dedicados a encontrar a melhor solução para o seu futuro. Conheça os rostos por trás da Fênix Consórcios.
                     </p>
@@ -74,16 +73,9 @@ export default function ContatoPage() {
 
                     <section className="bg-white p-8 md:p-12 rounded-xl shadow-lg">
                         <h2 className="text-3xl font-bold text-center mb-2">Nossos Consultores</h2>
+                        <p className="text-center text-slate-600 mb-8">Equipe de Pontes e Lacerda</p>
                         <div className="w-24 h-1 bg-fenix-orange mx-auto mb-10"></div>
-                        <div className="flex flex-wrap justify-center gap-4 mb-8">
-                            <button onClick={() => setCidadeVisivel('1')} className={`px-6 py-3 rounded-full font-semibold transition-colors ${cidadeVisivel === '1' ? 'bg-fenix-purple text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
-                                Vendedores de Pontes e Lacerda
-                            </button>
-                             <button onClick={() => setCidadeVisivel('2')} className={`px-6 py-3 rounded-full font-semibold transition-colors ${cidadeVisivel === '2' ? 'bg-fenix-purple text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
-                                Vendedores de Mirassol D'Oeste
-                            </button>
-                        </div>
-                        {cidadeVisivel && <ListaVendedores filialId={cidadeVisivel} />}
+                        <ListaVendedores filialId="1" />
                     </section>
                 </div>
             </div>

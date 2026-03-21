@@ -5,6 +5,7 @@ import { supabase } from '../supabaseClient';
 import logo from '../assets/logo.png'; // Garanta que o caminho para sua logo esteja correto
 import { FaEnvelope, FaLock, FaSpinner } from 'react-icons/fa';
 import Footer from '../components/Footer';
+import { limparFlagsLembreteRetorno } from '../utils/crmLembreteStorage';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -28,7 +29,9 @@ const Login = () => {
         setErro('E-mail ou senha incorretos. Verifique e tente novamente.');
         return;
       }
-      
+
+      limparFlagsLembreteRetorno();
+
       let { data: perfil } = await supabase
         .from('usuarios_custom')
         .select('cargo')
@@ -80,7 +83,7 @@ case 'gerente':
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-900 to-indigo-900/50 text-white overflow-hidden">
+    <div className="flex flex-col min-h-[100dvh] min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-gradient-to-br from-gray-900 to-indigo-900/50 text-white">
       
       {/* Container principal que cresce para ocupar o espaço */}
       <main className="flex-grow flex flex-col items-center justify-center p-4 animate-fade-in">

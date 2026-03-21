@@ -9,3 +9,10 @@ root.render(
     <App />
   </React.StrictMode>
 );
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const swUrl = `${process.env.PUBLIC_URL || ''}/sw.js`;
+    navigator.serviceWorker.register(swUrl).catch(() => {});
+  });
+}

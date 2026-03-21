@@ -142,11 +142,10 @@ export default function CartasPage() {
     const tiposDeCarta = ['TODOS', 'AUTOMÓVEL', 'IMÓVEL', 'ELETRO'];
 
     return (
-      
-        <div>
+        <div className="w-full max-w-[100vw] overflow-x-hidden min-h-[100dvh] min-h-screen text-slate-800">
             {/* Seção de Introdução */}
             <section className="bg-white">
-                <div className="container mx-auto px-6 py-12 text-center">
+                <div className="container mx-auto px-4 sm:px-6 py-10 sm:py-12 text-center max-w-6xl w-full">
                     <h1 className="text-4xl font-bold mb-4 text-fenix-purple">Cartas de Crédito Contempladas</h1>
                     <p className="text-slate-600 max-w-2xl mx-auto">A oportunidade que você esperava. Filtre, ordene e simule a junção de cartas para realizar seu sonho mais rápido.</p>
                 </div>

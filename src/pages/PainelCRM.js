@@ -4,6 +4,23 @@ import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
 import { FaUsers, FaPlus, FaFire, FaCheckCircle, FaArchive, FaSnowflake, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, FaExclamationTriangle, FaSpinner } from "react-icons/fa";
 
+function isoParaInputDate(val) {
+  if (!val) return "";
+  const s = String(val);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function formatarDataContato(val) {
+  if (!val) return "—";
+  return dayjs(isoParaInputDate(val)).format("DD/MM/YYYY");
+}
+
+/** Exibe só dia/mês; o lembrete usa o mesmo dia/mês todo ano. */
+function formatarDataRetorno(val) {
+  if (!val) return "—";
+  return dayjs(isoParaInputDate(val)).format("DD/MM");
+}
+
 // --- Componentes de UI Reutilizáveis ---
 
 const LeadStatCard = ({ icon, title, count, color, onClick, isActive }) => (
@@ -34,18 +51,82 @@ const EmptyStateRow = ({ message, colSpan }) => (
     </tr>
 );
 
+function ModalConfirmarExcluirLead({ nomeLead, onCancelar, onConfirmar }) {
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirmar-excluir-lead-titulo"
+      onClick={onCancelar}
+    >
+      <div
+        className="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-red-500/10 border-b border-red-500/25 px-5 py-4 flex items-start gap-3">
+          <span className="text-red-400 mt-0.5 shrink-0">
+            <FaExclamationTriangle size={22} />
+          </span>
+          <div>
+            <h2 id="confirmar-excluir-lead-titulo" className="text-lg font-bold text-white">
+              Excluir lead
+            </h2>
+            <p className="text-sm text-gray-300 mt-2 leading-relaxed">
+              Deseja realmente excluir o lead{' '}
+              <span className="font-semibold text-white">{(nomeLead || '').toUpperCase()}</span>? Esta ação não pode ser
+              desfeita.
+            </p>
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-gray-700 bg-gray-900/40 flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancelar}
+            className="px-5 py-2.5 rounded-lg font-semibold bg-gray-600 hover:bg-gray-500 text-white transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirmar}
+            className="px-5 py-2.5 rounded-lg font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors"
+          >
+            Excluir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Componente Principal ---
 
-export default function PainelCRMAprimorado() {
+export default function PainelCRMAprimorado({ onAviso } = {}) {
   const [leads, setLeads] = useState([]);
   const [usuarioAtual, setUsuarioAtual] = useState(null);
   const [novoLead, setNovoLead] = useState({
-    nome: "", telefone: "", cpf: "", origem: "", observacao: "", tipo: "LEAD NOVO", mes: dayjs().format("YYYY-MM"),
+    nome: "",
+    telefone: "",
+    cpf: "",
+    origem: "",
+    observacao: "",
+    tipo: "LEAD NOVO",
+    mes: dayjs().format("YYYY-MM"),
+    data_contato: "",
+    data_retorno: "",
   });
   const [editandoId, setEditandoId] = useState(null);
   const [leadEditado, setLeadEditado] = useState({});
   const [filtroTipo, setFiltroTipo] = useState("");
   const [loading, setLoading] = useState(true);
+  const [leadParaExcluir, setLeadParaExcluir] = useState(null);
+
+  const aviso = (titulo, texto, variant = "erro") => {
+    if (typeof onAviso === "function") onAviso({ titulo, texto, variant });
+    else if (titulo) window.alert(`${titulo}\n\n${texto}`);
+    else window.alert(texto);
+  };
 
   // --- Efeitos e Busca de Dados ---
   useEffect(() => {
@@ -79,20 +160,37 @@ export default function PainelCRMAprimorado() {
   // --- Lógica de Ações (CRUD) ---
   const cadastrarLead = async () => {
     if (!usuarioAtual) {
-        alert("Erro: Usuário não identificado. Faça o login novamente.");
-        return;
+      aviso("Sessão", "Usuário não identificado. Faça o login novamente.");
+      return;
     }
     if (!novoLead.nome || !novoLead.telefone) {
-      alert("Nome e Telefone são obrigatórios.");
+      aviso("Campos obrigatórios", "Nome e telefone são obrigatórios.", "info");
       return;
     }
     
-    const { error } = await supabase.from("leads").insert([{ ...novoLead, usuario_id: usuarioAtual.id, nome: novoLead.nome.toUpperCase() }]);
-    
+    const payload = {
+      ...novoLead,
+      usuario_id: usuarioAtual.id,
+      nome: novoLead.nome.toUpperCase(),
+      data_contato: novoLead.data_contato || null,
+      data_retorno: novoLead.data_retorno || null,
+    };
+    const { error } = await supabase.from("leads").insert([payload]);
+
     if (error) {
-        alert("Erro ao cadastrar lead: " + error.message);
+      aviso("Erro ao cadastrar lead", error.message);
     } else {
-        setNovoLead({ nome: "", telefone: "", cpf: "", origem: "", observacao: "", tipo: "LEAD NOVO", mes: dayjs().format("YYYY-MM") });
+        setNovoLead({
+          nome: "",
+          telefone: "",
+          cpf: "",
+          origem: "",
+          observacao: "",
+          tipo: "LEAD NOVO",
+          mes: dayjs().format("YYYY-MM"),
+          data_contato: "",
+          data_retorno: "",
+        });
         buscarLeads();
     }
   };
@@ -103,9 +201,14 @@ export default function PainelCRMAprimorado() {
   };
 
   const salvarEdicao = async () => {
-    const { error } = await supabase.from("leads").update(leadEditado).eq("id", editandoId);
-    if(error) {
-        alert("Erro ao salvar edição: " + error.message);
+    const patch = {
+      ...leadEditado,
+      data_contato: leadEditado.data_contato || null,
+      data_retorno: leadEditado.data_retorno || null,
+    };
+    const { error } = await supabase.from("leads").update(patch).eq("id", editandoId);
+    if (error) {
+      aviso("Erro ao salvar edição", error.message);
     } else {
         setEditandoId(null);
         setLeadEditado({});
@@ -113,11 +216,19 @@ export default function PainelCRMAprimorado() {
     }
   };
 
-  const excluirLead = async (id) => {
-    if (window.confirm("Deseja realmente excluir este lead?")) {
-      await supabase.from("leads").delete().eq("id", id);
-      buscarLeads();
+  const abrirConfirmacaoExcluir = (lead) => {
+    setLeadParaExcluir({ id: lead.id, nome: lead.nome });
+  };
+
+  const confirmarExclusaoLead = async () => {
+    if (!leadParaExcluir) return;
+    const { error } = await supabase.from("leads").delete().eq("id", leadParaExcluir.id);
+    setLeadParaExcluir(null);
+    if (error) {
+      aviso("Erro ao excluir lead", error.message);
+      return;
     }
+    buscarLeads();
   };
 
   // --- Dados para Renderização (Memoizados) ---
@@ -139,6 +250,14 @@ export default function PainelCRMAprimorado() {
 
   return (
     <div className="animate-fade-in text-white">
+      {leadParaExcluir && (
+        <ModalConfirmarExcluirLead
+          nomeLead={leadParaExcluir.nome}
+          onCancelar={() => setLeadParaExcluir(null)}
+          onConfirmar={confirmarExclusaoLead}
+        />
+      )}
+
       {/* 1. Dashboard de Estatísticas Interativo */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         {tiposDeLead.map(({ tipo, icon, color }) => (
@@ -166,6 +285,14 @@ export default function PainelCRMAprimorado() {
             {tiposDeLead.map(t => <option key={t.tipo} value={t.tipo}>{t.tipo}</option>)}
           </select>
           <input type="month" value={novoLead.mes} onChange={(e) => setNovoLead({ ...novoLead, mes: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"/>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">Data de 1º contato <span className="text-gray-500">(opcional)</span></label>
+            <input type="date" value={novoLead.data_contato} onChange={(e) => setNovoLead({ ...novoLead, data_contato: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"/>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">Data de retorno <span className="text-gray-500">(opcional, lembrete no dia/mês)</span></label>
+            <input type="date" value={novoLead.data_retorno} onChange={(e) => setNovoLead({ ...novoLead, data_retorno: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"/>
+          </div>
           <textarea placeholder="Observação" value={novoLead.observacao} onChange={(e) => setNovoLead({ ...novoLead, observacao: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500 md:col-span-2 lg:col-span-3" rows="2"></textarea>
         </div>
         <button onClick={cadastrarLead} className="mt-4 bg-indigo-600 px-5 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition-all flex items-center gap-2">
@@ -182,7 +309,9 @@ export default function PainelCRMAprimorado() {
               <tr className="text-gray-400 uppercase">
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Contato</th>
-                <th className="px-4 py-3">Origem</th> {/* <<-- COLUNA ADICIONADA */}
+                <th className="px-4 py-3">Origem</th>
+                <th className="px-4 py-3">1º contato</th>
+                <th className="px-4 py-3">Retorno</th>
                 <th className="px-4 py-3">Observação</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-center">Ações</th>
@@ -197,6 +326,12 @@ export default function PainelCRMAprimorado() {
                       <td className="p-2"><input value={leadEditado.telefone} onChange={(e) => setLeadEditado({ ...leadEditado, telefone: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
                       {/* <<-- CAMPO DE EDIÇÃO ADICIONADO */}
                       <td className="p-2"><input value={leadEditado.origem} onChange={(e) => setLeadEditado({ ...leadEditado, origem: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
+                      <td className="p-2">
+                        <input type="date" value={isoParaInputDate(leadEditado.data_contato)} onChange={(e) => setLeadEditado({ ...leadEditado, data_contato: e.target.value || null })} className="bg-gray-600 p-2 rounded w-full min-w-0"/>
+                      </td>
+                      <td className="p-2">
+                        <input type="date" value={isoParaInputDate(leadEditado.data_retorno)} onChange={(e) => setLeadEditado({ ...leadEditado, data_retorno: e.target.value || null })} className="bg-gray-600 p-2 rounded w-full min-w-0"/>
+                      </td>
                       <td className="p-2"><textarea value={leadEditado.observacao} onChange={(e) => setLeadEditado({ ...leadEditado, observacao: e.target.value })} className="bg-gray-600 p-2 rounded w-full" rows="2"></textarea></td>
                       <td className="p-2">
                         <select value={leadEditado.tipo} onChange={(e) => setLeadEditado({ ...leadEditado, tipo: e.target.value })} className="bg-gray-600 p-2 rounded w-full">
@@ -214,7 +349,9 @@ export default function PainelCRMAprimorado() {
                     <>
                       <td className="px-4 py-4 font-medium">{lead.nome.toUpperCase()}</td>
                       <td className="px-4 py-4">{lead.telefone}</td>
-                      <td className="px-4 py-4">{lead.origem}</td> {/* <<-- DADO ADICIONADO */}
+                      <td className="px-4 py-4">{lead.origem}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-gray-300">{formatarDataContato(lead.data_contato)}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-amber-200/90">{formatarDataRetorno(lead.data_retorno)}</td>
                       <td className="px-4 py-4 text-gray-400 max-w-xs truncate" title={lead.observacao}>{lead.observacao}</td>
                       <td className="px-4 py-4">
                         <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${getTipoEstilo(lead.tipo).color}`}>
@@ -224,13 +361,20 @@ export default function PainelCRMAprimorado() {
                       <td className="px-4 py-4 text-center">
                         <div className="flex gap-3 justify-center">
                           <button onClick={() => iniciarEdicao(lead)} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={18} /></button>
-                          <button onClick={() => excluirLead(lead.id)} className="p-2 text-red-500 hover:text-red-400"><FaTrash size={18} /></button>
+                          <button
+                            type="button"
+                            onClick={() => abrirConfirmacaoExcluir(lead)}
+                            className="p-2 text-red-500 hover:text-red-400"
+                            title="Excluir lead"
+                          >
+                            <FaTrash size={18} />
+                          </button>
                         </div>
                       </td>
                     </>
                   )}
                 </tr>
-              )) : <EmptyStateRow message="Nenhum Lead Encontrado" colSpan={6} />} {/* <<-- COLSPAN ATUALIZADO */}
+              )) : <EmptyStateRow message="Nenhum Lead Encontrado" colSpan={8} />}
             </tbody>
           </table>
         </div>

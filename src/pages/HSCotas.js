@@ -14,7 +14,12 @@ const EmptyState = ({ title, message }) => (
 
 
 // --- Componente do Painel de Cotas HS ---
-export default function HSCotas({ usuario }) {
+export default function HSCotas({ usuario, onAviso } = {}) {
+  const aviso = (titulo, texto, variant = 'erro') => {
+    if (typeof onAviso === 'function') onAviso({ titulo, texto, variant });
+    else if (titulo) window.alert(`${titulo}\n\n${texto}`);
+    else window.alert(texto);
+  };
   const [cotas, setCotas] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -88,7 +93,7 @@ const podeGerenciar = usuario?.cargo?.toLowerCase() === 'diretor';
   }, []); // O array vazio garante que isso rode apenas uma vez.
 
   const handleCotaClick = useCallback(async (cotaNumero) => {
-    if (!usuario) return alert("Você não está logado.");
+    if (!usuario) return aviso('Sessão', 'Você não está logado.');
     const contagemAtual = cotas[cotaNumero]?.vendas_count || 0;
     if (contagemAtual >= 4) return;
     const novaContagem = contagemAtual + 1;
@@ -97,7 +102,7 @@ const podeGerenciar = usuario?.cargo?.toLowerCase() === 'diretor';
 
     const { error } = await supabase.from('hs_cotas').upsert({ cota_numero: cotaNumero, vendas_count: novaContagem, last_updated_by: usuario.id }, { onConflict: 'cota_numero' });
     if (error) {
-      alert(`Erro ao salvar a cota ${cotaNumero}: ${error.message}`);
+      aviso('Erro ao salvar cota', `${cotaNumero}: ${error.message}`);
       setCotas(prev => ({ ...prev, [cotaNumero]: { ...prev[cotaNumero], vendas_count: contagemAtual } }));
     }
   }, [cotas, usuario]);
@@ -110,30 +115,41 @@ const podeGerenciar = usuario?.cargo?.toLowerCase() === 'diretor';
         setHighlightedCota(parseInt(searchTerm));
         setTimeout(() => setHighlightedCota(null), 2500);
     } else {
-        alert(`Cota número ${searchTerm} não encontrada (pode estar oculta pelo filtro atual).`);
+        aviso('Busca', `Cota número ${searchTerm} não encontrada (pode estar oculta pelo filtro atual).`, 'info');
     }
   };
 
   const handleZerarQuadro = async () => {
     const senha = prompt("Para zerar TODO o quadro, digite a senha de segurança:");
     if (senha !== 'G4br13l@') {
-        if (senha !== null) alert("Senha incorreta. Ação cancelada.");
+        if (senha !== null) aviso('Senha', 'Senha incorreta. Ação cancelada.');
         return;
     }
     setLoading(true);
     const { error } = await supabase.from('hs_cotas').delete().neq('cota_numero', -1);
-    if(error) alert("Erro ao zerar o quadro: " + error.message);
-    else { setCotas({}); alert("Quadro de cotas zerado com sucesso!"); }
+    if (error) aviso('Erro ao zerar o quadro', error.message);
+    else {
+      setCotas({});
+      aviso('Quadro zerado', 'Quadro de cotas zerado com sucesso.', 'sucesso');
+    }
     setLoading(false);
   };
 
   const handleZerarCotaEspecifica = async () => {
-    if (!cotaParaZerar || isNaN(cotaParaZerar)) return alert("Por favor, digite um número de cota válido.");
+    if (!cotaParaZerar || isNaN(cotaParaZerar)) return aviso('Cota inválida', 'Digite um número de cota válido.', 'info');
     if(!window.confirm(`Tem certeza que deseja ZERAR a cota #${cotaParaZerar}?`)) return;
     setLoading(true);
     const { error } = await supabase.from('hs_cotas').delete().eq('cota_numero', cotaParaZerar);
-    if (error) alert(`Erro ao zerar a cota #${cotaParaZerar}: ${error.message}`);
-    else { setCotas(prev => { const novas = {...prev}; delete novas[cotaParaZerar]; return novas; }); alert(`Cota #${cotaParaZerar} zerada com sucesso!`); setCotaParaZerar(''); }
+    if (error) aviso('Erro ao zerar cota', `#${cotaParaZerar}: ${error.message}`);
+    else {
+      setCotas((prev) => {
+        const novas = { ...prev };
+        delete novas[cotaParaZerar];
+        return novas;
+      });
+      aviso('Cota zerada', `Cota #${cotaParaZerar} zerada com sucesso.`, 'sucesso');
+      setCotaParaZerar('');
+    }
     setLoading(false);
   };
 

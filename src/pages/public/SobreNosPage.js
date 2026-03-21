@@ -43,7 +43,7 @@ export default function SobreNosPage() {
 
     return (
         
-            <div className="bg-slate-50 text-slate-800">
+            <div className="bg-slate-50 text-slate-800 w-full max-w-[100vw] overflow-x-hidden min-h-[100dvh] min-h-screen">
             {/* --- SEÇÃO 1: NOSSA HISTÓRIA --- */}
             <section className="relative py-24 text-white bg-cover bg-center" style={{ backgroundImage: `url(${historiaBgUrl})` }}>
                 <div className="absolute inset-0 bg-black/70"></div>

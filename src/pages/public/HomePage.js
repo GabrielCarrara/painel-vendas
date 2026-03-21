@@ -43,7 +43,7 @@ export default function HomePage() {
 
     return (
         
-            <div className="text-slate-800">
+            <div className="text-slate-800 w-full max-w-[100vw] overflow-x-hidden">
            {/* --- HERO SECTION --- */}
            <section 
                 className="relative min-h-[70vh] flex items-center justify-center bg-cover bg-center"
@@ -159,23 +159,21 @@ export default function HomePage() {
             <section className="py-20 bg-white">
                 <div className="container mx-auto px-6">
                     <div className="text-center">
-                        <h2 className="text-4xl font-bold mb-4 text-fenix-purple">Nossas Unidades</h2>
+                        <h2 className="text-4xl font-bold mb-4 text-fenix-purple">Nossa Unidade</h2>
                         <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-12">
-                            Venha tomar um café conosco. Estamos sempre de portas abertas para ajudar você a planejar seu futuro.
+                            Venha tomar um café conosco. Estamos de portas abertas para ajudar você a planejar seu futuro.
                         </p>
                     </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                        {/* Coluna Pontes e Lacerda */}
+                    <div className="max-w-3xl mx-auto">
                         <div className="flex flex-col">
                             <h3 className="text-2xl font-bold mb-4 text-slate-800 flex items-center gap-2">
-                                <FaMapMarkerAlt className="text-fenix-orange" /> Filial Pontes e Lacerda
+                                <FaMapMarkerAlt className="text-fenix-orange" /> Pontes e Lacerda
                             </h3>
                             <div className="bg-slate-50 p-6 rounded-lg text-slate-600 mb-4">
                                 <p><strong>Endereço:</strong> Rua Antônio Bento Neto, 887, Centro</p>
                                 <p><strong>Cidade:</strong> Pontes e Lacerda - MT</p>
                                 <p><strong>CEP:</strong> 78250-000</p>
                                 <p><strong>Contato:</strong> 65 9 8127-8212</p>
-
                             </div>
                             <div className="flex-grow rounded-lg overflow-hidden shadow-lg">
                                 <iframe
@@ -186,31 +184,7 @@ export default function HomePage() {
                                     allowFullScreen=""
                                     loading="lazy"
                                     referrerPolicy="no-referrer-when-downgrade"
-                                ></iframe>
-                            </div>
-                        </div>
-
-                        {/* Coluna Mirassol D'Oeste */}
-                        <div className="flex flex-col">
-                            <h3 className="text-2xl font-bold mb-4 text-slate-800 flex items-center gap-2">
-                                <FaMapMarkerAlt className="text-fenix-orange" /> Filial Mirassol D'Oeste
-                            </h3>
-                            <div className="bg-slate-50 p-6 rounded-lg text-slate-600 mb-4">
-                                <p><strong>Endereço:</strong> Avenida Amadeu Téles, 1716, Viz da Brilhus</p>
-                                <p><strong>Cidade:</strong> Mirassol D'Oeste - MT</p>
-                                <p><strong>CEP:</strong> 78280-000</p>
-                                <p><strong>Contato:</strong> 65 9 9809-2182</p>
-
-                            </div>
-                            <div className="flex-grow rounded-lg overflow-hidden shadow-lg">
-                                <iframe
-                                    src="https://maps.google.com/maps?q=-15.675527,-58.089950&hl=pt-BR&z=16&output=embed"
-                                    width="100%"
-                                    height="350"
-                                    style={{ border: 0 }}
-                                    allowFullScreen=""
-                                    loading="lazy"
-                                    referrerPolicy="no-referrer-when-downgrade"
+                                    title="Mapa Pontes e Lacerda"
                                 ></iframe>
                             </div>
                         </div>
