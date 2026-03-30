@@ -26,6 +26,7 @@ import PainelContempladas from "./PainelContempladas";
 import HSCotas from './HSCotas';
 import PainelAcoes from './PainelAcoes';
 import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria';
+import ProcessosKanban from '../components/ProcessosKanban';
 import {
   PERCENT_CHEIA,
   PERCENT_MEIA,
@@ -423,6 +424,7 @@ useEffect(() => {
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
     { id: 'crm', label: 'CRM', icon: <FaUsers /> },
     { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
+    { id: 'processos', label: 'Processos', icon: <FaClipboard /> },
     { id: 'acoes', label: 'Ações', icon: <FaCalendarAlt /> },
   ];
   
@@ -480,6 +482,7 @@ useEffect(() => {
       case 'crm': return <PainelCRM usuarioId={perfilUsuario?.id} />; // Passa o ID do gerente
       case 'contempladas': return <PainelContempladas usuario={perfilUsuario} />;
       case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;     
+      case 'processos': return <ProcessosKanban usuario={perfilUsuario} />;
       default: return null;
     }
   };

@@ -1,6 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://fusiidqqsjruzibkjmwh.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ1c2lpZHFxc2pydXppYmtqbXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2NDkxNzgsImV4cCI6MjA2NTIyNTE3OH0.e7szu6n1Nx1nNo6JT5tMv7JHT2nMk4Cj8DXT1yB-Nfc'
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
+const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseKey) {
+  // Erro explícito em dev para evitar app “meio funcionando”
+  // (em produção isso pode virar um blank screen, então preferimos falhar cedo).
+  throw new Error('Supabase não configurado: defina REACT_APP_SUPABASE_URL e REACT_APP_SUPABASE_ANON_KEY no .env')
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey)

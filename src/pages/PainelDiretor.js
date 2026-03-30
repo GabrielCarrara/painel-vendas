@@ -26,6 +26,7 @@ import AbaGerenciarUsuarios from './AbaGerenciarUsuarios';
 import HSCotas from './HSCotas';
 import PainelAcoes from './PainelAcoes';
 import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria';
+import ProcessosKanban from '../components/ProcessosKanban';
 import {
   PERCENT_CHEIA,
   PERCENT_MEIA,
@@ -360,6 +361,7 @@ export default function PainelDiretor() {
       { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
       { id: 'crm', label: 'CRM', icon: <FaUsers /> },
       { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
+      { id: 'processos', label: 'Processos', icon: <FaClipboard /> },
       { id: 'usuarios', label: 'Gerenciar Usuários', icon: <FaUserPlus /> },
       { id: 'acoes', label: 'Ações', icon: <FaCalendarAlt /> },
     ];
@@ -428,6 +430,7 @@ export default function PainelDiretor() {
         case 'crm': return <PainelCRM />; 
         case 'contempladas': return <PainelContempladas usuario={perfilUsuario} />;
         case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;  
+        case 'processos': return <ProcessosKanban usuario={perfilUsuario} />;
   case 'usuarios': 
     return <AbaGerenciarUsuarios 
       listaFiliais={listaFiliais} 

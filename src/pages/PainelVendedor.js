@@ -8,7 +8,7 @@ import {
   FaDollarSign, FaHandHoldingUsd, FaChevronDown, FaChevronUp, FaEdit, FaTrash, FaSave,
   FaFileInvoiceDollar, FaUsers, FaTrophy, FaSpinner, FaExclamationTriangle, FaCheckCircle,
   FaBullseye, FaChartLine, FaTh, FaFilter, FaLandmark,
-  FaSignOutAlt, FaUserCircle, FaCalendarAlt
+  FaSignOutAlt, FaUserCircle, FaCalendarAlt, FaClipboard
 } from 'react-icons/fa';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
@@ -17,6 +17,7 @@ import PainelContempladasAprimorado from './PainelContempladas';
 import MinhaContaModal from '../components/MinhaContaModal';
 import PainelAcoes from './PainelAcoes';
 import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria'; // <--- ADICIONE ISSO
+import ProcessosKanban from '../components/ProcessosKanban';
 import {
   PERCENT_CHEIA,
   PERCENT_MEIA,
@@ -567,6 +568,7 @@ const handleSave = async (e) => {
     { id: 'vendas', label: 'Minhas Vendas', icon: <FaFileInvoiceDollar /> },
     { id: 'ranking', label: 'Ranking', icon: <FaTrophy /> },
     { id: 'crm', label: 'CRM', icon: <FaUsers /> },
+    { id: 'processos', label: 'Processos', icon: <FaClipboard /> },
     { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
     { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
     { id: 'acoes', label: 'Ações', icon: <FaCalendarAlt /> }, 
@@ -620,6 +622,8 @@ const renderContent = () => {
                   usuarioId={usuario?.id} 
                   onAviso={(payload) => setModalAlerta(payload)}
               />;
+          case 'processos':
+              return <ProcessosKanban usuario={usuario} />;
           case 'contempladas': 
               return <PainelContempladasAprimorado 
                   usuario={usuario} 

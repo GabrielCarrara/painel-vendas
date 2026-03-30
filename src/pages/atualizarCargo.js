@@ -2,8 +2,9 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
-  'https://fusiidqqsjruzibkjmwh.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ1c2lpZHFxc2pydXppYmtqbXdoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTY0OTE3OCwiZXhwIjoyMDY1MjI1MTc4fQ.9zAkr7Vid05QNaUQeHK6aqXwT4DbfJHO8Yz145YZG_w' // ⚠️ Substitua pela nova chave regenerada!
+  process.env.REACT_APP_SUPABASE_URL,
+  // Este script NÃO deve rodar no frontend. Use apenas localmente/Node com env vars.
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
 async function atualizarCargo() {
