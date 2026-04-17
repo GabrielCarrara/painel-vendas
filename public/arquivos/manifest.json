@@ -1,0 +1,81 @@
+[
+  {
+    "id": "declaracao_residencia",
+    "filename": "declaracao_residencia.doc",
+    "title": "Declaração de residência",
+    "subtitle": "Lei 7115/83",
+    "editor": "declaracao_residencia",
+    "badge": "ASSINAR FÍSICO OU GOV"
+  },
+  {
+    "id": "termo_seguro_vida",
+    "filename": "Termo de Inclusão de Seguro de Vida.docx",
+    "title": "Solicitação de Inclusão de Seguro de Vida Gazin",
+    "editor": "seguro_vida_gazin",
+    "badge": "ASSINAR FÍSICO OU GOV"
+  },
+  {
+    "id": "cancelamento_seguro_de_vida",
+    "filename": "cancelamento_seguro_de_vida.docx",
+    "title": "Cancelamento do seguro de prestamista",
+    "editor": "cancelamento_seguro_vida",
+    "badge": "ASSINAR FÍSICO OU GOV"
+  },
+  {
+    "id": "termo_veiculo_multa",
+    "filename": "Termo de Veículo com Multa.docx",
+    "title": "Termo de Veículo com Multa",
+    "editor": "veiculo_multa",
+    "badge": "ASSINAR FÍSICO OU GOV"
+  },
+  {
+    "id": "termo_veiculo_sinistro",
+    "filename": "Termo de Veículo com Sinistro.docx",
+    "title": "Termo de Veículo com Sinistro",
+    "editor": "veiculo_sinistro",
+    "badge": "ASSINAR FÍSICO OU GOV"
+  },
+  {
+    "id": "termo_cancelamento",
+    "filename": "TERMO CANCELAMENTO TRANSFERENCIA (1) (1).docx",
+    "title": "Solicitação do Cancelamento de Transferência",
+    "editor": "cancelamento_transferencia",
+    "badge": "RECONHECIDO FIRMA / ASSINATURA GOV"
+  },
+  {
+    "id": "procuracao_pagamento_veiculo",
+    "filename": "PROCURAÇÃO PAGAMENTO DO VEICULO.docx",
+    "title": "Procuração pagamento do veículo",
+    "editor": "procuracao_pagamento_veiculo",
+    "badge": "RECONHECIDO FIRMA / ASSINATURA GOV"
+  },
+  {
+    "id": "vistoria_antecipada",
+    "filename": "vistoria_antecipada.xlsx",
+    "title": "Vistoria antecipada",
+    "editor": "vistoria_antecipada",
+    "badge": "OBRIGATÓRIO ENVIAR O IPTU OU MATRICULA"
+  },
+  {
+    "id": "certidao_negativa_de_uniao_estavel",
+    "filename": "certidao_negativa_de_uniao_estavel.docx",
+    "title": "Certidão negativa de união estável",
+    "editor": "certidao_negativa_uniao_estavel",
+    "badge": "OBRIGATÓRIO TESTEMUNHAS E RECONHECER FIRMA DE TODOS."
+  },
+  {
+    "id": "termo_itbi",
+    "filename": "termo_itbi.doc",
+    "title": "Termo de Solicitação do ITBI",
+    "editor": "termo_itbi",
+    "badge": "ASSINAR FÍSICO OU GOV"
+  },
+  {
+    "id": "remetente_destinatario_correios",
+    "filename": "remetente_destinatario_correios.txt",
+    "title": "Remetente e destinatário (Correios)",
+    "subtitle": "Etiqueta para envelope — preencher e gerar PDF",
+    "editor": "remetente_destinatario_correios",
+    "badge": "IMPRIMIR E COLAR NO ENVELOPE"
+  }
+]

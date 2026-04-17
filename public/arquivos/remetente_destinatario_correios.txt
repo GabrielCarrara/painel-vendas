@@ -1,0 +1,1 @@
+Modelo para impressão de etiqueta (remetente e destinatário) — use o painel "Preencher e gerar PDF" para gerar o PDF pronto para colar no envelope.

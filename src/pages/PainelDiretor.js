@@ -13,7 +13,8 @@ import {
     FaTh,
     FaBullseye, 
     FaUserPlus,
-    FaCalendarAlt
+    FaCalendarAlt,
+    FaFileAlt
 } from "react-icons/fa";
 
 
@@ -27,6 +28,7 @@ import HSCotas from './HSCotas';
 import PainelAcoes from './PainelAcoes';
 import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria';
 import ProcessosKanban from '../components/ProcessosKanban';
+import PainelDocumentos from './PainelDocumentos';
 import {
   PERCENT_CHEIA,
   PERCENT_MEIA,
@@ -364,6 +366,7 @@ export default function PainelDiretor() {
       { id: 'processos', label: 'Processos', icon: <FaClipboard /> },
       { id: 'usuarios', label: 'Gerenciar Usuários', icon: <FaUserPlus /> },
       { id: 'acoes', label: 'Ações', icon: <FaCalendarAlt /> },
+      { id: 'documentos', label: 'Documentos', icon: <FaFileAlt /> },
     ];
     
     const renderContent = () => {
@@ -436,7 +439,10 @@ export default function PainelDiretor() {
       listaFiliais={listaFiliais} 
       listaUsuarios={usuarios}
       onRefreshUsuarios={buscarUsuarios}
-    />;      default: return null;
+    />;
+        case 'documentos':
+          return <PainelDocumentos />;
+        default: return null;
       }
       
     };
