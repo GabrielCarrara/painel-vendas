@@ -37,6 +37,12 @@ dayjs.locale('pt-br');
 // --- Constantes de Comissão (Corretas) ---
 // (Não precisamos de STATUS_OPCOES aqui, pois o vendedor não pode editar)
 
+function somenteNumerosSemZerosAEsquerda(valor) {
+  const digits = String(valor || '').replace(/\D/g, '');
+  const semZeros = digits.replace(/^0+/, '');
+  return semZeros || '';
+}
+
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, label, value, color }) => (
   <div className="bg-gray-800 p-5 rounded-xl shadow-lg flex items-center space-x-4">
@@ -365,6 +371,16 @@ const handleSave = async (e) => {
     }
 
     const valorDesformatado = desformatarMoeda(formulario.valor);
+    const grupoSan = somenteNumerosSemZerosAEsquerda(formulario.grupo);
+    const cotaSan = somenteNumerosSemZerosAEsquerda(formulario.cota);
+    if (!grupoSan || !cotaSan) {
+      setModalAlerta({
+        variant: 'erro',
+        titulo: 'Grupo/Cota inválidos',
+        texto: 'Informe apenas números em Grupo e Cota (zeros à esquerda são desconsiderados).',
+      });
+      return;
+    }
     const mesSalvar = editandoId
       ? normalizarMesVenda(formulario.mes) || dayjs(mesFiltro).format('YYYY-MM')
       : dayjs(mesFiltro).format('YYYY-MM');
@@ -372,8 +388,8 @@ const handleSave = async (e) => {
     if (!editandoId) {
       const insertPayload = {
         cliente: formulario.cliente.toUpperCase(),
-        grupo: formulario.grupo,
-        cota: formulario.cota,
+        grupo: grupoSan,
+        cota: cotaSan,
         valor: valorDesformatado,
         parcela: formulario.parcela,
         administradora: formulario.administradora,
@@ -413,8 +429,8 @@ const handleSave = async (e) => {
     } else {
       const updatePayload = {
         cliente: formulario.cliente.toUpperCase(),
-        grupo: formulario.grupo,
-        cota: formulario.cota,
+        grupo: grupoSan,
+        cota: cotaSan,
         valor: valorDesformatado,
         parcela: formulario.parcela,
         administradora: formulario.administradora,
@@ -839,8 +855,24 @@ const AbaMinhasVendas = ({ totalVendidoEscritorioMes, faltaParaMetaEscritorioMes
                             <input name="cliente" value={formulario.cliente} onChange={(e) => setFormulario(prev => ({...prev, cliente: e.target.value.toUpperCase()}))} placeholder="Nome do cliente" className="p-3 bg-gray-700 rounded-lg border border-gray-600" required />
                             <input name="valor" value={formulario.valor} onChange={(e) => setFormulario(prev => ({...prev, valor: formatInputMoeda(e.target.value)}))} placeholder="Valor da venda" className="p-3 bg-gray-700 rounded-lg border border-gray-600" required />
                             <select name="administradora" value={formulario.administradora} onChange={(e) => setFormulario(prev => ({...prev, administradora: e.target.value}))} className="p-3 bg-gray-700 rounded-lg border border-gray-600"><option>GAZIN</option><option>HS</option></select>
-                            <input name="grupo" value={formulario.grupo} onChange={(e) => setFormulario(prev => ({...prev, grupo: e.target.value}))} placeholder="Grupo" className="p-3 bg-gray-700 rounded-lg border border-gray-600" required />
-                            <input name="cota" value={formulario.cota} onChange={(e) => setFormulario(prev => ({...prev, cota: e.target.value}))} placeholder="Cota" className="p-3 bg-gray-700 rounded-lg border border-gray-600" required />
+                            <input
+                              name="grupo"
+                              inputMode="numeric"
+                              value={formulario.grupo}
+                              onChange={(e) => setFormulario(prev => ({...prev, grupo: somenteNumerosSemZerosAEsquerda(e.target.value)}))}
+                              placeholder="Grupo"
+                              className="p-3 bg-gray-700 rounded-lg border border-gray-600"
+                              required
+                            />
+                            <input
+                              name="cota"
+                              inputMode="numeric"
+                              value={formulario.cota}
+                              onChange={(e) => setFormulario(prev => ({...prev, cota: somenteNumerosSemZerosAEsquerda(e.target.value)}))}
+                              placeholder="Cota"
+                              className="p-3 bg-gray-700 rounded-lg border border-gray-600"
+                              required
+                            />
                             <select name="parcela" value={formulario.parcela} onChange={(e) => setFormulario(prev => ({...prev, parcela: e.target.value}))} className="p-3 bg-gray-700 rounded-lg border border-gray-600"><option value="cheia">Parcela Cheia</option><option value="meia">Parcela Meia</option></select>
                             {editandoId ? (
                               <input type="month" value={formulario.mes || mesFiltro} onChange={(e) => setFormulario(prev => ({ ...prev, mes: e.target.value }))} className="p-3 bg-gray-700 rounded-lg border border-gray-600 md:col-span-1" title="Mês da venda" />
