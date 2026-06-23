@@ -287,7 +287,7 @@ useEffect(() => {
         mes_conferencia_parcela_1: null,
     };
 
-    const { data: vendaInserida, error } = await supabase.from('vendas').insert([dadosParaSalvar]).select().single();
+    const { error } = await supabase.from('vendas').insert([dadosParaSalvar]);
     
     if (error) {
         alert('Erro ao criar venda: ' + error.message);

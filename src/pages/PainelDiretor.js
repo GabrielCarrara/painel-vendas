@@ -34,7 +34,6 @@ import PainelDocumentos from './PainelDocumentos';
 import {
   PERCENT_CHEIA,
   PERCENT_MEIA,
-  mesReferenciaComissaoP1,
   persistirMudancaStatusParcela,
   totalComissaoP1RecebidaNoMes,
   totaisPagamentosP2P3,
@@ -219,7 +218,7 @@ export default function PainelDiretor() {
       };
   
       // Insere a venda e recupera o registro inserido
-      const { data: vendaInserida, error } = await supabase.from('vendas').insert([dadosParaSalvar]).select().single();
+      const { error } = await supabase.from('vendas').insert([dadosParaSalvar]);
       
       if (error) {
           alert('Erro ao criar venda: ' + error.message);
