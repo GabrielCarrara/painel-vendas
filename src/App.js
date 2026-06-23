@@ -15,8 +15,9 @@ import AplicativosPage from './pages/public/AplicativosPage'; // <-- IMPORT ADIC
 import Login from './pages/Login';
 import PainelGerente from './pages/PainelGerente';
 import PainelDiretor from './pages/PainelDiretor';
-import PainelVendedor from './pages/PainelVendedor'; // <-- ADICIONE ESTA LINHA
-import ConsultorPage from './pages/public/ConsultorPage'; // <-- IMPORTA A NOVA PÁGINA
+import PainelVendedor from './pages/PainelVendedor';
+import ConsultorPage from './pages/public/ConsultorPage';
+import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
   return (
@@ -33,9 +34,15 @@ function App() {
         
         {/* Rotas de Login e Painéis (sem o layout público) */}
         <Route path="/login" element={<Login />} />
-        <Route path="/vendedor" element={<PainelVendedor />} />
-        <Route path="/gerente" element={<PainelGerente />} />
-        <Route path="/diretor" element={<PainelDiretor />} />
+        <Route element={<ProtectedRoute allowed={['vendedor']} />}>
+          <Route path="/vendedor" element={<PainelVendedor />} />
+        </Route>
+        <Route element={<ProtectedRoute allowed={['gerente']} />}>
+          <Route path="/gerente" element={<PainelGerente />} />
+        </Route>
+        <Route element={<ProtectedRoute allowed={['diretor', 'admin']} />}>
+          <Route path="/diretor" element={<PainelDiretor />} />
+        </Route>
         
         {/* ROTA DINÂMICA DO CONSULTOR (sem o menu principal) */}
         <Route path="/:slug" element={<ConsultorPage />} />

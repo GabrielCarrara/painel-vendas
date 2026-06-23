@@ -6,12 +6,12 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [perfil, setPerfil] = useState(null); // { tipo: 'admin' | 'gerente' | 'vendedor' }
+  const [perfil, setPerfil] = useState(null);
 
   useEffect(() => {
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      setSession(currentSession);
       setLoading(false);
     };
     getSession();
@@ -22,16 +22,19 @@ export function AuthProvider({ children }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // carrega o perfil quando receber a sessão
   useEffect(() => {
-    if (!session?.user) return;
+    if (!session?.user) {
+      setPerfil(null);
+      return;
+    }
     (async () => {
       const { data, error } = await supabase
         .from('usuarios_custom')
-        .select('tipo')
-        .eq('id', session.user.id)
+        .select('id, cargo, ativo, id_filial')
+        .or(`id.eq.${session.user.id},auth_id.eq.${session.user.id}`)
         .single();
-      if (!error) setPerfil(data);
+      if (!error && data) setPerfil(data);
+      else setPerfil(null);
     })();
   }, [session]);
 

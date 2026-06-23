@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import * as XLSX from "xlsx";
 import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
 import 'dayjs/locale/pt-br';
@@ -14,12 +15,13 @@ import {
     FaBullseye, 
     FaUserPlus,
     FaCalendarAlt,
-    FaFileAlt
+    FaFileAlt,
+    FaPrint,
+    FaFileExcel,
+    FaSearch,
 } from "react-icons/fa";
 
-
 import PainelCRM from "./PainelCRM";
-import { FaPrint } from 'react-icons/fa';
 import RelatorioHSModal from '../components/RelatorioHSModal';
 import RelatorioGeralModal from '../components/RelatorioGeralModal';
 import PainelContempladas from "./PainelContempladas";
@@ -42,6 +44,11 @@ import {
   dayjsMesRef,
   nomeMesPortuguesUpper,
 } from '../utils/comissoes';
+import {
+  filtrarVendasVendedoresUltimos8Meses,
+  ordenarLinhasComoExcel,
+  montarClientesGazinUnicos8Meses,
+} from '../utils/vendasLista8MesesVendedores';
 import { limparFlagsLembreteRetorno } from '../utils/crmLembreteStorage';
 
 const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO', 'CANCELADO'];
@@ -196,19 +203,19 @@ export default function PainelDiretor() {
       
       const valorNumerico = parseFloat(String(novaVenda.valor).replace(/\./g, '').replace(',', '.'));
       
-      const mesConf = dayjs().format('YYYY-MM');
       const dadosParaSalvar = { 
           ...novaVenda, 
           valor: valorNumerico, 
           cliente: novaVenda.cliente.toUpperCase(), 
           mes: dayjs(novaVenda.mes).format("YYYY-MM"),
           // Define o status inicial de todas as parcelas
-          status_parcela_1: 'PAGO',
+          // P1 agora é confirmada pela automação Gazin; começa pendente.
+          status_parcela_1: 'PENDENTE',
           status_parcela_2: 'PENDENTE',
           status_parcela_3: 'PENDENTE',
           status_parcela_4: 'PENDENTE',
           status_parcela_5: 'PENDENTE',
-          mes_conferencia_parcela_1: mesConf,
+          mes_conferencia_parcela_1: null,
       };
   
       // Insere a venda e recupera o registro inserido
@@ -219,19 +226,7 @@ export default function PainelDiretor() {
           return;
       }
   
-      // REGISTRA O PAGAMENTO DA 1ª COMISSÃO IMEDIATAMENTE
-      const percentuais = isParcelaCheia(vendaInserida) ? PERCENT_CHEIA : PERCENT_MEIA;
-      const valorComissao1 = vendaInserida.valor * percentuais[0];
-  
-      if (valorComissao1 > 0) {
-          await supabase.from('pagamentos_comissao').insert({
-              venda_id: vendaInserida.id,
-              usuario_id: vendaInserida.usuario_id,
-              parcela_index: 1,
-              valor_comissao: valorComissao1,
-              mes_pagamento: mesReferenciaComissaoP1(vendaInserida.mes),
-          });
-      }
+      // P1 é registrada quando a automação confirmar (persistirMudancaStatusParcela).
   
       // Recarrega os dados, limpa o formulário e volta para a aba de vendas
       await buscarVendas();
@@ -391,6 +386,8 @@ export default function PainelDiretor() {
     valorFaltanteParaMeta={valorFaltanteParaMeta}
     onAbrirModalRelatorioGeral={() => setModalRelatorioGeral(true)}
     onAbrirModalRelatorioHS={() => setModalRelatorioHS(true)}
+    recarregarVendas={buscarVendas}
+    recarregarPagamentos={buscarPagamentosDoMes}
     />;
           // CASES PARA ROTAS
           case 'acoes': 
@@ -538,7 +535,293 @@ export default function PainelDiretor() {
   
   
   // --- Componente da Aba de Vendas (Dashboard) ---
-  const AbaVendas = ({ listaFiliais, vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodos, totalComissaoVendedor, totalVendidoGAZIN, totalVendidoHS, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, valorFaltanteParaMeta, onAbrirModalRelatorioGeral, onAbrirModalRelatorioHS }) => {
+  const AbaVendas = ({ listaFiliais, vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodos, totalComissaoVendedor, totalVendidoGAZIN, totalVendidoHS, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, valorFaltanteParaMeta, onAbrirModalRelatorioGeral, onAbrirModalRelatorioHS, recarregarVendas, recarregarPagamentos }) => {
+      const [exportandoLista8Meses, setExportandoLista8Meses] = useState(false);
+      const [buscandoGazin, setBuscandoGazin] = useState(false);
+
+      const exportarExcelVendasVendedores8Meses = useCallback(() => {
+          const filtro = filtrarVendasVendedoresUltimos8Meses({
+              vendasTodas,
+              usuarios,
+              filialId: filtros.filial,
+          });
+          if (filtro.erro) {
+              window.alert(filtro.erro);
+              return;
+          }
+          const linhasOrd = ordenarLinhasComoExcel(filtro.linhas, nomeVendedor);
+
+          setExportandoLista8Meses(true);
+          try {
+              const header = ["Mês referência", "Vendedor", "Cliente", "Grupo", "Cota"];
+              const dados = [
+                  header,
+                  ...linhasOrd.map(({ v, m }) => [
+                      m,
+                      nomeVendedor(v.usuario_id),
+                      String(v.cliente || "").toUpperCase(),
+                      v.grupo ?? "",
+                      v.cota ?? "",
+                  ]),
+              ];
+              const ws = XLSX.utils.aoa_to_sheet(dados);
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, "Vendas");
+              const sufixo = dayjs().format("YYYYMMDD_HHmm");
+              XLSX.writeFile(wb, `vendas_vendedores_8meses_${sufixo}.xlsx`);
+          } catch (e) {
+              console.error(e);
+              window.alert("Não foi possível gerar o Excel. Tente novamente.");
+          } finally {
+              setExportandoLista8Meses(false);
+          }
+      }, [vendasTodas, usuarios, filtros.filial, nomeVendedor]);
+
+      const aplicarStatusParcelasPorQuantidade = useCallback(async (vendaOriginal, parcelasPagas) => {
+          // Regra:
+          // 0  -> P1 CANCELADO (cancela P1–P5)
+          // 1  -> P1 PAGO
+          // 2  -> P1,P2 PAGO
+          // 3  -> P1,P2,P3 PAGO
+          // 4  -> P1..P4 PAGO
+          // 5+ -> P1..P5 PAGO
+          const venda = { ...vendaOriginal }; // evita mutações inesperadas no state
+          const qtd = Math.max(0, Math.min(5, Number(parcelasPagas) || 0));
+
+          if (qtd === 0) {
+              const antigo = venda.status_parcela_1 || 'PENDENTE';
+              const res = await persistirMudancaStatusParcela(supabase, venda, 1, 'CANCELADO', antigo);
+              if (!res.ok) throw new Error(res.error?.message || 'Erro ao cancelar P1');
+              return;
+          }
+
+          for (let i = 1; i <= 5; i++) {
+              const desejado = i <= qtd ? 'PAGO' : 'PENDENTE';
+              const nomeColuna = `status_parcela_${i}`;
+              const antigo = venda[nomeColuna] || 'PENDENTE';
+              if (antigo === desejado) continue;
+              const res = await persistirMudancaStatusParcela(supabase, venda, i, desejado, antigo);
+              if (!res.ok) throw new Error(res.error?.message || `Erro ao atualizar P${i}`);
+              venda[nomeColuna] = desejado;
+          }
+      }, []);
+
+      const aplicarEstornoDaProximaParcela = useCallback(async (vendaOriginal) => {
+          const venda = { ...vendaOriginal };
+          const mesAtual = dayjs().format('YYYY-MM');
+          let primeiraParcelaNaoPaga = null;
+
+          for (let i = 2; i <= 5; i++) {
+              const st = venda[`status_parcela_${i}`] || 'PENDENTE';
+              if (st !== 'PAGO') {
+                  primeiraParcelaNaoPaga = i;
+                  break;
+              }
+          }
+
+          if (!primeiraParcelaNaoPaga) return;
+
+          for (let i = primeiraParcelaNaoPaga; i <= 5; i++) {
+              const nomeColuna = `status_parcela_${i}`;
+              const antigo = venda[nomeColuna] || 'PENDENTE';
+              const mesConf = venda[`mes_conferencia_parcela_${i}`] || '';
+              if (antigo === 'ESTORNO' && mesConf === mesAtual) continue;
+              if (antigo === 'ESTORNO') continue; // evita duplicar estorno antigo
+              if (antigo === 'CANCELADO') continue;
+
+              const res = await persistirMudancaStatusParcela(supabase, venda, i, 'ESTORNO', antigo);
+              if (!res.ok) throw new Error(res.error?.message || `Erro ao estornar P${i}`);
+              venda[nomeColuna] = 'ESTORNO';
+              venda[`mes_conferencia_parcela_${i}`] = mesAtual;
+          }
+      }, []);
+
+      const aplicarAtualizacaoParcelasNoPainel = useCallback(async (resultados) => {
+          const itens = Array.isArray(resultados) ? resultados : [];
+          const validos = itens.filter((r) => r && r.grupo != null && r.cota != null && r.mesReferencia != null);
+          if (validos.length === 0) return { atualizadas: 0, naoEncontradas: 0, erros: 0, logs: 0 };
+
+          let atualizadas = 0;
+          let naoEncontradas = 0;
+          let erros = 0;
+          let logs = 0;
+
+          const resolvidos = [];
+          for (const r of validos) {
+              const grupo = String(r.grupo || '').trim();
+              const cota = String(r.cota || '').trim();
+              const mesRef = String(r.mesReferencia || '').trim();
+              if (!grupo || !cota || !mesRef) continue;
+
+              const venda = (vendasTodas || []).find((v) => {
+                  if (!v) return false;
+                  if (String(v.administradora || '').toUpperCase().trim() !== 'GAZIN') return false;
+                  if (String(v.grupo ?? '').trim() !== grupo) return false;
+                  if (String(v.cota ?? '').trim() !== cota) return false;
+                  return normalizarMesVenda(v.mes) === mesRef;
+              });
+
+              if (!venda) {
+                  naoEncontradas++;
+                  continue;
+              }
+
+              resolvidos.push({ r, venda, grupo, cota, mesRef });
+          }
+
+          if (resolvidos.length === 0) {
+              if (typeof recarregarVendas === 'function') await recarregarVendas();
+              if (typeof recarregarPagamentos === 'function') await recarregarPagamentos(filtros.mes);
+              return { atualizadas, naoEncontradas, erros, logs };
+          }
+
+          // Confirmações anteriores: OK com parcelas >= 1
+          const vendaIds = Array.from(new Set(resolvidos.map(({ venda }) => venda.id).filter(Boolean)));
+          const confirmadas = new Set();
+          try {
+              const chunkSize = 200;
+              for (let i = 0; i < vendaIds.length; i += chunkSize) {
+                  const chunk = vendaIds.slice(i, i + chunkSize);
+                  const { data, error } = await supabase
+                      .from('gazin_verificacoes')
+                      .select('venda_id')
+                      .in('venda_id', chunk)
+                      .eq('resultado_tipo', 'OK')
+                      .gte('parcelas_pagas', 1);
+                  if (error) throw error;
+                  (data || []).forEach((row) => confirmadas.add(row.venda_id));
+              }
+          } catch (e) {
+              console.error(e);
+          }
+
+          // Log desta execução
+          try {
+              const payload = resolvidos.map(({ r, venda, grupo, cota, mesRef }) => ({
+                  venda_id: venda.id,
+                  grupo,
+                  cota,
+                  mes_referencia: mesRef,
+                  parcelas_pagas: typeof r.parcelasPagas === 'number' ? r.parcelasPagas : null,
+                  resultado_tipo: String(r.resultadoTipo || (r.status === 'SUCESSO' ? 'OK' : 'ERRO')),
+                  status: String(r.status || 'ERRO'),
+                  motivo: String(r.motivo || ''),
+              }));
+              const batchSize = 200;
+              for (let i = 0; i < payload.length; i += batchSize) {
+                  const slice = payload.slice(i, i + batchSize);
+                  const { error } = await supabase.from('gazin_verificacoes').insert(slice);
+                  if (error) throw error;
+                  logs += slice.length;
+              }
+          } catch (e) {
+              console.error(e);
+          }
+
+          for (const { r, venda } of resolvidos) {
+              try {
+                  const tipo = String(r.resultadoTipo || '').toUpperCase().trim();
+                  const isOk = tipo === 'OK';
+                  const isConfirmada = confirmadas.has(venda.id);
+
+                  if (isOk && typeof r.parcelasPagas === 'number') {
+                      await aplicarStatusParcelasPorQuantidade(venda, r.parcelasPagas);
+                      atualizadas++;
+                      continue;
+                  }
+
+                  if (isConfirmada) {
+                      await aplicarEstornoDaProximaParcela(venda);
+                      atualizadas++;
+                  } else {
+                      await aplicarStatusParcelasPorQuantidade(venda, 0);
+                      atualizadas++;
+                  }
+              } catch (e) {
+                  console.error(e);
+                  erros++;
+              }
+          }
+
+          if (typeof recarregarVendas === 'function') await recarregarVendas();
+          if (typeof recarregarPagamentos === 'function') await recarregarPagamentos(filtros.mes);
+
+          return { atualizadas, naoEncontradas, erros, logs };
+      }, [vendasTodas, filtros.mes, aplicarStatusParcelasPorQuantidade, aplicarEstornoDaProximaParcela, recarregarVendas, recarregarPagamentos]);
+
+      const executarBuscaGazinQuantidade = useCallback(async () => {
+          const filtro = filtrarVendasVendedoresUltimos8Meses({
+              vendasTodas,
+              usuarios,
+              filialId: filtros.filial,
+          });
+          if (filtro.erro) {
+              window.alert(filtro.erro);
+              return;
+          }
+          const { linhas, mesInicio, mesFim } = filtro;
+          const clientes = montarClientesGazinUnicos8Meses({ linhas, nomeVendedorFn: nomeVendedor });
+          if (clientes.length === 0) {
+              window.alert(
+                  `Não há vendas GAZIN com grupo e cota preenchidos no período ${mesInicio} a ${mesFim} para o filtro atual.`
+              );
+              return;
+          }
+
+          const base = (process.env.REACT_APP_GAZIN_AUTOMATION_URL || 'http://127.0.0.1:3847').replace(/\/$/, '');
+          const escritorioIndex = parseInt(process.env.REACT_APP_GAZIN_ESCRITORIO_INDEX || '1', 10) || 1;
+          setBuscandoGazin(true);
+          try {
+              const headers = { 'Content-Type': 'application/json' };
+              const token = process.env.REACT_APP_GAZIN_AUTOMATION_TOKEN;
+              if (token) headers['X-Automation-Token'] = token;
+              const res = await fetch(`${base}/api/busca-gazin-quantidade`, {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify({
+                      escritorioIndex,
+                      mesInicio,
+                      mesFim,
+                      clientes,
+                  }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                  window.alert(
+                      data.error ||
+                          `Erro (${res.status}). Inicie o servidor na raiz do projeto com: npm run server:gazin`
+                  );
+                  return;
+              }
+              const resumoAtualizacao = await aplicarAtualizacaoParcelasNoPainel(data?.resultados);
+              const sucesso = data?.resumo?.SUCESSO ?? 0;
+              const erro = data?.resumo?.ERRO ?? 0;
+              try {
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `gazin_busca_${dayjs().format('YYYYMMDD_HHmmss')}.json`;
+                  a.rel = 'noopener';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(a.href);
+              } catch (dlErr) {
+                  console.error(dlErr);
+              }
+              window.alert(
+                  `Busca Gazin concluída (${data.escritorioNome || 'escritório'}).\nSucesso: ${sucesso} · Erro: ${erro}\nTotal de cotas únicas (GAZIN): ${clientes.length}\n\nAtualização no painel:\n- Atualizadas: ${resumoAtualizacao?.atualizadas ?? 0}\n- Não encontradas (venda não localizada): ${resumoAtualizacao?.naoEncontradas ?? 0}\n- Erros ao atualizar: ${resumoAtualizacao?.erros ?? 0}\n- Logs gravados: ${resumoAtualizacao?.logs ?? 0}\n\nFoi baixado o arquivo JSON com o detalhe por cliente.`
+              );
+          } catch (e) {
+              console.error(e);
+              window.alert(
+                  'Não foi possível contatar o servidor de automação. Em um terminal separado, execute: npm run server:gazin'
+              );
+          } finally {
+              setBuscandoGazin(false);
+          }
+      }, [vendasTodas, usuarios, filtros.filial, nomeVendedor, aplicarAtualizacaoParcelasNoPainel]);
+
       const dMes = dayjsMesRef(filtros.mes);
       const mesSelecionadoLabel = dMes.format('MMMM [de] YYYY');
       const faltaParaMetaClamped = valorFaltanteParaMeta > 0 ? valorFaltanteParaMeta : 0;
@@ -818,6 +1101,24 @@ export default function PainelDiretor() {
                           className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
                       >
                           <FaPrint /> Gerar Relatório de Comissão Mensal
+                      </button>
+                      <button
+                          type="button"
+                          disabled={exportandoLista8Meses}
+                          onClick={exportarExcelVendasVendedores8Meses}
+                          title="Últimos 8 meses fechados (exclui o mês corrente). Apenas vendas de usuários com cargo Vendedor. Respeita o filtro de filial, se houver."
+                          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                      >
+                          <FaFileExcel /> {exportandoLista8Meses ? "Gerando…" : "Lista Excel — vendas (8 meses)"}
+                      </button>
+                      <button
+                          type="button"
+                          disabled={buscandoGazin}
+                          onClick={executarBuscaGazinQuantidade}
+                          title="Usa a mesma lista do Excel 8 meses (vendas GAZIN de vendedores, cotas únicas). Abre 4 navegadores (Playwright), login + 2FA em cada um e localiza cada grupo/cota na intranet. Gera um JSON com sucesso ou erro por cliente. Requer npm run server:gazin."
+                          className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+                      >
+                          <FaSearch /> {buscandoGazin ? "Abrindo Gazin…" : "Busca Gazin Quantidade"}
                       </button>
                   </div>
               </div>

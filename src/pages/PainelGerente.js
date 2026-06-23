@@ -274,18 +274,17 @@ useEffect(() => {
     
     const valorNumerico = parseFloat(String(novaVenda.valor).replace(/\./g, '').replace(',', '.'));
     
-    const mesConf = dayjs().format('YYYY-MM');
     const dadosParaSalvar = { 
         ...novaVenda, 
         valor: valorNumerico, 
         cliente: novaVenda.cliente.toUpperCase(), 
         mes: dayjs(novaVenda.mes).format("YYYY-MM"),
-        status_parcela_1: 'PAGO',
+        status_parcela_1: 'PENDENTE',
         status_parcela_2: 'PENDENTE',
         status_parcela_3: 'PENDENTE',
         status_parcela_4: 'PENDENTE',
         status_parcela_5: 'PENDENTE',
-        mes_conferencia_parcela_1: mesConf,
+        mes_conferencia_parcela_1: null,
     };
 
     const { data: vendaInserida, error } = await supabase.from('vendas').insert([dadosParaSalvar]).select().single();
@@ -295,18 +294,7 @@ useEffect(() => {
         return;
     }
 
-    const percentuais = isParcelaCheia(vendaInserida) ? PERCENT_CHEIA : PERCENT_MEIA;
-    const valorComissao1 = vendaInserida.valor * percentuais[0];
-
-    if (valorComissao1 > 0) {
-        await supabase.from('pagamentos_comissao').insert({
-            venda_id: vendaInserida.id,
-            usuario_id: vendaInserida.usuario_id,
-            parcela_index: 1,
-            valor_comissao: valorComissao1,
-            mes_pagamento: dayjs().format('YYYY-MM')
-        });
-    }
+    // P1 é registrada quando a automação confirmar (persistirMudancaStatusParcela).
 
     await buscarVendas(perfilUsuario); // Recarrega com filtro
     setNovaVenda((prev) => ({

@@ -32,33 +32,25 @@ const Login = () => {
 
       limparFlagsLembreteRetorno();
 
-      let { data: perfil } = await supabase
+      const { data: perfil } = await supabase
         .from('usuarios_custom')
-        .select('cargo')
-        .eq('id', user.id)
+        .select('cargo, ativo')
+        .or(`id.eq.${user.id},auth_id.eq.${user.id}`)
         .single();
 
-console.log('Perfil recebido do Supabase:', perfil);
-
-      if (!perfil) {
-        const { error: insertError } = await supabase
-          .from('usuarios_custom')
-          .insert({
-            id: user.id,
-            auth_id: user.id,
-            nome: user.email.split('@')[0],
-            email: user.email,
-            tipo: 'vendedor',
-            ativo: true,
-          });
-
-        if (insertError) {
-          throw insertError;
-        }
-        perfil = { tipo: 'vendedor' };
+      if (!perfil?.cargo) {
+        await supabase.auth.signOut();
+        setErro('Esta conta não está autorizada. Solicite acesso ao administrador.');
+        return;
       }
-      
-      switch (perfil.cargo.toLowerCase()) { // <--- CORRIGIDO
+
+      if (perfil.ativo === false) {
+        await supabase.auth.signOut();
+        setErro('Sua conta está inativa. Fale com o administrador.');
+        return;
+      }
+
+      switch (perfil.cargo.toLowerCase()) {
   case 'admin':
     navigate('/admin');
     break;
