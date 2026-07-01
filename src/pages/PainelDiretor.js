@@ -426,7 +426,13 @@ export default function PainelDiretor() {
       );
   }     
           case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
-        case 'crm': return <PainelCRM />; 
+        case 'crm': return (
+          <PainelCRM
+            cargo={perfilUsuario?.cargo}
+            usuarioLogadoId={usuarioAtual?.id}
+            listaUsuarios={usuarios}
+          />
+        ); 
         case 'contempladas': return <PainelContempladas usuario={perfilUsuario} />;
         case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;  
         case 'processos': return <ProcessosKanban usuario={perfilUsuario} />;

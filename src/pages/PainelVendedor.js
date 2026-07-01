@@ -635,7 +635,8 @@ const renderContent = () => {
               />;
           case 'crm': 
               return <PainelCRM 
-                  usuarioId={usuario?.id} 
+                  usuarioId={usuario?.id}
+                  cargo={usuario?.cargo}
                   onAviso={(payload) => setModalAlerta(payload)}
               />;
           case 'processos':

@@ -467,7 +467,12 @@ useEffect(() => {
                 usuarioAtual={usuarioAtual} 
               />;
       
-      case 'crm': return <PainelCRM usuarioId={perfilUsuario?.id} />; // Passa o ID do gerente
+      case 'crm': return (
+        <PainelCRM
+          usuarioId={perfilUsuario?.id}
+          cargo={perfilUsuario?.cargo}
+        />
+      );
       case 'contempladas': return <PainelContempladas usuario={perfilUsuario} />;
       case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;     
       case 'processos': return <ProcessosKanban usuario={perfilUsuario} />;
