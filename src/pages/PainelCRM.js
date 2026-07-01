@@ -32,6 +32,17 @@ function isDiretorOuAdmin(cargo) {
   return c === "diretor" || c === "admin";
 }
 
+const CARGO_ORDEM_FILTRO = { diretor: 0, admin: 0, gerente: 1, vendedor: 2 };
+
+function rotuloCargo(cargo) {
+  const c = cargoNorm(cargo);
+  if (c === "admin") return "Admin";
+  if (c === "diretor") return "Diretor";
+  if (c === "gerente") return "Gerente";
+  if (c === "vendedor") return "Vendedor";
+  return c || "Usuário";
+}
+
 const LeadStatCard = ({ icon, title, count, color, onClick, isActive }) => (
   <button onClick={onClick} className={`p-5 rounded-xl shadow-lg flex flex-col items-center justify-center text-center transition-all duration-300 transform hover:-translate-y-1 w-full ${isActive ? "bg-indigo-600 ring-2 ring-indigo-400" : "bg-gray-800 hover:bg-gray-700"}`}>
     <div className={`p-3 mb-2 rounded-full ${color}`}>{icon}</div>
@@ -139,18 +150,23 @@ export default function PainelCRMAprimorado({
     else window.alert(texto);
   };
 
-  const vendedoresParaFiltro = useMemo(() => {
-    const vendedores = listaUsuarios
-      .filter((u) => cargoNorm(u.cargo) === "vendedor")
-      .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR"));
-    return vendedores;
-  }, [listaUsuarios]);
+  const usuariosParaFiltro = useMemo(() => {
+    return listaUsuarios
+      .filter((u) => u.id !== usuarioLogadoId)
+      .filter((u) => ["vendedor", "gerente", "diretor", "admin"].includes(cargoNorm(u.cargo)))
+      .sort((a, b) => {
+        const oa = CARGO_ORDEM_FILTRO[cargoNorm(a.cargo)] ?? 9;
+        const ob = CARGO_ORDEM_FILTRO[cargoNorm(b.cargo)] ?? 9;
+        if (oa !== ob) return oa - ob;
+        return (a.nome || "").localeCompare(b.nome || "", "pt-BR");
+      });
+  }, [listaUsuarios, usuarioLogadoId]);
 
   const nomeUsuarioFiltro = useMemo(() => {
     if (!usuarioLeadsId) return "";
     if (usuarioLeadsId === usuarioLogadoId) return "Meu CRM";
     const u = listaUsuarios.find((x) => x.id === usuarioLeadsId);
-    return u?.nome || "Vendedor";
+    return u ? `${u.nome} (${rotuloCargo(u.cargo)})` : "Usuário";
   }, [usuarioLeadsId, usuarioLogadoId, listaUsuarios]);
 
   const buscarLeads = useCallback(async (targetUserId) => {
@@ -325,9 +341,9 @@ export default function PainelCRMAprimorado({
               className="w-full max-w-md bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
             >
               <option value={usuarioLogadoId}>Meu CRM</option>
-              {vendedoresParaFiltro.map((u) => (
+              {usuariosParaFiltro.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.nome}
+                  {u.nome} ({rotuloCargo(u.cargo)})
                 </option>
               ))}
             </select>
@@ -336,7 +352,7 @@ export default function PainelCRMAprimorado({
           <div className="flex items-center gap-2 text-amber-200/90 text-sm bg-amber-500/10 border border-amber-500/25 px-4 py-3 rounded-lg">
             <FaEye className="shrink-0" />
             <span>
-              Modo visualização — <strong>{nomeUsuarioFiltro}</strong>. Apenas o vendedor pode editar ou excluir.
+              Modo visualização — <strong>{nomeUsuarioFiltro}</strong>. Apenas o dono do CRM pode editar ou excluir.
             </span>
           </div>
           )}
