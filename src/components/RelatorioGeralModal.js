@@ -138,12 +138,18 @@ export default function RelatorioGeralModal({
   }, [vendas, usuarios, filtros, listaFiliais, pagamentosDoMes]);
 
   const handlePrint = () => {
-    const printContent = document.getElementById('relatorio-geral-print-area').innerHTML;
-    const originalContent = document.body.innerHTML;
+    const printArea = document.getElementById('relatorio-geral-print-area');
+    if (!printArea) return;
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!printWindow) {
+      window.alert('Permita pop-ups para imprimir o relatório.');
+      return;
+    }
 
     const printStyles = `
       <style>
-        body { background-color: #fff !important; color: #000 !important; margin: 20px; font-family: Arial, sans-serif; }
+        body { background-color: #fff; color: #000; margin: 20px; font-family: Arial, sans-serif; }
         h1 { font-size: 24px; font-weight: bold; }
         h2 { font-size: 20px; font-weight: bold; margin-top: 20px; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
         h3 { font-size: 16px; margin-bottom: 15px; }
@@ -158,10 +164,15 @@ export default function RelatorioGeralModal({
       </style>
     `;
 
-    document.body.innerHTML = printStyles + printContent;
-    window.print();
-    document.body.innerHTML = originalContent;
-    window.location.reload();
+    printWindow.document.write(
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório de Comissão Mensal</title>${printStyles}</head><body>${printArea.innerHTML}</body></html>`
+    );
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 300);
   };
 
   const formatarMoeda = (valor) => (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
