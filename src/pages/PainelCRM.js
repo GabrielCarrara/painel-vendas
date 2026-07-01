@@ -107,6 +107,7 @@ export default function PainelCRMAprimorado({
 } = {}) {
   const [leads, setLeads] = useState([]);
   const [usuarioAtual, setUsuarioAtual] = useState(null);
+  const [perfilId, setPerfilId] = useState(null);
   const [perfilCargo, setPerfilCargo] = useState(cargoProp || "");
   const [usuarioFiltroId, setUsuarioFiltroId] = useState(null);
   const [novoLead, setNovoLead] = useState({
@@ -128,9 +129,9 @@ export default function PainelCRMAprimorado({
 
   const cargo = cargoProp || perfilCargo;
   const isDiretor = isDiretorOuAdmin(cargo);
-  const somenteLeitura = isDiretor;
-  const usuarioLogadoId = usuarioLogadoIdProp || usuarioAtual?.id;
-  const usuarioLeadsId = isDiretor ? usuarioFiltroId : (usuarioIdProp || usuarioAtual?.id);
+  const usuarioLogadoId = usuarioLogadoIdProp || perfilId || usuarioAtual?.id;
+  const usuarioLeadsId = isDiretor ? usuarioFiltroId : (usuarioIdProp || perfilId || usuarioAtual?.id);
+  const somenteLeitura = isDiretor && usuarioLeadsId && usuarioLogadoId && usuarioLeadsId !== usuarioLogadoId;
 
   const aviso = (titulo, texto, variant = "erro") => {
     if (typeof onAviso === "function") onAviso({ titulo, texto, variant });
@@ -179,16 +180,18 @@ export default function PainelCRMAprimorado({
         return;
       }
       setUsuarioAtual(user);
-      setUsuarioFiltroId(user.id);
 
-      if (!cargoProp) {
-        const { data: perfil } = await supabase
-          .from("usuarios_custom")
-          .select("cargo")
-          .or(`id.eq.${user.id},auth_id.eq.${user.id}`)
-          .single();
-        if (perfil?.cargo) setPerfilCargo(perfil.cargo);
-      }
+      const { data: perfil } = await supabase
+        .from("usuarios_custom")
+        .select("id, cargo")
+        .or(`id.eq.${user.id},auth_id.eq.${user.id}`)
+        .single();
+
+      const idPerfil = perfil?.id || user.id;
+      setPerfilId(idPerfil);
+      setUsuarioFiltroId(usuarioLogadoIdProp || idPerfil);
+
+      if (!cargoProp && perfil?.cargo) setPerfilCargo(perfil.cargo);
 
       setLoading(false);
     };
@@ -216,7 +219,7 @@ export default function PainelCRMAprimorado({
 
     const payload = {
       ...novoLead,
-      usuario_id: usuarioAtual.id,
+      usuario_id: perfilId || usuarioAtual.id,
       nome: novoLead.nome.toUpperCase(),
       data_contato: novoLead.data_contato || null,
       data_retorno: novoLead.data_retorno || null,
@@ -329,12 +332,14 @@ export default function PainelCRMAprimorado({
               ))}
             </select>
           </div>
+          {somenteLeitura && (
           <div className="flex items-center gap-2 text-amber-200/90 text-sm bg-amber-500/10 border border-amber-500/25 px-4 py-3 rounded-lg">
             <FaEye className="shrink-0" />
             <span>
               Modo visualização — <strong>{nomeUsuarioFiltro}</strong>. Apenas o vendedor pode editar ou excluir.
             </span>
           </div>
+          )}
         </div>
       )}
 

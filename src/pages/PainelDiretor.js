@@ -429,7 +429,7 @@ export default function PainelDiretor() {
         case 'crm': return (
           <PainelCRM
             cargo={perfilUsuario?.cargo}
-            usuarioLogadoId={usuarioAtual?.id}
+            usuarioLogadoId={perfilUsuario?.id || usuarioAtual?.id}
             listaUsuarios={usuarios}
           />
         ); 
