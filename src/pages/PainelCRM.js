@@ -461,7 +461,9 @@ export default function PainelCRMAprimorado({
                         <td className="px-4 py-4">{lead.origem}</td>
                         <td className="px-4 py-4 whitespace-nowrap text-gray-300">{formatarDataContato(lead.data_contato)}</td>
                         <td className="px-4 py-4 whitespace-nowrap text-amber-200/90">{formatarDataRetorno(lead.data_retorno)}</td>
-                        <td className="px-4 py-4 text-gray-400 max-w-xs truncate" title={lead.observacao}>{lead.observacao}</td>
+                        <td className="px-4 py-4 text-gray-400 min-w-[12rem] max-w-md whitespace-pre-wrap break-words align-top leading-relaxed">
+                          {lead.observacao || "—"}
+                        </td>
                         <td className="px-4 py-4">
                           <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${getTipoEstilo(lead.tipo).color}`}>
                             {lead.tipo}
