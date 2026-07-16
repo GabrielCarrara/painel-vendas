@@ -5,10 +5,24 @@ import logoHS from '../../assets/logo-hs.png';
 import minhaImagem from '../../assets/minhaImagem.png';
 
 const backgroundImageUrl = minhaImagem;
+const WHATSAPP_COOLDOWN_MS = 60 * 1000;
+const WHATSAPP_COOLDOWN_KEY = 'fenix_whatsapp_form_last_send';
+
+function segundosRestantesCooldown() {
+    try {
+        const last = Number(localStorage.getItem(WHATSAPP_COOLDOWN_KEY) || 0);
+        if (!last) return 0;
+        const restante = Math.ceil((last + WHATSAPP_COOLDOWN_MS - Date.now()) / 1000);
+        return restante > 0 ? restante : 0;
+    } catch {
+        return 0;
+    }
+}
 
 export default function HomePage() {
     const [contatoAberto, setContatoAberto] = useState(false);
     const secaoContatoRef = useRef(null);
+    const [cooldownSegundos, setCooldownSegundos] = useState(() => segundosRestantesCooldown());
     const [leadData, setLeadData] = useState({
         nome: '',
         telefone: '',
@@ -23,6 +37,16 @@ export default function HomePage() {
         }
     }, [contatoAberto]);
 
+    useEffect(() => {
+        if (cooldownSegundos <= 0) return undefined;
+        const timer = setInterval(() => {
+            const restante = segundosRestantesCooldown();
+            setCooldownSegundos(restante);
+            if (restante <= 0) clearInterval(timer);
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [cooldownSegundos]);
+
     const handleLeadChange = (e) => {
         const { name, value } = e.target;
         setLeadData(prev => ({ ...prev, [name]: value }));
@@ -30,14 +54,27 @@ export default function HomePage() {
     
     const handleLeadSubmit = (e) => {
         e.preventDefault();
+        const restante = segundosRestantesCooldown();
+        if (restante > 0) {
+            setCooldownSegundos(restante);
+            return;
+        }
         const numeroCentral = '5565981278212';
         let mensagem = `Olá, Fênix Consórcios! Tenho interesse em uma simulação.\n\n*Nome:* ${leadData.nome}\n*Telefone:* ${leadData.telefone}\n`;
         if (leadData.email) mensagem += `*E-mail:* ${leadData.email}\n`;
         mensagem += `*Interesse:* ${leadData.interesse}\n`;
         if (leadData.mensagem) mensagem += `*Mensagem:* ${leadData.mensagem}\n`;
         const urlWhatsApp = `https://wa.me/${numeroCentral}?text=${encodeURIComponent(mensagem)}`;
+        try {
+            localStorage.setItem(WHATSAPP_COOLDOWN_KEY, String(Date.now()));
+        } catch {
+            // ignore storage errors
+        }
+        setCooldownSegundos(60);
         window.open(urlWhatsApp, '_blank');
     };
+
+    const formBloqueado = cooldownSegundos > 0;
 
     return (
         
@@ -106,8 +143,24 @@ export default function HomePage() {
                                     <label className="block font-semibold mb-1">Mensagem (opcional)</label>
                                     <textarea name="mensagem" value={leadData.mensagem} onChange={handleLeadChange} rows="4" className="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-fenix-orange"></textarea>
                                 </div>
-                                <button type="submit" className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-lg text-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2">
-                                    <FaWhatsapp size={24} /> Enviar via WhatsApp
+                                {formBloqueado && (
+                                    <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                        Aguarde {cooldownSegundos}s para enviar novamente. Isso evita envios em sequência.
+                                    </p>
+                                )}
+                                <button
+                                    type="submit"
+                                    disabled={formBloqueado}
+                                    className={`w-full font-bold py-4 px-8 rounded-lg text-lg transition-all flex items-center justify-center gap-2 ${
+                                        formBloqueado
+                                            ? 'bg-gray-400 text-white cursor-not-allowed'
+                                            : 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105'
+                                    }`}
+                                >
+                                    <FaWhatsapp size={24} />
+                                    {formBloqueado
+                                        ? `Aguarde ${cooldownSegundos}s`
+                                        : 'Enviar via WhatsApp'}
                                 </button>
                             </form>
                         </div>
