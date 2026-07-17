@@ -649,7 +649,10 @@ const renderContent = () => {
           menuLateralAberto ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="relative px-4 py-4 border-b border-gray-800 flex items-center justify-center shrink-0">
+        <div
+          className="relative px-4 pb-4 border-b border-gray-800 flex items-center justify-center shrink-0"
+          style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))' }}
+        >
           <img src={logoFenix} alt="Fênix Consórcios" className="h-14 w-auto max-w-[15rem] object-contain" />
           <button
             type="button"
@@ -705,7 +708,10 @@ const renderContent = () => {
       </aside>
 
       <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
-        <div className="lg:hidden shrink-0 bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center">
+        <div
+          className="lg:hidden shrink-0 bg-gray-900 border-b border-gray-800 px-4 pb-3 flex items-center"
+          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
+        >
           <button
             type="button"
             className="p-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700"
@@ -716,7 +722,7 @@ const renderContent = () => {
           </button>
         </div>
 
-        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-3 sm:p-4 md:p-5">
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-5">
           <div className="w-full min-w-0 max-w-none">
             <LembretesLeads />
             <div className="mt-3">{renderContent()}</div>
@@ -977,7 +983,57 @@ const AbaMinhasVendas = ({ totalVendidoEscritorioMes, faltaParaMetaEscritorioMes
                 </div>
             </div>
             {loading ? <LoadingSpinner text="Carregando vendas..." /> : (
-              <div className="min-w-0 overflow-x-auto">
+              <>
+              {/* Mobile cards */}
+              <div className="md:hidden space-y-2.5">
+                {minhasVendas.length > 0 ? minhasVendas.map((venda) => {
+                  const comissaoMes = valorComissaoP1(venda);
+                  const tipoCheia = isParcelaCheia(venda);
+                  return (
+                    <div key={venda.id} className="rounded-lg border border-gray-700/60 bg-gray-900/40 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="text-sm font-semibold text-white leading-snug break-words min-w-0">
+                          {(venda.cliente || '').toUpperCase()}
+                        </h4>
+                        <div className="flex gap-1 shrink-0">
+                          <button type="button" onClick={() => iniciarEdicao(venda)} className="p-1.5 text-blue-400" aria-label="Editar"><FaEdit size={14} /></button>
+                          <button type="button" onClick={() => solicitarExclusaoVenda(venda)} className="p-1.5 text-red-500" aria-label="Excluir"><FaTrash size={14} /></button>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          venda.administradora === 'HS' ? 'bg-purple-500/15 text-purple-300' : 'bg-indigo-500/15 text-indigo-300'
+                        }`}>{venda.administradora || '—'}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          tipoCheia ? 'bg-sky-500/15 text-sky-300' : 'bg-amber-500/15 text-amber-300'
+                        }`}>{tipoCheia ? 'Cheia' : 'Meia'}</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] text-gray-300 bg-gray-700/50 tabular-nums">
+                          G:{venda.grupo || '—'} / C:{venda.cota || '—'}
+                        </span>
+                      </div>
+                      <div className="mt-2.5 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <p className="text-gray-500">Valor</p>
+                          <p className="text-green-400 font-semibold tabular-nums">
+                            {parseFloat(venda.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Comissão</p>
+                          <p className="text-cyan-300 font-semibold tabular-nums">
+                            {comissaoMes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <p className="text-center text-sm text-gray-400 py-8">Nenhuma venda no mês para este período.</p>
+                )}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block min-w-0 overflow-x-auto">
                 <table className="w-full table-fixed text-xs text-left min-w-[640px]">
                   <thead className="border-b border-gray-700">
                     <tr className="text-gray-400 uppercase tracking-wide">
@@ -1044,6 +1100,7 @@ const AbaMinhasVendas = ({ totalVendidoEscritorioMes, faltaParaMetaEscritorioMes
                   </tbody>
                 </table>
               </div>
+              </>
             )}
         </div>
     </div>

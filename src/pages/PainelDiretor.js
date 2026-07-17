@@ -448,7 +448,10 @@ export default function PainelDiretor() {
             menuLateralAberto ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <div className="relative px-4 py-4 border-b border-gray-800 flex items-center justify-center shrink-0">
+          <div
+            className="relative px-4 pb-4 border-b border-gray-800 flex items-center justify-center shrink-0"
+            style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))' }}
+          >
             <img src={logoFenix} alt="Fênix Consórcios" className="h-14 w-auto max-w-[15rem] object-contain" />
             <button
               type="button"
@@ -504,7 +507,10 @@ export default function PainelDiretor() {
         </aside>
 
         <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
-          <div className="lg:hidden shrink-0 bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center">
+          <div
+            className="lg:hidden shrink-0 bg-gray-900 border-b border-gray-800 px-4 pb-3 flex items-center"
+            style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
+          >
             <button
               type="button"
               className="p-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700"
@@ -515,7 +521,7 @@ export default function PainelDiretor() {
             </button>
           </div>
 
-          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-3 sm:p-4 md:p-5">
+          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-5">
             <div className="w-full min-w-0 max-w-none">
               <LembretesLeads />
               <div className="mt-3">{renderContent()}</div>
@@ -838,7 +844,9 @@ export default function PainelDiretor() {
                       onClick={onAbrirModalRelatorioGeral}
                       className="bg-blue-600 hover:bg-blue-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
                   >
-                      <FaPrint size={12} /> Relatório de Comissão Mensal
+                      <FaPrint size={12} />
+                      <span className="sm:hidden">Comissão</span>
+                      <span className="hidden sm:inline">Relatório de Comissão Mensal</span>
                   </button>
               </div>
           </div>
@@ -876,7 +884,7 @@ export default function PainelDiretor() {
               )}
           </div>
           
-          <main className="bg-gray-800/50 rounded-xl shadow-2xl p-4 print:hidden"> 
+          <main className="bg-gray-800/50 rounded-xl shadow-2xl p-3 sm:p-4 print:hidden min-w-0"> 
   
               {/* --- DIV DE FILTROS E BOTÕES (LAYOUT CORRIGIDO) --- */}
               <div className="print-hidden mb-4 pb-4 border-b border-gray-700 space-y-3">
@@ -969,10 +977,105 @@ export default function PainelDiretor() {
               )}
               {/* --- FIM DA DIV DE FILTROS E BOTÕES --- */}
               
-              {/* Tabela de Lançamentos */}
+              {/* Lançamentos: cards no mobile, tabela no desktop */}
               <div className="min-w-0">
-                  <div className="w-full min-w-0">
-                      <table className="w-full table-fixed text-xs text-left">
+                  {/* Mobile cards */}
+                  <div className="md:hidden space-y-2.5">
+                    {vendasFiltradas.length > 0 ? vendasFiltradas.map((venda) => {
+                      const comissaoMes = valorComissaoP1(venda);
+                      const tipoCheia = isParcelaCheia(venda);
+                      const editando = editandoId === venda.id;
+                      return (
+                        <div key={venda.id} className="rounded-lg border border-gray-700/60 bg-gray-900/40 p-3">
+                          {editando ? (
+                            <div className="space-y-2">
+                              <input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-2 rounded w-full text-sm" placeholder="Cliente" />
+                              <div className="grid grid-cols-2 gap-2">
+                                <select value={vendaEditada.administradora || 'GAZIN'} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-2 rounded w-full text-sm">
+                                  <option value="GAZIN">GAZIN</option>
+                                  <option value="HS">HS</option>
+                                </select>
+                                <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-2 rounded w-full text-sm">
+                                  <option value="cheia">Cheia</option>
+                                  <option value="meia">Meia</option>
+                                </select>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <input placeholder="Grupo" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-2 rounded w-full text-sm"/>
+                                <input placeholder="Cota" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-2 rounded w-full text-sm"/>
+                              </div>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={
+                                  vendaEditada.valor
+                                    ? Number(vendaEditada.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                    : ''
+                                }
+                                onChange={(e) => {
+                                  const digits = String(e.target.value).replace(/\D/g, '');
+                                  const valor = digits ? parseFloat(digits) / 100 : 0;
+                                  setVendaEditada({ ...vendaEditada, valor });
+                                }}
+                                className="bg-gray-600 p-2 rounded w-full text-sm tabular-nums"
+                                placeholder="Valor"
+                              />
+                              <p className="text-xs text-gray-400 truncate">{nomeVendedor(venda.usuario_id)}</p>
+                              <div className="flex gap-2 justify-end pt-1">
+                                <button type="button" onClick={salvarEdicao} className="px-2.5 py-1.5 rounded-md bg-green-600/20 text-green-300 text-xs font-semibold"><FaSave className="inline mr-1" size={12} />Salvar</button>
+                                <button type="button" onClick={() => { setEditandoId(null); setVendaEditada({}); }} className="px-2.5 py-1.5 rounded-md bg-gray-600/40 text-gray-300 text-xs font-semibold">Cancelar</button>
+                                <button type="button" onClick={() => excluirVenda(venda.id)} className="px-2.5 py-1.5 rounded-md bg-red-600/20 text-red-300 text-xs font-semibold"><FaTrash className="inline" size={12} /></button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-start justify-between gap-2">
+                                <h4 className="text-sm font-semibold text-white leading-snug break-words min-w-0">
+                                  {(venda.cliente || '').toUpperCase()}
+                                </h4>
+                                <div className="flex gap-1 shrink-0">
+                                  <button type="button" onClick={() => editarVenda(venda)} className="p-1.5 text-blue-400 hover:text-blue-300" aria-label="Editar"><FaEdit size={14} /></button>
+                                  <button type="button" onClick={() => excluirVenda(venda.id)} className="p-1.5 text-red-500 hover:text-red-400" aria-label="Excluir"><FaTrash size={14} /></button>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                  venda.administradora === 'HS' ? 'bg-purple-500/15 text-purple-300' : 'bg-indigo-500/15 text-indigo-300'
+                                }`}>{venda.administradora || '—'}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                  tipoCheia ? 'bg-sky-500/15 text-sky-300' : 'bg-amber-500/15 text-amber-300'
+                                }`}>{tipoCheia ? 'Cheia' : 'Meia'}</span>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] text-gray-300 bg-gray-700/50 tabular-nums">
+                                  G:{venda.grupo || '—'} / C:{venda.cota || '—'}
+                                </span>
+                              </div>
+                              <div className="mt-2.5 grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <p className="text-gray-500">Valor</p>
+                                  <p className="text-green-400 font-semibold tabular-nums">
+                                    {parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Comissão</p>
+                                  <p className="text-cyan-300 font-semibold tabular-nums">
+                                    {comissaoMes.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                  </p>
+                                </div>
+                              </div>
+                              <p className="mt-2 text-xs text-gray-400 truncate">{nomeVendedor(venda.usuario_id)}</p>
+                            </>
+                          )}
+                        </div>
+                      );
+                    }) : (
+                      <p className="text-center text-sm text-gray-400 py-8">Nenhuma venda encontrada para os filtros aplicados</p>
+                    )}
+                  </div>
+
+                  {/* Desktop table */}
+                  <div className="hidden md:block overflow-x-auto min-w-0">
+                      <table className="w-full table-fixed text-xs text-left min-w-[720px]">
                           <thead className="border-b border-gray-700">
                             <tr className="text-gray-400 uppercase tracking-wide">
                               <th className="w-[18%] px-2 py-2">Cliente</th>

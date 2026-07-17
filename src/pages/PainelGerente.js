@@ -533,7 +533,10 @@ useEffect(() => {
           menuLateralAberto ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="relative px-4 py-4 border-b border-gray-800 flex items-center justify-center shrink-0">
+        <div
+          className="relative px-4 pb-4 border-b border-gray-800 flex items-center justify-center shrink-0"
+          style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))' }}
+        >
           <img src={logoFenix} alt="Fênix Consórcios" className="h-14 w-auto max-w-[15rem] object-contain" />
           <button
             type="button"
@@ -589,7 +592,10 @@ useEffect(() => {
       </aside>
 
       <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
-        <div className="lg:hidden shrink-0 bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center">
+        <div
+          className="lg:hidden shrink-0 bg-gray-900 border-b border-gray-800 px-4 pb-3 flex items-center"
+          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
+        >
           <button
             type="button"
             className="p-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700"
@@ -600,7 +606,7 @@ useEffect(() => {
           </button>
         </div>
 
-        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-3 sm:p-4 md:p-5">
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-5">
           <div className="w-full min-w-0 max-w-none">
             <LembretesLeads />
             <div className="mt-3">{renderContent()}</div>
@@ -998,7 +1004,59 @@ const AbaVendas = ({ vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodo
                 </select>
             </div>
             
-            <div className="overflow-x-auto min-w-0">
+            <div className="min-w-0">
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-2.5">
+                  {vendasFiltradas.length > 0 ? vendasFiltradas.map((venda) => (
+                    <div key={venda.id} className="rounded-lg border border-gray-700/60 bg-gray-900/40 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-semibold text-white break-words">{venda.cliente.toUpperCase()}</h4>
+                          <p className="text-xs text-gray-400 mt-0.5 truncate">{nomeVendedor(venda.usuario_id)}</p>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button type="button" onClick={() => editarVenda(venda)} className="p-1.5 text-blue-400"><FaEdit size={14} /></button>
+                          <button type="button" onClick={() => excluirVenda(venda.id)} className="p-1.5 text-red-500"><FaTrash size={14} /></button>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                        <span className="px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-200 font-semibold">{venda.administradora}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-300 tabular-nums">G:{venda.grupo} / C:{venda.cota}</span>
+                        <span className={`px-1.5 py-0.5 rounded ${isParcelaCheia(venda) ? 'bg-blue-900/70 text-blue-300' : 'bg-yellow-900/70 text-yellow-300'}`}>
+                          {isParcelaCheia(venda) ? 'Cheia' : 'Meia'}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-green-400 font-semibold tabular-nums">
+                        {parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-1.5">
+                        {[1, 2, 3, 4, 5].map((i) => {
+                          const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
+                          let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
+                          if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
+                          if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
+                          if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
+                          if (statusAtual === 'CANCELADO') corSeletor = 'bg-gray-600 border-gray-500 text-gray-200';
+                          return (
+                            <select
+                              key={i}
+                              value={statusAtual}
+                              onChange={(e) => handleStatusChange(venda, i, e.target.value)}
+                              className={`p-1.5 text-[11px] rounded border font-medium ${corSeletor}`}
+                            >
+                              {STATUS_OPCOES.map(opt => <option key={opt} value={opt}>{`P${i}: ${opt}`}</option>)}
+                            </select>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="text-center text-sm text-gray-400 py-8">Nenhuma venda encontrada para os filtros aplicados</p>
+                  )}
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-x-auto min-w-0">
                 <table className="w-full min-w-[720px] text-xs text-left">
                     <thead className="border-b border-gray-700">
                       <tr className="text-gray-400 uppercase tracking-wide">
@@ -1081,6 +1139,7 @@ const AbaVendas = ({ vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodo
                         )) : <EmptyStateRow message="Nenhuma venda encontrada para os filtros aplicados" colSpan={6} />}
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
     </div>

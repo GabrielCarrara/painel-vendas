@@ -30,7 +30,7 @@ const Navbar = () => {
             <div className="bg-[#121212] text-white">
                 <nav
                     className="container mx-auto px-4 sm:px-6 pb-2 flex justify-between items-center gap-2"
-                    style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0px))' }}
+                    style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
                 >
                     <Link to="/" className="shrink-0 min-w-0 pt-0.5">
                         <img
