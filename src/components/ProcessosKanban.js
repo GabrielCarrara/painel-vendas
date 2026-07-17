@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { FaPlus, FaSave, FaTimes, FaLock, FaTrash } from 'react-icons/fa';
+import { FaPlus, FaSave, FaTimes, FaLock, FaTrash, FaFilter, FaSyncAlt, FaSpinner } from 'react-icons/fa';
+
+const campoClass = 'w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-60';
+const labelClass = 'block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide';
 
 const ETAPAS = [
   { id: 'PASSO_1', label: '1º PASSO' },
@@ -382,399 +385,383 @@ export default function ProcessosKanban({ usuario }) {
   };
 
   return (
-    <div className="bg-gray-900 text-gray-200">
-      {/** Classes padrão para inputs do modal (mais compacto) */}
-      {/** (mantido aqui para evitar duplicação e facilitar ajuste de UI) */}
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-2xl font-bold text-white">Processos</h2>
-          <p className="text-gray-400 text-sm">
-            Todos podem visualizar. {podeEditar ? 'Diretor pode cadastrar e mover cartões.' : 'Somente Diretor pode cadastrar/mover.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {!podeEditar && (
-            <div className="text-xs text-gray-400 flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700">
-              <FaLock /> Somente leitura
-            </div>
-          )}
-          {podeEditar && (
-            <button
-              onClick={() => setModalAberto(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-            >
-              <FaPlus /> Novo cliente
-            </button>
-          )}
-          <button
-            onClick={carregar}
-            className="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg font-semibold border border-gray-700"
-          >
-            Atualizar
-          </button>
-        </div>
-      </div>
-
-      <div className="mb-4 grid grid-cols-1 lg:grid-cols-6 gap-3">
-        <div className="lg:col-span-2">
-          <label className="text-sm text-gray-300">Pesquisar</label>
+    <div className="animate-fade-in text-gray-200 space-y-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-3 bg-gray-800/50 rounded-xl">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold flex items-center gap-1.5 text-gray-300">
+            <FaFilter size={12} /> Filtros
+          </h3>
           <input
             value={filtroTexto}
             onChange={(e) => setFiltroTexto(e.target.value)}
-            placeholder="Nome, grupo, cota, telefone ou descrição…"
-            className="w-full mt-1 p-3 bg-gray-800 rounded-lg border border-gray-700"
+            placeholder="Buscar nome, grupo, cota…"
+            className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600 w-44 sm:w-56"
           />
-        </div>
-        <div>
-          <label className="text-sm text-gray-300">Etapa</label>
           <select
             value={filtroEtapa}
             onChange={(e) => setFiltroEtapa(e.target.value)}
-            className="w-full mt-1 p-3 bg-gray-800 rounded-lg border border-gray-700"
+            className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600"
           >
-            <option value="">Todas</option>
-            <option value="PASSO_1">1º PASSO</option>
-            <option value="TRANSFERENCIAS">TRANSFERÊNCIAS</option>
-            <option value="PASSO_2">2º PASSO</option>
-            <option value="SUBSTITUICAO">SUBSTITUIÇÃO</option>
-            <option value="IMOVEL">IMÓVEL</option>
+            <option value="">Todas as etapas</option>
+            {ETAPAS.map((e) => (
+              <option key={e.id} value={e.id}>{e.label}</option>
+            ))}
           </select>
-        </div>
-        <div>
-          <label className="text-sm text-gray-300">Administradora</label>
           <select
             value={filtroAdministradora}
             onChange={(e) => setFiltroAdministradora(e.target.value)}
-            className="w-full mt-1 p-3 bg-gray-800 rounded-lg border border-gray-700"
+            className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600"
           >
-            <option value="">Todas</option>
+            <option value="">Todas adm.</option>
             <option value="GAZIN">GAZIN</option>
             <option value="HS">HS</option>
           </select>
-        </div>
-        <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm text-gray-300 w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-3">
-            <input
-              type="checkbox"
-              checked={apenasPendencias}
-              onChange={(e) => setApenasPendencias(e.target.checked)}
-            />
-            Apenas pendências (PÓS/ADESÃO)
+          <label className="flex items-center gap-1.5 text-xs text-gray-300 bg-gray-700/80 border border-gray-600 px-2.5 py-1.5 rounded-md cursor-pointer">
+            <input type="checkbox" checked={apenasPendencias} onChange={(e) => setApenasPendencias(e.target.checked)} />
+            Pendências
           </label>
-        </div>
-        <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm text-gray-300 w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-3">
-            <input
-              type="checkbox"
-              checked={mostrarArquivados}
-              onChange={(e) => setMostrarArquivados(e.target.checked)}
-            />
-            Mostrar arquivados
+          <label className="flex items-center gap-1.5 text-xs text-gray-300 bg-gray-700/80 border border-gray-600 px-2.5 py-1.5 rounded-md cursor-pointer">
+            <input type="checkbox" checked={mostrarArquivados} onChange={(e) => setMostrarArquivados(e.target.checked)} />
+            Arquivados
           </label>
+          {!podeEditar && (
+            <span className="text-xs text-gray-400 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-gray-800 border border-gray-700">
+              <FaLock size={10} /> Somente leitura
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={carregar}
+            className="bg-gray-700 hover:bg-gray-600 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+          >
+            <FaSyncAlt size={11} /> Atualizar
+          </button>
+          {podeEditar && (
+            <button
+              type="button"
+              onClick={() => { setForm(emptyForm); setModalAberto(true); }}
+              className="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+            >
+              <FaPlus size={12} /> Novo cliente
+            </button>
+          )}
         </div>
       </div>
 
       {erro && (
-        <div className="mb-4 bg-red-900/40 border border-red-800 text-red-200 px-4 py-3 rounded-lg">
+        <div className="bg-red-900/40 border border-red-800 text-red-200 px-3 py-2 rounded-lg text-sm">
           {erro}
         </div>
       )}
 
       {loading ? (
-        <div className="text-gray-400">Carregando…</div>
+        <div className="flex justify-center items-center py-16">
+          <FaSpinner className="animate-spin text-indigo-400" size={32} />
+        </div>
       ) : (
-        <div className="space-y-6">
-          {(filtroEtapa ? ETAPAS.filter((e) => e.id === filtroEtapa) : ETAPAS).map((etapa) => (
-            <section key={etapa.id} className="bg-gray-800/30 border border-gray-700 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-bold text-white">{etapa.label}</h3>
-                <div className="text-xs text-gray-400">
-                  Arraste e solte dentro das listas.
+        <div className="space-y-4">
+          {(filtroEtapa ? ETAPAS.filter((e) => e.id === filtroEtapa) : ETAPAS).map((etapa) => {
+            const totalEtapa = Object.values(agrupado?.[etapa.id] || {}).reduce((acc, arr) => acc + (arr?.length || 0), 0);
+            return (
+              <section key={etapa.id} className="bg-gray-800/40 border border-gray-700/80 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2.5">
+                  <h3 className="text-sm font-semibold text-indigo-300 tracking-wide">
+                    {etapa.label}
+                    <span className="ml-2 text-xs font-normal text-gray-500">{totalEtapa}</span>
+                  </h3>
+                  {podeEditar && (
+                    <span className="text-[11px] text-gray-500">Arraste para mover</span>
+                  )}
                 </div>
-              </div>
-              <div className="flex gap-3 overflow-x-auto pb-2">
-                {(LISTAS_POR_ETAPA[etapa.id] || LISTAS_PADRAO).map((lista) => (
-                  <div
-                    key={lista.id}
-                    className={`rounded-xl border p-3 min-h-[140px] min-w-[260px] flex-1 ${
-                      podeEditar ? 'border-gray-700 bg-gray-900/40' : 'border-gray-800 bg-gray-900/20'
-                    }`}
-                    onDragOver={(e) => {
-                      if (!podeEditar) return;
-                      e.preventDefault();
-                    }}
-                    onDrop={() => onDrop(etapa.id, lista.id)}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-gray-100 text-sm">{lista.label}</h4>
-                      <span className="text-xs text-gray-400">
-                        {(agrupado?.[etapa.id]?.[lista.id] || []).length}
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      {(agrupado?.[etapa.id]?.[lista.id] || []).map((c) => (
-                        <div
-                          key={c.id}
-                          draggable={podeEditar}
-                          onDragStart={() => setDragId(c.id)}
-                          onClick={() => abrirEditar(c)}
-                          className={`rounded-lg border px-3 py-2 cursor-pointer select-none ${
-                            podeEditar ? 'border-gray-700 bg-gray-800 hover:bg-gray-700/70' : 'border-gray-800 bg-gray-900/50'
-                          }`}
-                          title={podeEditar ? 'Clique para editar. Arraste para mover.' : 'Somente leitura.'}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="font-semibold text-white truncate">{c.nome_completo}</div>
-                              <div className="text-xs text-gray-400 mt-0.5">
-                                G: {c.grupo} • C: {c.cota} • {c.administradora}
-                              </div>
-                              {(c.vendedor_nome || c.origem) && (
-                                <div className="text-xs text-gray-500 mt-0.5">
-                                  {c.vendedor_nome ? `Vendedor: ${c.vendedor_nome}` : null}
-                                  {c.vendedor_nome && c.origem ? ' • ' : null}
-                                  {c.origem ? `Origem: ${String(c.origem).replaceAll('_', ' ')}` : null}
+                <div className="flex gap-2.5 overflow-x-auto pb-1">
+                  {(LISTAS_POR_ETAPA[etapa.id] || LISTAS_PADRAO).map((lista) => (
+                    <div
+                      key={lista.id}
+                      className={`rounded-lg border p-2 min-h-[120px] min-w-[220px] flex-1 ${
+                        podeEditar ? 'border-gray-700 bg-gray-900/40' : 'border-gray-800 bg-gray-900/20'
+                      }`}
+                      onDragOver={(e) => {
+                        if (!podeEditar) return;
+                        e.preventDefault();
+                      }}
+                      onDrop={() => onDrop(etapa.id, lista.id)}
+                    >
+                      <div className="flex items-center justify-between mb-1.5 px-0.5">
+                        <h4 className="font-semibold text-gray-300 text-[11px] uppercase tracking-wide truncate">
+                          {lista.label}
+                        </h4>
+                        <span className="text-[11px] text-gray-500 tabular-nums shrink-0 ml-1">
+                          {(agrupado?.[etapa.id]?.[lista.id] || []).length}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {(agrupado?.[etapa.id]?.[lista.id] || []).map((c) => (
+                          <div
+                            key={c.id}
+                            draggable={podeEditar}
+                            onDragStart={() => setDragId(c.id)}
+                            onClick={() => abrirEditar(c)}
+                            className={`rounded-md border px-2.5 py-1.5 cursor-pointer select-none transition-colors ${
+                              podeEditar
+                                ? 'border-gray-700 bg-gray-800 hover:bg-gray-700/70'
+                                : 'border-gray-800 bg-gray-900/50'
+                            } ${c.arquivado ? 'opacity-60' : ''}`}
+                            title={podeEditar ? 'Clique para editar. Arraste para mover.' : 'Somente leitura.'}
+                          >
+                            <div className="flex items-start justify-between gap-1.5">
+                              <div className="min-w-0">
+                                <div className="font-semibold text-white text-sm truncate">{c.nome_completo}</div>
+                                <div className="text-[11px] text-gray-400 mt-0.5">
+                                  {c.grupo}/{c.cota} · {c.administradora}
                                 </div>
-                              )}
+                                {c.vendedor_nome && (
+                                  <div className="text-[11px] text-gray-500 truncate">{c.vendedor_nome}</div>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-0.5 justify-end max-w-[90px]">
+                                {c.pos_venda && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300">PÓS</span>
+                                )}
+                                {c.adesao && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/20 text-sky-300">ADESÃO</span>
+                                )}
+                                {c.etapa === 'PASSO_2' && c.pagamento && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300">PAG</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-[11px] text-gray-400 whitespace-nowrap">
-                              {c.pos_venda && <span className="px-2 py-0.5 rounded bg-amber-900/40 border border-amber-800 mr-1">PÓS</span>}
-                              {c.adesao && <span className="px-2 py-0.5 rounded bg-sky-900/40 border border-sky-800">ADESÃO</span>}
-                              {c.etapa === 'PASSO_2' && c.pagamento && (
-                                <span className="px-2 py-0.5 rounded bg-emerald-900/40 border border-emerald-800 ml-1">PAGAMENTO</span>
-                              )}
-                            </div>
+                            {c.descricao && (
+                              <div className="text-[11px] text-gray-400 mt-1 line-clamp-2 whitespace-pre-wrap">
+                                {c.descricao}
+                              </div>
+                            )}
                           </div>
-                          {(c.data_envio || c.data_ultima_analise) && (
-                            <div className="text-xs text-gray-400 mt-2 flex flex-wrap gap-2">
-                              {c.data_envio && <span>Envio: {String(c.data_envio).slice(0, 10)}</span>}
-                              {c.data_ultima_analise && <span>Análise: {String(c.data_ultima_analise).slice(0, 10)}</span>}
-                            </div>
-                          )}
-                          {c.descricao && (
-                            <div className="text-xs text-gray-300 mt-2 whitespace-pre-wrap">
-                              {c.descricao}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      {(agrupado?.[etapa.id]?.[lista.id] || []).length === 0 && (
-                        <div className="text-xs text-gray-500 py-6 text-center border border-dashed border-gray-700 rounded-lg">
-                          Vazio
-                        </div>
-                      )}
+                        ))}
+                        {(agrupado?.[etapa.id]?.[lista.id] || []).length === 0 && (
+                          <div className="text-[11px] text-gray-600 py-4 text-center border border-dashed border-gray-700/80 rounded-md">
+                            Vazio
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 
-      {/* Modal Novo Cliente */}
       {modalAberto && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-xl md:max-w-2xl bg-gray-900 border border-gray-700 rounded-xl p-4 md:p-5 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Cadastrar cliente</h3>
-              <button onClick={() => setModalAberto(false)} className="text-gray-300 hover:text-white">
-                <FaTimes />
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in">
+            <header className="px-4 py-3 flex justify-between items-center border-b border-gray-700">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <FaPlus className="text-indigo-400" /> Novo cliente
+              </h3>
+              <button type="button" onClick={() => setModalAberto(false)} className="p-1.5 text-gray-500 hover:text-white rounded-full">
+                <FaTimes size={16} />
               </button>
-            </div>
+            </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[65vh] overflow-y-auto">
               <div>
-                <label className="text-sm text-gray-300">Nome completo *</label>
-                <input value={form.nome_completo} onChange={(e) => setForm((p) => ({ ...p, nome_completo: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-sm" />
+                <label className={labelClass}>Nome completo *</label>
+                <input value={form.nome_completo} onChange={(e) => setForm((p) => ({ ...p, nome_completo: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Telefone *</label>
-                <input value={form.telefone} onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-sm" />
+                <label className={labelClass}>Telefone *</label>
+                <input value={form.telefone} onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Vendedor (nome)</label>
-                <input value={form.vendedor_nome} onChange={(e) => setForm((p) => ({ ...p, vendedor_nome: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-sm" />
+                <label className={labelClass}>Vendedor</label>
+                <input value={form.vendedor_nome} onChange={(e) => setForm((p) => ({ ...p, vendedor_nome: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Origem</label>
-                <select value={form.origem} onChange={(e) => setForm((p) => ({ ...p, origem: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-sm">
-                  <option value="PONTES_E_LACERDA">PONTES E LACERDA</option>
-                  <option value="MIRASSOL">MIRASSOL</option>
-                  <option value="EXTERNO">EXTERNO</option>
+                <label className={labelClass}>Origem</label>
+                <select value={form.origem} onChange={(e) => setForm((p) => ({ ...p, origem: e.target.value }))} className={campoClass}>
+                  <option value="PONTES_E_LACERDA">Pontes e Lacerda</option>
+                  <option value="MIRASSOL">Mirassol</option>
+                  <option value="EXTERNO">Externo</option>
                 </select>
               </div>
               <div>
-                <label className="text-sm text-gray-300">Grupo *</label>
-                <input value={form.grupo} onChange={(e) => setForm((p) => ({ ...p, grupo: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-sm" />
+                <label className={labelClass}>Grupo *</label>
+                <input value={form.grupo} onChange={(e) => setForm((p) => ({ ...p, grupo: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Cota *</label>
-                <input value={form.cota} onChange={(e) => setForm((p) => ({ ...p, cota: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-sm" />
+                <label className={labelClass}>Cota *</label>
+                <input value={form.cota} onChange={(e) => setForm((p) => ({ ...p, cota: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Administradora *</label>
-                <select value={form.administradora} onChange={(e) => setForm((p) => ({ ...p, administradora: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-sm">
+                <label className={labelClass}>Administradora *</label>
+                <select value={form.administradora} onChange={(e) => setForm((p) => ({ ...p, administradora: e.target.value }))} className={campoClass}>
                   <option value="HS">HS</option>
                   <option value="GAZIN">GAZIN</option>
                 </select>
               </div>
               <div>
-                <label className="text-sm text-gray-300">Data do envio (opcional)</label>
-                <input type="date" value={form.data_envio} onChange={(e) => setForm((p) => ({ ...p, data_envio: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-sm" />
+                <label className={labelClass}>Data do envio</label>
+                <input type="date" value={form.data_envio} onChange={(e) => setForm((p) => ({ ...p, data_envio: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Data última análise (opcional)</label>
-                <input type="date" value={form.data_ultima_analise} onChange={(e) => setForm((p) => ({ ...p, data_ultima_analise: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-sm" />
+                <label className={labelClass}>Última análise</label>
+                <input type="date" value={form.data_ultima_analise} onChange={(e) => setForm((p) => ({ ...p, data_ultima_analise: e.target.value }))} className={campoClass} />
               </div>
-              <div className="flex items-end gap-4">
-                <label className="flex items-center gap-2 text-sm text-gray-300">
+              <div className="sm:col-span-2 flex flex-wrap gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-gray-300">
                   <input type="checkbox" checked={form.pos_venda} onChange={(e) => setForm((p) => ({ ...p, pos_venda: e.target.checked }))} />
-                  PÓS VENDA
+                  Pós venda
                 </label>
-                <label className="flex items-center gap-2 text-sm text-gray-300">
+                <label className="flex items-center gap-1.5 text-xs text-gray-300">
                   <input type="checkbox" checked={form.adesao} onChange={(e) => setForm((p) => ({ ...p, adesao: e.target.checked }))} />
-                  ADESÃO
+                  Adesão
                 </label>
-                <label className="flex items-center gap-2 text-sm text-gray-300">
+                <label className="flex items-center gap-1.5 text-xs text-gray-300">
                   <input type="checkbox" checked={form.pagamento} onChange={(e) => setForm((p) => ({ ...p, pagamento: e.target.checked }))} />
-                  PAGAMENTO
+                  Pagamento
                 </label>
               </div>
-              <div className="md:col-span-2">
-                <label className="text-sm text-gray-300">Descrição (opcional)</label>
-                <textarea value={form.descricao} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 min-h-[70px] text-sm" />
+              <div className="sm:col-span-2">
+                <label className={labelClass}>Descrição</label>
+                <textarea value={form.descricao} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} className={campoClass} rows="3" />
               </div>
             </div>
 
-            <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setModalAberto(false)} className="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg font-semibold border border-gray-700">
+            <footer className="px-4 py-3 flex justify-end gap-2 border-t border-gray-700">
+              <button type="button" onClick={() => setModalAberto(false)} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md text-sm font-semibold">
                 Cancelar
               </button>
-              <button disabled={salvando} onClick={criar} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 disabled:opacity-60">
-                <FaSave /> {salvando ? 'Salvando…' : 'Salvar'}
+              <button type="button" disabled={salvando} onClick={criar} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 disabled:opacity-60">
+                <FaSave size={14} /> {salvando ? 'Salvando…' : 'Salvar'}
               </button>
-            </div>
+            </footer>
           </div>
         </div>
       )}
 
-      {/* Modal Editar */}
       {modalEditar && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-xl md:max-w-2xl bg-gray-900 border border-gray-700 rounded-xl p-4 md:p-5 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Detalhes do cliente</h3>
-              <button onClick={() => setModalEditar(null)} className="text-gray-300 hover:text-white">
-                <FaTimes />
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in">
+            <header className="px-4 py-3 flex justify-between items-center border-b border-gray-700">
+              <h3 className="text-base font-semibold">
+                {podeEditar ? 'Editar cliente' : 'Detalhes do cliente'}
+              </h3>
+              <button type="button" onClick={() => setModalEditar(null)} className="p-1.5 text-gray-500 hover:text-white rounded-full">
+                <FaTimes size={16} />
               </button>
-            </div>
+            </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[65vh] overflow-y-auto">
               <div>
-                <label className="text-sm text-gray-300">Nome completo</label>
-                <input disabled={!podeEditar} value={editForm.nome_completo} onChange={(e) => setEditForm((p) => ({ ...p, nome_completo: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 disabled:opacity-60 text-sm" />
+                <label className={labelClass}>Nome completo</label>
+                <input disabled={!podeEditar} value={editForm.nome_completo} onChange={(e) => setEditForm((p) => ({ ...p, nome_completo: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Telefone</label>
-                <input disabled={!podeEditar} value={editForm.telefone} onChange={(e) => setEditForm((p) => ({ ...p, telefone: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 disabled:opacity-60 text-sm" />
+                <label className={labelClass}>Telefone</label>
+                <input disabled={!podeEditar} value={editForm.telefone} onChange={(e) => setEditForm((p) => ({ ...p, telefone: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Vendedor (nome)</label>
-                <input disabled={!podeEditar} value={editForm.vendedor_nome} onChange={(e) => setEditForm((p) => ({ ...p, vendedor_nome: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 disabled:opacity-60 text-sm" />
+                <label className={labelClass}>Vendedor</label>
+                <input disabled={!podeEditar} value={editForm.vendedor_nome} onChange={(e) => setEditForm((p) => ({ ...p, vendedor_nome: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Origem</label>
-                <select disabled={!podeEditar} value={editForm.origem} onChange={(e) => setEditForm((p) => ({ ...p, origem: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 disabled:opacity-60 text-sm">
-                  <option value="PONTES_E_LACERDA">PONTES E LACERDA</option>
-                  <option value="MIRASSOL">MIRASSOL</option>
-                  <option value="EXTERNO">EXTERNO</option>
+                <label className={labelClass}>Origem</label>
+                <select disabled={!podeEditar} value={editForm.origem} onChange={(e) => setEditForm((p) => ({ ...p, origem: e.target.value }))} className={campoClass}>
+                  <option value="PONTES_E_LACERDA">Pontes e Lacerda</option>
+                  <option value="MIRASSOL">Mirassol</option>
+                  <option value="EXTERNO">Externo</option>
                 </select>
               </div>
               <div>
-                <label className="text-sm text-gray-300">Grupo</label>
-                <input disabled={!podeEditar} value={editForm.grupo} onChange={(e) => setEditForm((p) => ({ ...p, grupo: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 disabled:opacity-60 text-sm" />
+                <label className={labelClass}>Grupo</label>
+                <input disabled={!podeEditar} value={editForm.grupo} onChange={(e) => setEditForm((p) => ({ ...p, grupo: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Cota</label>
-                <input disabled={!podeEditar} value={editForm.cota} onChange={(e) => setEditForm((p) => ({ ...p, cota: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 disabled:opacity-60 text-sm" />
+                <label className={labelClass}>Cota</label>
+                <input disabled={!podeEditar} value={editForm.cota} onChange={(e) => setEditForm((p) => ({ ...p, cota: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Administradora</label>
-                <select disabled={!podeEditar} value={editForm.administradora} onChange={(e) => setEditForm((p) => ({ ...p, administradora: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 disabled:opacity-60 text-sm">
+                <label className={labelClass}>Administradora</label>
+                <select disabled={!podeEditar} value={editForm.administradora} onChange={(e) => setEditForm((p) => ({ ...p, administradora: e.target.value }))} className={campoClass}>
                   <option value="HS">HS</option>
                   <option value="GAZIN">GAZIN</option>
                 </select>
               </div>
               <div>
-                <label className="text-sm text-gray-300">Data do envio</label>
-                <input disabled={!podeEditar} type="date" value={editForm.data_envio} onChange={(e) => setEditForm((p) => ({ ...p, data_envio: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 disabled:opacity-60 text-sm" />
+                <label className={labelClass}>Data do envio</label>
+                <input disabled={!podeEditar} type="date" value={editForm.data_envio} onChange={(e) => setEditForm((p) => ({ ...p, data_envio: e.target.value }))} className={campoClass} />
               </div>
               <div>
-                <label className="text-sm text-gray-300">Data última análise</label>
-                <input disabled={!podeEditar} type="date" value={editForm.data_ultima_analise} onChange={(e) => setEditForm((p) => ({ ...p, data_ultima_analise: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 disabled:opacity-60 text-sm" />
+                <label className={labelClass}>Última análise</label>
+                <input disabled={!podeEditar} type="date" value={editForm.data_ultima_analise} onChange={(e) => setEditForm((p) => ({ ...p, data_ultima_analise: e.target.value }))} className={campoClass} />
               </div>
-              <div className="flex items-end gap-4">
-                <label className="flex items-center gap-2 text-sm text-gray-300">
+              <div className="sm:col-span-2 flex flex-wrap gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-gray-300">
                   <input disabled={!podeEditar} type="checkbox" checked={editForm.pos_venda} onChange={(e) => setEditForm((p) => ({ ...p, pos_venda: e.target.checked }))} />
-                  PÓS VENDA
+                  Pós venda
                 </label>
-                <label className="flex items-center gap-2 text-sm text-gray-300">
+                <label className="flex items-center gap-1.5 text-xs text-gray-300">
                   <input disabled={!podeEditar} type="checkbox" checked={editForm.adesao} onChange={(e) => setEditForm((p) => ({ ...p, adesao: e.target.checked }))} />
-                  ADESÃO
+                  Adesão
                 </label>
-                <label className="flex items-center gap-2 text-sm text-gray-300">
+                <label className="flex items-center gap-1.5 text-xs text-gray-300">
                   <input disabled={!podeEditar} type="checkbox" checked={editForm.pagamento} onChange={(e) => setEditForm((p) => ({ ...p, pagamento: e.target.checked }))} />
-                  PAGAMENTO
+                  Pagamento
                 </label>
               </div>
-              <div className="md:col-span-2">
-                <label className="text-sm text-gray-300">Descrição</label>
-                <textarea disabled={!podeEditar} value={editForm.descricao} onChange={(e) => setEditForm((p) => ({ ...p, descricao: e.target.value }))} className="w-full mt-1 p-2.5 bg-gray-800 rounded-lg border border-gray-700 min-h-[70px] disabled:opacity-60 text-sm" />
+              <div className="sm:col-span-2">
+                <label className={labelClass}>Descrição</label>
+                <textarea disabled={!podeEditar} value={editForm.descricao} onChange={(e) => setEditForm((p) => ({ ...p, descricao: e.target.value }))} className={campoClass} rows="3" />
               </div>
             </div>
 
-            <div className="mt-4 flex justify-end gap-2">
+            <footer className="px-4 py-3 flex flex-wrap justify-end gap-2 border-t border-gray-700">
               {podeEditar && (
                 <button
+                  type="button"
                   disabled={salvando}
                   onClick={excluirCard}
-                  className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 disabled:opacity-60 mr-auto"
+                  className="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-md text-sm font-semibold flex items-center gap-1.5 disabled:opacity-60 mr-auto"
                 >
-                  <FaTrash /> Excluir
+                  <FaTrash size={12} /> Excluir
                 </button>
               )}
               {podeEditar && modalEditar?.etapa === 'PASSO_2' && modalEditar?.lista === 'CONCLUIDO' && !modalEditar?.arquivado && (
                 <button
+                  type="button"
                   disabled={salvando}
                   onClick={arquivarCard}
-                  className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 disabled:opacity-60"
+                  className="bg-emerald-600 hover:bg-emerald-700 px-3 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
                 >
                   Arquivar
                 </button>
               )}
               {podeEditar && modalEditar?.arquivado && (
                 <button
+                  type="button"
                   disabled={salvando}
                   onClick={desarquivarCard}
-                  className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 disabled:opacity-60"
+                  className="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
                 >
                   Desarquivar
                 </button>
               )}
-              <button onClick={() => setModalEditar(null)} className="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg font-semibold border border-gray-700">
+              <button type="button" onClick={() => setModalEditar(null)} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md text-sm font-semibold">
                 Fechar
               </button>
               {podeEditar && (
-                <button disabled={salvando} onClick={salvarEdicao} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 disabled:opacity-60">
-                  <FaSave /> {salvando ? 'Salvando…' : 'Salvar alterações'}
+                <button type="button" disabled={salvando} onClick={salvarEdicao} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 disabled:opacity-60">
+                  <FaSave size={14} /> {salvando ? 'Salvando…' : 'Salvar'}
                 </button>
               )}
-            </div>
+            </footer>
           </div>
         </div>
       )}
     </div>
   );
 }
-

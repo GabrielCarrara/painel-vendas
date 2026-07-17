@@ -5,23 +5,23 @@ import dayjs from "dayjs";
 import 'dayjs/locale/pt-br';
 import LembretesLeads from '../components/LembretesLeads';
 import { 
-    FaChartBar, FaUsers, FaPlusCircle, FaTrophy, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, 
-    FaDollarSign, FaUserTie, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs,
-    FaFileInvoiceDollar,
+    FaChartBar, FaUsers, FaPlusCircle, FaPlus, FaTrophy, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, 
+    FaDollarSign, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs,
+    FaFileInvoiceDollar, FaHandHoldingUsd, FaLandmark,
     FaTh,
     FaBullseye,
-    FaCalendarAlt
+    FaCalendarAlt,
+    FaSignOutAlt, FaUserCircle, FaBars,
 } from "react-icons/fa";
 
-// --- NOVOS IMPORTS ---
 import { useNavigate } from 'react-router-dom';
-import { FaSignOutAlt, FaUserCircle } from 'react-icons/fa';
-import MinhaContaModal from '../components/MinhaContaModal'; // Verifique se o caminho está correto
-// --- FIM DOS NOVOS IMPORTS ---
+import MinhaContaModal from '../components/MinhaContaModal';
+import logoFenix from '../assets/logo.png';
 
 // Componentes importados (verifique os caminhos)
 import PainelCRM from "./PainelCRM";
 import { limparFlagsLembreteRetorno } from '../utils/crmLembreteStorage';
+import { lerAbaPainel, salvarAbaPainel } from '../utils/abaPainelStorage';
 import PainelContempladas from "./PainelContempladas";
 import HSCotas from './HSCotas';
 import PainelAcoes from './PainelAcoes';
@@ -40,19 +40,43 @@ import {
   nomeMesPortuguesUpper,
 } from '../utils/comissoes';
 
+dayjs.locale('pt-br');
+
+const ABA_STORAGE_KEY = 'painel_gerente_aba';
+const ABAS_VALIDAS = ['vendas', 'contempladas', 'hs_cotas', 'processos', 'crm', 'ranking', 'acoes'];
 // --- Constantes ---
 const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO', 'CANCELADO'];
+const campoClass = 'w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500';
+const labelClass = 'block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide';
 
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, label, value, color }) => (
-  <div className="bg-gray-800 p-5 rounded-xl shadow-lg flex items-center space-x-4 transition-transform hover:scale-105">
-    <div className={`p-3 rounded-full ${color}`}>{icon}</div>
-    <div>
-      <p className="text-sm text-gray-400">{label}</p>
-      <p className="text-2xl font-bold text-white">{(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+  <div className="bg-gray-800/60 rounded-lg px-3.5 py-3 border border-gray-700/50 flex items-center gap-3 min-w-0">
+    <div className={`p-2 rounded-full shrink-0 ${color}`}>{icon}</div>
+    <div className="min-w-0">
+      <p className="text-xs text-gray-400 truncate">{label}</p>
+      <p className="text-base sm:text-lg font-bold text-white tabular-nums">
+        {(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+      </p>
     </div>
   </div>
 );
+
+const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
+  const medalhas = ['🥇', '🥈', '🥉'];
+  const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold text-sm">{posicao + 1}º</span>;
+  return (
+    <div className={`px-3 py-2 rounded-lg flex items-center justify-between gap-2 ${isCurrentUser ? 'bg-indigo-600/25 ring-1 ring-indigo-500' : 'bg-gray-800/60 border border-gray-700/40'}`}>
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span className="text-base w-7 text-center shrink-0">{prefixo}</span>
+        <span className={`text-sm font-semibold truncate ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{nome}</span>
+      </div>
+      <span className="text-sm font-bold text-green-400 tabular-nums shrink-0 ml-2">
+        {valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+      </span>
+    </div>
+  );
+};
 
 const LoadingSpinner = () => (
     <div className="flex justify-center items-center h-screen bg-gray-900"><div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500"></div></div>
@@ -67,7 +91,7 @@ export default function PainelGerenteAprimorado() {
   dayjs.locale('pt-br'); 
 
   // --- States do Painel ---
-  const [aba, setAba] = useState("vendas");
+  const [aba, setAba] = useState(() => lerAbaPainel(ABA_STORAGE_KEY, ABAS_VALIDAS));
   const [vendas, setVendas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [filtros, setFiltros] = useState({ vendedor: "", mes: dayjs().format("YYYY-MM"), administradora: "" });
@@ -83,6 +107,8 @@ export default function PainelGerenteAprimorado() {
   // --- NOVOS STATES (Conta e Logout) ---
   const navigate = useNavigate();
   const [modalContaVisivel, setModalContaVisivel] = useState(false);
+  const [modalLancarVenda, setModalLancarVenda] = useState(false);
+  const [menuLateralAberto, setMenuLateralAberto] = useState(false);
   const [pagamentosDoMes, setPagamentosDoMes] = useState([]);
 
   const buscarPagamentosDoMes = useCallback(async (mes) => {
@@ -227,7 +253,7 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
 
       const { data: perfilData } = await supabase
         .from('usuarios_custom')
-        .select('*') // Pega tudo, incluindo foto_url e telefone
+        .select('*')
         .eq('id', user.id)
         .single();
 
@@ -238,14 +264,15 @@ const fetchConfiguracoes = useCallback(async (mes, id_filial) => {
           buscarUsuarios(perfilData),
           buscarVendas(perfilData),
           fetchConfiguracoes(filtros.mes, perfilData.id_filial),
-          // buscarComissoesLiberadas() será chamado no próximo useEffect
         ]);
       }
       setLoading(false);
     };
 
     carregarDadosIniciais();
-  }, [fetchConfiguracoes, filtros.mes, navigate]);
+    // Montagem inicial apenas; mês/config reagem em outros efeitos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate]);
   
   useEffect(() => { 
     if(filtros.mes && perfilUsuario) {
@@ -267,6 +294,31 @@ useEffect(() => {
 
   // --- Funções de Ação (CRUD Vendas) ---
   const nomeVendedor = (id) => usuarios.find((u) => u.id === id)?.nome || "Desconhecido";
+
+  const limparFormularioNovaVenda = () => {
+    setNovaVenda((prev) => ({
+      cliente: "",
+      grupo: "",
+      cota: "",
+      administradora: "GAZIN",
+      valor: "",
+      parcela: "cheia",
+      mes: dayjs().format("YYYY-MM"),
+      usuario_id: prev.usuario_id || usuarioAtual?.id || "",
+    }));
+  };
+
+  const abrirModalLancarVenda = () => {
+    limparFormularioNovaVenda();
+    setModalLancarVenda(true);
+  };
+
+  const formatInputMoeda = (txt) => {
+    if (!txt) return '';
+    const valorNumerico = String(txt).replace(/\D/g, '');
+    if (!valorNumerico) return '';
+    return (parseFloat(valorNumerico) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  };
 
   const cadastrarVenda = async () => {
     if (!usuarioAtual) return alert("Usuário não autenticado.");
@@ -296,18 +348,9 @@ useEffect(() => {
 
     // P1 é registrada quando a automação confirmar (persistirMudancaStatusParcela).
 
-    await buscarVendas(perfilUsuario); // Recarrega com filtro
-    setNovaVenda((prev) => ({
-      cliente: "",
-      grupo: "",
-      cota: "",
-      administradora: "GAZIN",
-      valor: "",
-      parcela: "cheia",
-      mes: dayjs().format("YYYY-MM"),
-      usuario_id: prev.usuario_id || usuarioAtual?.id || "",
-    }));
-    setAba("vendas");
+    await buscarVendas(perfilUsuario);
+    limparFormularioNovaVenda();
+    setModalLancarVenda(false);
     alert("Venda cadastrada com sucesso!");
   };
   
@@ -406,14 +449,13 @@ useEffect(() => {
 
   // --- Abas e Renderização ---
   const abas = [
-    { id: 'vendas', label: 'Dashboard de Vendas', icon: <FaChartBar /> },
-    { id: 'ranking', label: 'Ranking', icon: <FaTrophy /> },
-    { id: 'nova_venda', label: 'Nova Venda', icon: <FaPlusCircle /> },
-    { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
-    { id: 'crm', label: 'CRM', icon: <FaUsers /> },
-    { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
-    { id: 'processos', label: 'Processos', icon: <FaClipboard /> },
-    { id: 'acoes', label: 'Ações', icon: <FaCalendarAlt /> },
+    { id: 'vendas', label: 'Controle de Vendas', icon: <FaChartBar /> },
+    { id: 'contempladas', label: 'Cartas Contempladas', icon: <FaChartLine /> },
+    { id: 'hs_cotas', label: 'Controle de Cotas HS', icon: <FaTh /> },
+    { id: 'processos', label: 'Controle de Processos', icon: <FaClipboard /> },
+    { id: 'crm', label: 'Controle de Leads CRM', icon: <FaUsers /> },
+    { id: 'ranking', label: 'Ranking de Vendedores', icon: <FaTrophy /> },
+    { id: 'acoes', label: 'Quadro de Ações', icon: <FaCalendarAlt /> },
   ];
   
   const renderContent = () => {
@@ -436,6 +478,7 @@ useEffect(() => {
         excluirVenda={excluirVenda} 
         handleStatusChange={handleStatusChange}
         comissoesLiberadasMes={comissoesLiberadasMes}
+        onLancarVenda={abrirModalLancarVenda}
       />;
       case 'acoes':
   return <PainelAcoes 
@@ -455,18 +498,9 @@ useEffect(() => {
                 onSave={fetchConfiguracoes}
                 listaFiliais={[]} // Gerente não vê outras filiais
                 filialSelecionadaId={perfilUsuario?.id_filial} // ID da filial do gerente
-                setFilialSelecionadaId={() => {}} // Função vazia, gerente não muda
+                setFilialSelecionadaId={() => {}}
               />;
-      
-      case 'nova_venda': 
-        return <AbaNovaVenda 
-                novaVenda={novaVenda} 
-                setNovaVenda={setNovaVenda} 
-                cadastrarVenda={cadastrarVenda} 
-                usuarios={usuarios} 
-                usuarioAtual={usuarioAtual} 
-              />;
-      
+
       case 'crm': return (
         <PainelCRM
           usuarioId={perfilUsuario?.id}
@@ -481,91 +515,244 @@ useEffect(() => {
   };
   
   // --- JSX Principal ---
-  if (loading) return <LoadingSpinner />;
+  if (loading && !perfilUsuario) return <LoadingSpinner />;
   
   return (
-    <div className="bg-gray-900 text-gray-200 min-h-[100dvh] min-h-screen w-full max-w-[100vw] overflow-x-hidden p-4 sm:p-6 md:p-8">
-      <div className="container mx-auto">
-        
-        {/* --- CABEÇALHO ATUALIZADO --- */}
-        <header className="mb-8">
-          <div className="flex justify-between items-center mb-6">
-              <div>
-                  <h1 className="text-4xl font-bold text-white">Painel do Gerente</h1>
-                  <p className="text-gray-400 mt-1">Gerencie as vendas e o desempenho da sua filial.</p>
-              </div>
-              <div className="flex items-center gap-4">
-                  <button 
-                      onClick={() => setModalContaVisivel(true)}
-                      className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-                  >
-                      <FaUserCircle /> Minha Conta
-                  </button>
-                  <button 
-                      onClick={handleLogout}
-                      className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-                  >
-                      <FaSignOutAlt /> Sair
-                  </button>
-              </div>
+    <div className="bg-gray-900 text-gray-200 h-[100dvh] h-screen w-full max-w-[100vw] overflow-hidden flex">
+      {menuLateralAberto && (
+        <button
+          type="button"
+          aria-label="Fechar menu"
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setMenuLateralAberto(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-64 h-full bg-gray-950 border-r border-gray-800 flex flex-col overflow-hidden transition-transform duration-200 lg:translate-x-0 lg:static lg:z-auto lg:shrink-0 ${
+          menuLateralAberto ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="relative px-4 py-4 border-b border-gray-800 flex items-center justify-center shrink-0">
+          <img src={logoFenix} alt="Fênix Consórcios" className="h-14 w-auto max-w-[15rem] object-contain" />
+          <button
+            type="button"
+            className="absolute right-3 top-1/2 -translate-y-1/2 lg:hidden text-gray-400 hover:text-white p-1"
+            onClick={() => setMenuLateralAberto(false)}
+            aria-label="Fechar menu"
+          >
+            <FaTimes size={18} />
+          </button>
+        </div>
+
+        <nav className="flex-1 min-h-0 overflow-hidden px-3 py-3 space-y-0.5">
+          {abas.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setAba(item.id);
+                salvarAbaPainel(ABA_STORAGE_KEY, item.id);
+                setMenuLateralAberto(false);
+              }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm font-semibold transition-colors ${
+                aba === item.id
+                  ? 'bg-indigo-500/15 text-indigo-300'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-gray-100'
+              }`}
+            >
+              <span className="text-sm shrink-0">{item.icon}</span>
+              <span className="truncate">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-3 border-t border-gray-800 space-y-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setModalContaVisivel(true);
+              setMenuLateralAberto(false);
+            }}
+            className="w-full bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 text-sm"
+          >
+            <FaUserCircle /> Minha Conta
+          </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 text-sm"
+          >
+            <FaSignOutAlt /> Sair
+          </button>
+        </div>
+      </aside>
+
+      <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
+        <div className="lg:hidden shrink-0 bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center">
+          <button
+            type="button"
+            className="p-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700"
+            onClick={() => setMenuLateralAberto(true)}
+            aria-label="Abrir menu"
+          >
+            <FaBars size={18} />
+          </button>
+        </div>
+
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-3 sm:p-4 md:p-5">
+          <div className="w-full min-w-0 max-w-none">
+            <LembretesLeads />
+            <div className="mt-3">{renderContent()}</div>
           </div>
-          <nav className="mt-6 flex flex-wrap gap-2 border-b border-gray-700 pb-2">
-              {abas.map((item) => (
-                  <button 
-                    key={item.id} 
-                    onClick={() => setAba(item.id)} 
-                    className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-semibold transition-all ${aba === item.id ? 'bg-gray-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:bg-gray-700/50'}`}
-                  >
-                    {item.icon} {item.label}
-                  </button>
-              ))}
-          </nav>
-        </header>
-        {/* --- FIM DO CABEÇALHO --- */}
-        
-        {aba === 'vendas' && (
-          <div className="mt-5 mb-4 print:hidden">
-            <h2 className="text-xl font-bold text-white">Relatório Geral</h2>
-          </div>
-        )}
-        <LembretesLeads />
-        <div className="mt-6">{renderContent()}</div>
-        
-        {perfilUsuario && <LembreteAcaoDiaria usuario={perfilUsuario} />}
-        {/* --- MODAL DA CONTA (CORRIGIDO) --- */}
-        {modalContaVisivel && perfilUsuario && (
-            <MinhaContaModal 
-                usuario={perfilUsuario} // Passa o perfil completo
-                onClose={() => setModalContaVisivel(false)}
-                onUpdate={() => {
-                    // Recarrega os dados do perfil após a atualização
-                    const reFetchProfile = async () => {
-                        const { data: { user } } = await supabase.auth.getUser();
-                        if (user) {
-                            const { data: perfilData } = await supabase
-                              .from('usuarios_custom')
-                              .select('*') // Pega tudo (incluindo a nova foto_url/telefone)
-                              .eq('id', user.id)
-                              .single();
-                            if (perfilData) setPerfilUsuario(perfilData); // Atualiza o perfil
-                        }
-                    };
-                    reFetchProfile();
-                    // Recarrega a lista de usuários da filial (caso o gerente mude o nome, etc.)
-                    if(perfilUsuario) buscarUsuarios(perfilUsuario); 
-                }}
-            />
-        )}
-        {/* --- FIM DO MODAL --- */}
-        
+        </main>
       </div>
+
+      {perfilUsuario && <LembreteAcaoDiaria usuario={perfilUsuario} />}
+
+      {modalContaVisivel && perfilUsuario && (
+        <MinhaContaModal
+          usuario={perfilUsuario}
+          onClose={() => setModalContaVisivel(false)}
+          onUpdate={() => {
+            const reFetchProfile = async () => {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                const { data: perfilData } = await supabase
+                  .from('usuarios_custom')
+                  .select('*')
+                  .eq('id', user.id)
+                  .single();
+                if (perfilData) setPerfilUsuario(perfilData);
+              }
+            };
+            reFetchProfile();
+            if (perfilUsuario) buscarUsuarios(perfilUsuario);
+          }}
+        />
+      )}
+
+      {modalLancarVenda && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in">
+            <header className="px-4 py-3 flex justify-between items-center border-b border-gray-700">
+              <h3 className="text-base font-semibold flex items-center gap-2 text-white">
+                <FaPlus className="text-indigo-400" /> Lançar Venda
+              </h3>
+              <button
+                type="button"
+                onClick={() => { setModalLancarVenda(false); limparFormularioNovaVenda(); }}
+                className="p-1.5 text-gray-500 hover:text-white rounded-full"
+              >
+                <FaTimes size={16} />
+              </button>
+            </header>
+
+            <div className="p-4 space-y-3">
+              <div>
+                <label className={labelClass}>Lançar para o vendedor</label>
+                <select
+                  className={campoClass}
+                  value={novaVenda.usuario_id}
+                  onChange={(e) => setNovaVenda({ ...novaVenda, usuario_id: e.target.value })}
+                >
+                  <option value={usuarioAtual?.id}>Lançar para mim ({usuarioAtual?.email?.split('@')[0]})</option>
+                  {usuarios.filter((u) => u.id !== usuarioAtual?.id).map((u) => (
+                    <option key={u.id} value={u.id}>{u.nome}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>Cliente</label>
+                  <input
+                    placeholder="Nome do cliente"
+                    className={campoClass}
+                    value={novaVenda.cliente}
+                    onChange={(e) => setNovaVenda({ ...novaVenda, cliente: e.target.value.toUpperCase() })}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Valor do crédito</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0,00"
+                    className={`${campoClass} tabular-nums`}
+                    value={novaVenda.valor}
+                    onChange={(e) => setNovaVenda({ ...novaVenda, valor: formatInputMoeda(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Parcela</label>
+                  <select
+                    className={campoClass}
+                    value={novaVenda.parcela}
+                    onChange={(e) => setNovaVenda({ ...novaVenda, parcela: e.target.value })}
+                  >
+                    <option value="cheia">Cheia</option>
+                    <option value="meia">Meia</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Grupo</label>
+                  <input
+                    placeholder="Grupo"
+                    className={campoClass}
+                    value={novaVenda.grupo}
+                    onChange={(e) => setNovaVenda({ ...novaVenda, grupo: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Cota</label>
+                  <input
+                    placeholder="Cota"
+                    className={campoClass}
+                    value={novaVenda.cota}
+                    onChange={(e) => setNovaVenda({ ...novaVenda, cota: e.target.value })}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>Administradora</label>
+                  <select
+                    className={campoClass}
+                    value={novaVenda.administradora}
+                    onChange={(e) => setNovaVenda({ ...novaVenda, administradora: e.target.value })}
+                  >
+                    <option value="GAZIN">GAZIN</option>
+                    <option value="HS">HS</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <footer className="px-4 py-3 flex justify-end gap-2 border-t border-gray-700">
+              <button
+                type="button"
+                onClick={() => { setModalLancarVenda(false); limparFormularioNovaVenda(); }}
+                className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md text-sm font-semibold text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={cadastrarVenda}
+                className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 text-white"
+              >
+                <FaSave size={14} /> Salvar venda
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 
 // --- Componente da Aba de Vendas (Dashboard) ---
-const AbaVendas = ({ vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodos, totalComissaoVendedor, totalVendidoGAZIN, totalVendidoHS, valorFaltanteParaMeta, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes }) => {
+const AbaVendas = ({ vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodos, totalComissaoVendedor, totalVendidoGAZIN, totalVendidoHS, valorFaltanteParaMeta, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, comissoesLiberadasMes, onLancarVenda }) => {
     const dMes = dayjsMesRef(filtros.mes);
     const mesSelecionadoLabel = dMes.format('MMMM [de] YYYY');
     const faltaParaMetaClamped = valorFaltanteParaMeta > 0 ? valorFaltanteParaMeta : 0;
@@ -641,85 +828,93 @@ const AbaVendas = ({ vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodo
         </div>
     );
 
+    const cardClass = 'bg-gray-800/40 border border-gray-700/50 rounded-lg px-3 py-2.5';
+    const valueClass = 'text-base sm:text-lg font-bold text-white mt-0.5 tabular-nums';
+    const titleClass = 'text-xs text-gray-400 font-medium';
+    const subtitleClass = 'text-[10px] text-gray-500 mt-1 leading-snug';
+
     return (
-    <div className="animate-fade-in space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 print:hidden">
-            <StatCard icon={<FaDollarSign size={24} />} label={`Total Vendido em ${mesSelecionadoLabel}`} value={totalMesTodos} color="bg-green-500/20 text-green-400" />
-            <StatCard
-              icon={<FaBullseye size={24} />}
-              label={`Valor faltante para atingir a meta de ${mesLabel}`}
-              value={faltaParaMetaClamped}
-              color={faltaParaMetaClamped > 0 ? "bg-red-500/20 text-red-400" : "bg-green-500/20"}
-            />
-            <StatCard icon={<FaDollarSign size={24} />} label={`Total Vendido GAZIN em ${mesSelecionadoLabel}`} value={totalVendidoGAZIN} color="bg-indigo-500/20 text-indigo-300" />
-            <StatCard icon={<FaDollarSign size={24} />} label={`Total Vendido HS em ${mesSelecionadoLabel}`} value={totalVendidoHS} color="bg-purple-500/20 text-purple-300" />
+    <div className="animate-fade-in space-y-4">
+        <div>
+            <h2 className="text-sm font-semibold text-gray-300 mb-2">Relatório Geral</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5 print:hidden">
+                <StatCard icon={<FaDollarSign size={16} />} label={`Total vendido em ${mesSelecionadoLabel}`} value={totalMesTodos} color="bg-green-500/20 text-green-400" />
+                <StatCard
+                  icon={<FaBullseye size={16} />}
+                  label={`Falta para meta de ${mesLabel}`}
+                  value={faltaParaMetaClamped}
+                  color={faltaParaMetaClamped > 0 ? "bg-red-500/20 text-red-400" : "bg-green-500/20"}
+                />
+                <StatCard icon={<FaDollarSign size={16} />} label={`Vendido GAZIN — ${mesSelecionadoLabel}`} value={totalVendidoGAZIN} color="bg-indigo-500/20 text-indigo-300" />
+                <StatCard icon={<FaDollarSign size={16} />} label={`Vendido HS — ${mesSelecionadoLabel}`} value={totalVendidoHS} color="bg-purple-500/20 text-purple-300" />
+            </div>
         </div>
 
         <div className="print:hidden">
-          <h2 className="text-xl font-bold text-white">Relatório por Vendedor</h2>
+          <h2 className="text-sm font-semibold text-gray-300 mb-2">Relatório por Vendedor</h2>
           {vendedorSelecionadoId ? (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                <p className="text-sm text-gray-400 font-semibold"><FaDollarSign className="inline-block mr-2" />{`TOTAL VENDIDO MÊS DE ${mesNomeUpper}`}</p>
-                <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalVendidoMes)}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              <div className={cardClass}>
+                <p className={titleClass}><FaDollarSign className="inline-block mr-1.5" size={11} />Total vendido — {mesNomeUpper}</p>
+                <p className={valueClass}>{formatarMoeda(totaisVendedorParaPrint.totalVendidoMes)}</p>
               </div>
-              <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                <p className="text-sm text-gray-400 font-semibold"><FaFileInvoiceDollar className="inline-block mr-2" />TOTAL DE COMISSÃO P1</p>
-                <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP1)}</p>
-                <p className="text-[11px] text-gray-400 mt-2 leading-snug">{subtituloComissaoP1}</p>
+              <div className={cardClass}>
+                <p className={titleClass}><FaFileInvoiceDollar className="inline-block mr-1.5" size={11} />Comissão P1</p>
+                <p className={valueClass}>{formatarMoeda(totaisVendedorParaPrint.totalComissaoP1)}</p>
+                <p className={subtitleClass}>{subtituloComissaoP1}</p>
               </div>
-              <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                <p className="text-sm text-gray-400 font-semibold"><FaChartLine className="inline-block mr-2" />TOTAL DE COMISSÃO LIBERADA EM P2</p>
-                <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP2Liberada)}</p>
-                <p className="text-[11px] text-gray-400 mt-2 leading-snug">Esse valor é sua comissão de clientes que pagaram a 2º parcela das vendas anteriores</p>
+              <div className={cardClass}>
+                <p className={titleClass}><FaHandHoldingUsd className="inline-block mr-1.5" size={11} />Comissão P2 liberada</p>
+                <p className={valueClass}>{formatarMoeda(totaisVendedorParaPrint.totalComissaoP2Liberada)}</p>
+                <p className={subtitleClass}>Comissão de clientes que pagaram a 2ª parcela</p>
               </div>
-              <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                <p className="text-sm text-gray-400 font-semibold"><FaChartLine className="inline-block mr-2" />TOTAL DE COMISSÃO LIBERADA EM P3</p>
-                <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP3Liberada)}</p>
-                <p className="text-[11px] text-gray-400 mt-2 leading-snug">Esse valor é sua comissão de clientes que pagaram a 3º parcela das vendas anteriores</p>
+              <div className={cardClass}>
+                <p className={titleClass}><FaHandHoldingUsd className="inline-block mr-1.5" size={11} />Comissão P3 liberada</p>
+                <p className={valueClass}>{formatarMoeda(totaisVendedorParaPrint.totalComissaoP3Liberada)}</p>
+                <p className={subtitleClass}>Comissão de clientes que pagaram a 3ª parcela</p>
               </div>
-              <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                <p className="text-sm text-gray-400 font-semibold flex items-center gap-2 flex-wrap">
-                  <FaExclamationTriangle className="inline-block" />TOTAL DE ESTORNO
+              <div className={cardClass}>
+                <p className={`${titleClass} flex items-center gap-1.5 flex-wrap`}>
+                  <FaExclamationTriangle className="inline-block" size={11} />Estorno
                   <button
                     type="button"
-                    title="Ver detalhes dos estornos conferidos neste mês"
+                    title="Ver detalhes dos estornos"
                     onClick={() => setModalEstornoAberto(true)}
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/40 font-bold text-sm"
+                    className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/40 font-bold text-[10px]"
                   >
                     !
                   </button>
                 </p>
-                <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalEstorno)}</p>
-                <p className="text-[11px] text-gray-400 mt-2 leading-snug">{subtituloEstornoCard}</p>
+                <p className={valueClass}>{formatarMoeda(totaisVendedorParaPrint.totalEstorno)}</p>
+                <p className={subtitleClass}>{subtituloEstornoCard}</p>
               </div>
-              <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                <p className="text-sm text-gray-400 font-semibold"><FaUserTie className="inline-block mr-2" />TOTAL À RECEBER</p>
-                <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalAPagar)}</p>
-                <p className="text-[11px] text-gray-400 mt-2 leading-snug">{subtituloTotalReceber}</p>
+              <div className={cardClass}>
+                <p className={titleClass}><FaLandmark className="inline-block mr-1.5" size={11} />Total a receber</p>
+                <p className={valueClass}>{formatarMoeda(totaisVendedorParaPrint.totalAPagar)}</p>
+                <p className={subtitleClass}>{subtituloTotalReceber}</p>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-400 mt-3">Selecione um vendedor nos filtros acima para ver o relatório.</p>
+            <p className="text-xs text-gray-400">Selecione um vendedor nos filtros abaixo para ver o relatório.</p>
           )}
         </div>
 
         {modalEstornoAberto && vendedorSelecionadoId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 print:hidden">
-            <div className="bg-gray-800 border border-gray-600 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl">
+            <div className="bg-gray-800 border border-gray-700 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl">
               <div className="flex justify-between items-center px-4 py-3 border-b border-gray-700">
-                <h3 className="text-lg font-bold text-white">Estornos em {mesLabel}</h3>
-                <button type="button" onClick={() => setModalEstornoAberto(false)} className="text-gray-400 hover:text-white text-xl px-2">&times;</button>
+                <h3 className="text-sm font-semibold text-white">Estornos em {mesLabel}</h3>
+                <button type="button" onClick={() => setModalEstornoAberto(false)} className="p-1 text-gray-400 hover:text-white"><FaTimes size={14} /></button>
               </div>
-              <div className="p-4 overflow-y-auto max-h-[60vh] text-sm">
+              <div className="p-3 overflow-y-auto max-h-[60vh] text-xs">
                 {(totaisVendedorParaPrint.itensEstorno || []).length === 0 ? (
                   <p className="text-gray-400">Nenhum estorno (P2–P5) conferido neste mês para este vendedor.</p>
                 ) : (
-                  <ul className="space-y-3">
+                  <ul className="space-y-2">
                     {totaisVendedorParaPrint.itensEstorno.map((it, idx) => (
-                      <li key={`${it.vendaId}-${it.parcela}-${idx}`} className="border border-gray-700 rounded-lg p-3 bg-gray-900/50">
-                        <p className="font-semibold text-white">{(it.cliente || '').toUpperCase()}</p>
-                        <p className="text-gray-400 text-xs mt-1">Parcela com estorno: P{it.parcela} · Valor P1 estornado: {formatarMoeda(it.valorEstornoComissaoP1)}</p>
+                      <li key={`${it.vendaId}-${it.parcela}-${idx}`} className="border border-gray-700 rounded-md p-2.5 bg-gray-900/40">
+                        <p className="font-semibold text-white text-sm">{(it.cliente || '').toUpperCase()}</p>
+                        <p className="text-gray-400 text-[11px] mt-0.5">P{it.parcela} · {formatarMoeda(it.valorEstornoComissaoP1)}</p>
                       </li>
                     ))}
                   </ul>
@@ -777,133 +972,118 @@ const AbaVendas = ({ vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodo
             )}
         </div>
         
-        <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6 print:hidden">
+        <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 p-3 print:hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 pb-3 border-b border-gray-700/60">
+                <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-1.5">
+                  <FaFilter size={12} /> Lançamentos de Vendas
+                </h3>
+                <button
+                  type="button"
+                  onClick={onLancarVenda}
+                  className="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 text-white shrink-0"
+                >
+                  <FaPlus size={11} /> Lançar Venda
+                </button>
+            </div>
 
-            <div className="flex flex-wrap items-center gap-4 mb-6 pb-6 border-b border-gray-700">
-                <h2 className="text-xl font-semibold flex items-center gap-2 whitespace-nowrap"><FaFilter /> Filtros</h2>
-                <select value={filtros.vendedor} onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500">
-                    {/* // --- ERRO CORRIGIDO AQUI --- */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+                <select value={filtros.vendedor} onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600 focus:ring-1 focus:ring-indigo-500 outline-none">
                     <option value="">Todos os Vendedores</option>
-                    {/* // --- FIM DA CORREÇÃO --- */}
                     {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
                 </select>
-                <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500" />
-                <select value={filtros.administradora} onChange={(e) => setFiltros({ ...filtros, administradora: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500">
+                <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600 focus:ring-1 focus:ring-indigo-500 outline-none" />
+                <select value={filtros.administradora} onChange={(e) => setFiltros({ ...filtros, administradora: e.target.value })} className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600 focus:ring-1 focus:ring-indigo-500 outline-none">
                     <option value="">Todas Administradoras</option>
                     <option value="HS">HS</option><option value="GAZIN">GAZIN</option>
                 </select>
             </div>
             
-            <div>
-                <h3 className="text-xl font-bold mb-4 text-white">Lançamentos de Vendas</h3>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm text-left">
-                        <thead className="border-b border-gray-700"><tr className="text-gray-400 uppercase">
-                            <th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Produto</th><th className="px-4 py-3">Valor</th><th className="px-4 py-3">Vendedor</th><th className="px-4 py-3 text-center">Comissões</th><th className="px-4 py-3 text-center">Ações</th>
-                        </tr></thead>
-                        <tbody>
-                            {vendasFiltradas.length > 0 ? vendasFiltradas.map((venda) => (
-                                <tr key={venda.id} className="border-b border-gray-700/50 hover:bg-gray-700/50 transition-colors">
-                                    {editandoId === venda.id ? (
-                                        <>
-                                          <td className="p-2"><input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-2 rounded w-full"/></td>
-                                          <td className="p-2 space-y-2">
-                                              <input placeholder="Admin" value={vendaEditada.administradora || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-                                              <input placeholder="Grupo" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-                                              <input placeholder="Cota" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-                                              <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-2 rounded w-full">
-                                                  <option value="cheia">Parcela Cheia</option>
-                                                  <option value="meia">Parcela Meia</option>
-                                              </select>
-                                          </td>
-                                          <td className="p-2"><input type="number" value={vendaEditada.valor || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, valor: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
-                                          <td className="p-2">{nomeVendedor(venda.usuario_id)}</td>
-                                          <td className="p-2 text-center">-</td>
-                                          <td className="p-2">
-                                              <div className="flex gap-2 justify-center">
-                                                  <button onClick={salvarEdicao} className="p-2 text-green-400 hover:text-green-300"><FaSave size={18} /></button>
-                                                  <button onClick={() => setEditandoId(null)} className="p-2 text-gray-400 hover:text-gray-200"><FaTimes size={18} /></button>
-                                              </div>
-                                          </td>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <td className="px-4 py-3 font-medium">{venda.cliente.toUpperCase()}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex flex-col">
-                                                    <div><span className="font-semibold">{venda.administradora}</span><span className="text-xs text-gray-400 ml-2">G: {venda.grupo} / C: {venda.cota}</span></div>
-                                                    <div className="mt-1.5"><span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${isParcelaCheia(venda) ? 'bg-blue-900/70 text-blue-300' : 'bg-yellow-900/70 text-yellow-300'}`}>{isParcelaCheia(venda) ? 'Parcela Cheia' : 'Parcela Meia'}</span></div>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 text-green-400 font-semibold">{parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
-                                            <td className="px-4 py-3">{nomeVendedor(venda.usuario_id)}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
-                                                    {[1, 2, 3, 4, 5].map((i) => {
-                                                        const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
-                                                        let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
-                                                        if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
-                                                        if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
-                                                        if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
-                                                        if (statusAtual === 'CANCELADO') corSeletor = 'bg-gray-600 border-gray-500 text-gray-200';
+            <div className="overflow-x-auto min-w-0">
+                <table className="w-full min-w-[720px] text-xs text-left">
+                    <thead className="border-b border-gray-700">
+                      <tr className="text-gray-400 uppercase tracking-wide">
+                        <th className="px-2 py-2">Cliente</th>
+                        <th className="px-2 py-2">Produto</th>
+                        <th className="px-2 py-2">Valor</th>
+                        <th className="px-2 py-2">Vendedor</th>
+                        <th className="px-2 py-2 text-center">Comissões</th>
+                        <th className="px-2 py-2 text-center">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                        {vendasFiltradas.length > 0 ? vendasFiltradas.map((venda) => (
+                            <tr key={venda.id} className="border-b border-gray-700/50 hover:bg-gray-700/40 transition-colors">
+                                {editandoId === venda.id ? (
+                                    <>
+                                      <td className="p-1.5"><input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-1.5 rounded w-full text-xs"/></td>
+                                      <td className="p-1.5 space-y-1">
+                                          <input placeholder="Admin" value={vendaEditada.administradora || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-1.5 rounded w-full text-xs"/>
+                                          <input placeholder="Grupo" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-1.5 rounded w-full text-xs"/>
+                                          <input placeholder="Cota" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-1.5 rounded w-full text-xs"/>
+                                          <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-1.5 rounded w-full text-xs">
+                                              <option value="cheia">Cheia</option>
+                                              <option value="meia">Meia</option>
+                                          </select>
+                                      </td>
+                                      <td className="p-1.5"><input type="number" value={vendaEditada.valor || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, valor: e.target.value })} className="bg-gray-600 p-1.5 rounded w-full text-xs"/></td>
+                                      <td className="p-1.5">{nomeVendedor(venda.usuario_id)}</td>
+                                      <td className="p-1.5 text-center">-</td>
+                                      <td className="p-1.5">
+                                          <div className="flex gap-1 justify-center">
+                                              <button type="button" onClick={salvarEdicao} className="p-1.5 text-green-400 hover:text-green-300"><FaSave size={14} /></button>
+                                              <button type="button" onClick={() => setEditandoId(null)} className="p-1.5 text-gray-400 hover:text-gray-200"><FaTimes size={14} /></button>
+                                          </div>
+                                      </td>
+                                    </>
+                                ) : (
+                                    <>
+                                        <td className="px-2 py-2 font-medium">{venda.cliente.toUpperCase()}</td>
+                                        <td className="px-2 py-2">
+                                            <div className="flex flex-col gap-0.5">
+                                                <div><span className="font-semibold">{venda.administradora}</span><span className="text-[10px] text-gray-400 ml-1.5">G:{venda.grupo} / C:{venda.cota}</span></div>
+                                                <span className={`inline-block w-fit px-1.5 py-0.5 text-[10px] font-medium rounded ${isParcelaCheia(venda) ? 'bg-blue-900/70 text-blue-300' : 'bg-yellow-900/70 text-yellow-300'}`}>{isParcelaCheia(venda) ? 'Cheia' : 'Meia'}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-2 py-2 text-green-400 font-semibold tabular-nums">{parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
+                                        <td className="px-2 py-2">{nomeVendedor(venda.usuario_id)}</td>
+                                        <td className="px-2 py-2">
+                                            <div className="flex flex-wrap gap-1 justify-center items-center">
+                                                {[1, 2, 3, 4, 5].map((i) => {
+                                                    const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
+                                                    let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
+                                                    if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
+                                                    if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
+                                                    if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
+                                                    if (statusAtual === 'CANCELADO') corSeletor = 'bg-gray-600 border-gray-500 text-gray-200';
 
-                                                        return (
-                                                            <select 
-                                                                key={i}
-                                                                value={statusAtual}
-                                                                onChange={(e) => handleStatusChange(venda, i, e.target.value)}
-                                                                className={`p-1 text-xs rounded-md border focus:ring-2 focus:ring-indigo-400 font-medium ${corSeletor}`}
-                                                            >
-                                                                {STATUS_OPCOES.map(opt => <option key={opt} value={opt}>{`P${i}: ${opt}`}</option>)}
-                                                            </select>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3"><div className="flex gap-3 justify-center"><button onClick={() => editarVenda(venda)} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={18} /></button><button onClick={() => excluirVenda(venda.id)} className="p-2 text-red-500 hover:text-red-400"><FaTrash size={18} /></button></div></td>
-                                        </>
-                                    )}
-                                </tr>
-                            )) : <EmptyStateRow message="Nenhuma venda encontrada para os filtros aplicados" colSpan={6} />}
-                        </tbody>
-                    </table>
-                </div>
+                                                    return (
+                                                        <select 
+                                                            key={i}
+                                                            value={statusAtual}
+                                                            onChange={(e) => handleStatusChange(venda, i, e.target.value)}
+                                                            className={`p-0.5 text-[10px] rounded border focus:ring-1 focus:ring-indigo-400 font-medium ${corSeletor}`}
+                                                        >
+                                                            {STATUS_OPCOES.map(opt => <option key={opt} value={opt}>{`P${i}: ${opt}`}</option>)}
+                                                        </select>
+                                                    );
+                                                })}
+                                            </div>
+                                        </td>
+                                        <td className="px-2 py-2">
+                                          <div className="flex gap-1 justify-center">
+                                            <button type="button" onClick={() => editarVenda(venda)} className="p-1.5 text-blue-400 hover:text-blue-300"><FaEdit size={14} /></button>
+                                            <button type="button" onClick={() => excluirVenda(venda.id)} className="p-1.5 text-red-500 hover:text-red-400"><FaTrash size={14} /></button>
+                                          </div>
+                                        </td>
+                                    </>
+                                )}
+                            </tr>
+                        )) : <EmptyStateRow message="Nenhuma venda encontrada para os filtros aplicados" colSpan={6} />}
+                    </tbody>
+                </table>
             </div>
-        </main>
-    </div>
-    );
-};
-
-
-// --- Componente da Aba de Nova Venda ---
-const AbaNovaVenda = ({ novaVenda, setNovaVenda, cadastrarVenda, usuarios, usuarioAtual }) => {
-    const formatInputMoeda = (txt) => {
-        if (!txt) return '';
-        const valorNumerico = String(txt).replace(/\D/g, '');
-        if (!valorNumerico) return '';
-        return (parseFloat(valorNumerico) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-    };
-    
-    return (
-        <div className="bg-gray-800/50 rounded-xl shadow-2xl p-6 mt-8 max-w-4xl mx-auto animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-3"><FaPlusCircle /> Cadastrar Nova Venda</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                <div className="lg:col-span-3">
-                    <label className="block mb-1 text-sm font-medium text-gray-400">Lançar para o vendedor:</label>
-                    <select className="w-full bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500" value={novaVenda.usuario_id} onChange={(e) => setNovaVenda({ ...novaVenda, usuario_id: e.target.value })}>
-                        <option value={usuarioAtual?.id}>Lançar para mim ({usuarioAtual?.email.split('@')[0]})</option>
-                        {usuarios.filter(u => u.id !== usuarioAtual?.id).map(u => (<option key={u.id} value={u.id}>{u.nome}</option>))}
-                    </select>
-                </div>
-                <input placeholder="Nome do Cliente" className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.cliente} onChange={(e) => setNovaVenda({ ...novaVenda, cliente: e.target.value.toUpperCase() })} required/>
-                <input placeholder="Valor do Crédito" type="text" className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.valor} onChange={(e) => setNovaVenda({ ...novaVenda, valor: formatInputMoeda(e.target.value) })} required/>
-                <select className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.parcela} onChange={(e) => setNovaVenda({ ...novaVenda, parcela: e.target.value })}><option value="cheia">Parcela Cheia</option><option value="meia">Parcela Meia</option></select>
-                <input placeholder="Grupo" className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.grupo} onChange={(e) => setNovaVenda({ ...novaVenda, grupo: e.target.value })} required/>
-                <input placeholder="Cota" className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.cota} onChange={(e) => setNovaVenda({ ...novaVenda, cota: e.target.value })} required/>
-                <select className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.administradora} onChange={(e) => setNovaVenda({ ...novaVenda, administradora: e.target.value })}><option value="GAZIN">GAZIN</option><option value="HS">HS</option></select>
-            </div>
-            <button onClick={cadastrarVenda} className="mt-6 bg-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-all flex items-center gap-2"><FaSave /> Salvar Venda</button>
         </div>
+    </div>
     );
 };
 
@@ -912,7 +1092,8 @@ const AbaNovaVenda = ({ novaVenda, setNovaVenda, cadastrarVenda, usuarios, usuar
 const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, configuracoes: initialConfig, onSave, listaFiliais, filialSelecionadaId, setFilialSelecionadaId }) => {
     const [config, setConfig] = useState(initialConfig);
     const [modalConfigVisivel, setModalConfigVisivel] = useState(false);
-    const [selecaoDupla, setSelecaoDupla] = useState([]);
+    const [modalWhatsappVisivel, setModalWhatsappVisivel] = useState(false);
+    const [selecaoDupla, setSelecaoDupla] = useState(['', '']);
     const [textoRanking, setTextoRanking] = useState('');
 
     useEffect(() => {
@@ -944,22 +1125,29 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
     const vendidoGeral = useMemo(() => rankingIndividual.reduce((acc, v) => acc + v.vendido, 0), [rankingIndividual]);
     const faltaParaMeta = useMemo(() => (config.meta_geral || 0) - vendidoGeral, [config.meta_geral, vendidoGeral]);
 
-    const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
-        const medalhas = ['🥇', '🥈', '🥉'];
-        const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold">{posicao + 1}º</span>;
-        return (
-            <div className={`p-4 rounded-xl flex items-center justify-between transition-all ${isCurrentUser ? 'bg-indigo-600/30 ring-2 ring-indigo-500' : 'bg-gray-800'}`}>
-                <div className="flex items-center gap-4"><span className="text-2xl w-8 text-center">{prefixo}</span><span className={`font-bold ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{nome}</span></div>
-                <span className="font-bold text-lg text-green-400">{valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-            </div>
-        );
+    const vendedoresDisponiveis = useMemo(() => {
+        const emDupla = new Set((config.duplas || []).flat());
+        return usuarios
+          .filter((u) => u.nome && !emDupla.has(u.nome))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    }, [usuarios, config.duplas]);
+
+    const nomeCurto = (nomeCompleto = '') => {
+        const partes = String(nomeCompleto).trim().split(/\s+/).filter(Boolean);
+        if (partes.length === 0) return '';
+        const formatar = (p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+        if (partes.length === 1) return formatar(partes[0]);
+        return `${formatar(partes[0])} ${formatar(partes[partes.length - 1])}`;
     };
 
+    const formatarDuplaCurta = (membros = []) =>
+        membros.map(nomeCurto).filter(Boolean).join(' e ');
+
     const adicionarDupla = () => {
-        if (selecaoDupla.length !== 2) return;
-        const novaListaDuplas = [...(config.duplas || []), selecaoDupla];
-        setConfig({ ...config, duplas: novaListaDuplas });
-        setSelecaoDupla([]);
+        const [p1, p2] = selecaoDupla;
+        if (!p1 || !p2 || p1 === p2) return;
+        setConfig({ ...config, duplas: [...(config.duplas || []), [p1, p2]] });
+        setSelecaoDupla(['', '']);
     };
 
     const removerDupla = (indexParaRemover) => {
@@ -1033,104 +1221,193 @@ const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, conf
     const copiarParaClipboard = () => { navigator.clipboard.writeText(textoRanking); alert('Ranking copiado!'); };
 
     return (
-        <div className="animate-fade-in space-y-8">
-            <div className="flex flex-wrap items-center gap-4 p-4 bg-gray-800/50 rounded-xl">
-                <h3 className="text-xl font-bold flex items-center gap-2"><FaFilter /> Visualizar Dados de:</h3>
-                <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="w-full md:w-auto bg-gray-700 p-3 rounded-lg border border-gray-600" />
-                {/* O gerente não pode trocar de filial, ele vê apenas a dele */}
+        <div className="animate-fade-in space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/40">
+                <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-1.5 text-gray-300">
+                      <FaFilter size={12} /> Ranking de
+                    </h3>
+                    <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600" />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setModalWhatsappVisivel(true)}
+                        className="bg-green-600 hover:bg-green-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+                    >
+                        <FaWhatsapp size={12} /> WhatsApp
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setModalConfigVisivel(true)}
+                        className="bg-gray-700 hover:bg-gray-600 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+                    >
+                        <FaCogs size={12} /> Metas e Duplas
+                    </button>
+                </div>
             </div>
 
-            <div className="flex justify-end">
-                <button 
-                    onClick={() => setModalConfigVisivel(true)}
-                    className="bg-gray-700 hover:bg-gray-600 px-5 py-2 rounded-lg font-semibold flex items-center gap-2"
-                >
-                    <FaCogs /> Configurar Metas e Duplas
-                </button>
-            </div>
+            {modalWhatsappVisivel && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+                    <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl border border-gray-700 animate-fade-in">
+                        <header className="px-4 py-3 flex justify-between items-center border-b border-gray-700">
+                            <h3 className="text-base font-semibold flex items-center gap-2 text-white">
+                                <FaWhatsapp className="text-green-400" /> Pré-visualização do Ranking
+                            </h3>
+                            <button type="button" onClick={() => setModalWhatsappVisivel(false)} className="p-1.5 text-gray-500 hover:text-white rounded-full">
+                                <FaTimes size={16} />
+                            </button>
+                        </header>
+                        <div className="p-4">
+                            <textarea readOnly value={textoRanking} className="w-full h-64 bg-gray-900/50 p-2.5 rounded-lg text-xs font-mono whitespace-pre-wrap border border-gray-700" />
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                <button type="button" onClick={copiarParaClipboard} className="bg-blue-600 hover:bg-blue-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5">
+                                    <FaClipboard size={12} /> Copiar Ranking
+                                </button>
+                                <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(textoRanking)}`} target="_blank" rel="noopener noreferrer" className="bg-green-600 hover:bg-green-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5">
+                                    <FaWhatsapp size={12} /> Enviar no WhatsApp
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
             
             {modalConfigVisivel && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-                    <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl border border-gray-700 animate-fade-in">
-                        <header className="p-4 flex justify-between items-center border-b border-gray-700">
-                            <h3 className="text-lg font-semibold flex items-center gap-2"><FaCogs /> Configurações de {dayjs(filtros.mes).format('MMMM')}</h3>
-                            <button onClick={() => setModalConfigVisivel(false)} className="p-2 text-gray-500 hover:text-white rounded-full"><FaTimes size={20} /></button>
+                    <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in">
+                        <header className="px-4 py-3 flex justify-between items-center border-b border-gray-700">
+                            <h3 className="text-base font-semibold flex items-center gap-2 text-white">
+                              <FaCogs className="text-indigo-400" /> Metas e Duplas — {dayjs(filtros.mes).format('MMMM YYYY')}
+                            </h3>
+                            <button type="button" onClick={() => setModalConfigVisivel(false)} className="p-1.5 text-gray-500 hover:text-white rounded-full">
+                              <FaTimes size={16} />
+                            </button>
                         </header>
-                        <div className="p-6 grid md:grid-cols-2 gap-6">
+                        <div className="p-4 space-y-4">
                             <div>
-                                <label className="block mb-1 text-sm font-medium text-gray-400">Meta Geral do Escritório (R$)</label>
-                                <input type="number" value={config.meta_geral || ''} onChange={e => setConfig({...config, meta_geral: parseFloat(e.target.value) || 0})} className="w-full bg-gray-700 p-3 rounded-lg border border-gray-600" />
+                                <label className={labelClass}>Meta geral do escritório</label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">R$</span>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={
+                                      config.meta_geral
+                                        ? Number(config.meta_geral).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                        : ''
+                                    }
+                                    onChange={(e) => {
+                                      const digits = String(e.target.value).replace(/\D/g, '');
+                                      const valor = digits ? parseFloat(digits) / 100 : 0;
+                                      setConfig({ ...config, meta_geral: valor });
+                                    }}
+                                    className="w-full bg-gray-900/60 pl-10 pr-3 py-2.5 rounded-lg border border-gray-600 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    placeholder="0,00"
+                                  />
+                                </div>
                             </div>
                             <div>
-                                <label className="block mb-1 text-sm font-medium text-gray-400">Formar Duplas para o Mês</label>
-                                <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
-                                    <div className="mb-4 space-y-2">
-                                        {config.duplas && config.duplas.map((dupla, index) => (
-                                            <div key={index} className="flex justify-between items-center bg-gray-800 p-2 rounded">
-                                                <span>{dupla.join(' e ')}</span>
-                                                <button onClick={() => removerDupla(index)} className="text-red-500 hover:text-red-400"><FaTimes /></button>
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className={labelClass}>Duplas do mês</label>
+                                  <span className="text-xs text-gray-500">{(config.duplas || []).length} formada{(config.duplas || []).length === 1 ? '' : 's'}</span>
+                                </div>
+                                <div className="space-y-1.5 mb-3 max-h-36 overflow-y-auto">
+                                    {(config.duplas || []).length === 0 ? (
+                                      <p className="text-sm text-gray-500 py-2">Nenhuma dupla formada ainda.</p>
+                                    ) : (
+                                      (config.duplas || []).map((dupla, index) => (
+                                        <div key={index} className="flex items-center justify-between gap-2 bg-gray-900/50 border border-gray-700/80 px-3 py-2 rounded-lg">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                              <span className="text-xs font-bold text-indigo-400 w-5 shrink-0">{index + 1}</span>
+                                              <span className="text-sm text-gray-200 truncate">{formatarDuplaCurta(dupla)}</span>
                                             </div>
-                                        ))}
+                                            <button type="button" onClick={() => removerDupla(index)} className="shrink-0 p-1 text-gray-500 hover:text-red-400 rounded" title="Remover dupla">
+                                              <FaTimes size={12} />
+                                            </button>
+                                        </div>
+                                      ))
+                                    )}
+                                </div>
+                                <div className="bg-gray-900/40 border border-gray-700 rounded-lg p-3 space-y-2.5">
+                                    <p className="text-xs text-gray-400">Nova dupla</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      <select
+                                        value={selecaoDupla[0] || ''}
+                                        onChange={(e) => {
+                                          const p1 = e.target.value;
+                                          const p2 = selecaoDupla[1] === p1 ? '' : (selecaoDupla[1] || '');
+                                          setSelecaoDupla([p1, p2]);
+                                        }}
+                                        className="bg-gray-800 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                      >
+                                        <option value="">1º vendedor</option>
+                                        {vendedoresDisponiveis
+                                          .filter((u) => u.nome !== selecaoDupla[1])
+                                          .map((user) => (
+                                            <option key={user.id} value={user.nome}>{nomeCurto(user.nome)}</option>
+                                          ))}
+                                      </select>
+                                      <select
+                                        value={selecaoDupla[1] || ''}
+                                        onChange={(e) => setSelecaoDupla([selecaoDupla[0] || '', e.target.value])}
+                                        className="bg-gray-800 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        disabled={!selecaoDupla[0]}
+                                      >
+                                        <option value="">2º vendedor</option>
+                                        {vendedoresDisponiveis
+                                          .filter((u) => u.nome !== selecaoDupla[0])
+                                          .map((user) => (
+                                            <option key={user.id} value={user.nome}>{nomeCurto(user.nome)}</option>
+                                          ))}
+                                      </select>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <select multiple value={selecaoDupla} onChange={(e) => setSelecaoDupla(Array.from(e.target.selectedOptions, option => option.value))} className="w-full bg-gray-600 p-2 rounded-lg border border-gray-500" style={{ height: '100px' }}>
-                                            {usuarios.filter(u => !config.duplas?.flat().includes(u.nome)).map(user => (
-                                                <option key={user.id} value={user.nome}>{user.nome}</option>
-                                            ))}
-                                        </select>
-                                        <button onClick={adicionarDupla} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-semibold h-full" disabled={selecaoDupla.length !== 2}>
-                                            <FaPlusCircle />
-                                        </button>
-                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={adicionarDupla}
+                                      disabled={!selecaoDupla[0] || !selecaoDupla[1]}
+                                      className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-md text-sm font-semibold flex items-center justify-center gap-2"
+                                    >
+                                      <FaPlusCircle size={14} /> Adicionar dupla
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                        <footer className="p-4 flex justify-end gap-3 border-t border-gray-700">
-                            <button onClick={() => setModalConfigVisivel(false)} type="button" className="bg-gray-600 hover:bg-gray-500 px-5 py-2 rounded-lg font-semibold">Cancelar</button>
-                            <button onClick={() => { handleSalvarConfig(); setModalConfigVisivel(false); }} className="bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2"><FaSave /> Salvar e Fechar</button>
+                        <footer className="px-4 py-3 flex justify-end gap-2 border-t border-gray-700">
+                            <button type="button" onClick={() => setModalConfigVisivel(false)} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md text-sm font-semibold text-white">Cancelar</button>
+                            <button type="button" onClick={() => { handleSalvarConfig(); setModalConfigVisivel(false); }} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 text-white">
+                              <FaSave size={14} /> Salvar
+                            </button>
                         </footer>
                     </div>
                 </div>
             )}
 
             <div>
-                <h3 className="text-xl font-semibold mb-4 text-indigo-400">METAS DO ESCRITÓRIO</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <StatCard icon={<FaBullseye size={24} />} label="Meta Geral" value={config.meta_geral} color="bg-indigo-500/20" />
-                    <StatCard icon={<FaDollarSign size={24} />} label="Vendido Geral" value={vendidoGeral} color="bg-green-500/20" />
-                    <StatCard icon={<FaChartLine size={24} />} label="Falta para a Meta" value={faltaParaMeta > 0 ? faltaParaMeta : 0} color={faltaParaMeta > 0 ? "bg-red-500/20" : "bg-green-500/20"} />
+                <h3 className="text-xs font-semibold mb-2 text-indigo-300 uppercase tracking-wide">Metas do escritório</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    <StatCard icon={<FaBullseye size={16} />} label="Meta Geral" value={config.meta_geral} color="bg-indigo-500/20" />
+                    <StatCard icon={<FaDollarSign size={16} />} label="Vendido Geral" value={vendidoGeral} color="bg-green-500/20" />
+                    <StatCard icon={<FaChartLine size={16} />} label="Falta para a Meta" value={faltaParaMeta > 0 ? faltaParaMeta : 0} color={faltaParaMeta > 0 ? "bg-red-500/20" : "bg-green-500/20"} />
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
-                    <h3 className="text-xl font-semibold mb-4 text-indigo-400">RANKING INDIVIDUAL</h3>
-                    <div className="space-y-3">
+                    <h3 className="text-xs font-semibold mb-2 text-indigo-300 uppercase tracking-wide">Ranking individual</h3>
+                    <div className="space-y-1.5">
                         {rankingIndividual.length > 0 ? rankingIndividual.map((vendedor, index) => (
                             <RankingCard key={vendedor.id} posicao={index} nome={vendedor.nome} valor={vendedor.vendido} isCurrentUser={vendedor.id === perfilUsuario?.id} />
-                        )) : <p className="text-gray-500">Ninguém vendeu ainda este mês.</p>}
+                        )) : <p className="text-gray-500 text-xs">Ninguém vendeu ainda este mês.</p>}
                     </div>
                 </div>
                 <div>
-                    <h3 className="text-xl font-semibold mb-4 text-indigo-400">RANKING DE DUPLAS</h3>
-                    <div className="space-y-3">
+                    <h3 className="text-xs font-semibold mb-2 text-indigo-300 uppercase tracking-wide">Ranking de duplas</h3>
+                    <div className="space-y-1.5">
                         {totaisDuplas.length > 0 ? totaisDuplas.map((dupla, index) => (
                             <RankingCard key={dupla.nomes} posicao={index} nome={dupla.nomes} valor={dupla.total} isCurrentUser={dupla.membros.includes(perfilUsuario?.nome)} />
-                        )) : <p className="text-gray-500">Duplas não configuradas para este mês.</p>}
+                        )) : <p className="text-gray-500 text-xs">Duplas não configuradas para este mês.</p>}
                     </div>
-                </div>
-            </div>
-            
-            <div className="bg-gray-800/50 rounded-xl p-6">
-                <h3 className="text-xl font-bold mb-4">Pré-visualização do Ranking para WhatsApp</h3>
-                <textarea readOnly value={textoRanking} className="w-full h-64 bg-gray-900/50 p-3 rounded-lg text-sm font-mono whitespace-pre-wrap" />
-                <div className="flex gap-4 mt-4">
-                    <button onClick={copiarParaClipboard} className="bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2">
-                        <FaClipboard /> Copiar Ranking
-                    </button>
-                    <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(textoRanking)}`} target="_blank" rel="noopener noreferrer" className="bg-green-600 hover:bg-green-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2">
-                        <FaWhatsapp /> Enviar no WhatsApp
-                    </a>
                 </div>
             </div>
         </div>

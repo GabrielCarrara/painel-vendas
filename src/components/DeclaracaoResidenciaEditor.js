@@ -147,13 +147,13 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-gray-700 bg-gray-800/50 p-5 space-y-4">
+        <div className="space-y-3 rounded-xl border border-gray-700/60 bg-gray-800/40 p-3">
           <h3 className="font-semibold text-indigo-300">Dados para preenchimento</h3>
 
           <label className="block text-sm">
             <span className="text-gray-400">Nome completo do consorciado</span>
             <input
-              className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+              className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               value={nomeConsorciado}
               onChange={(e) => setNomeConsorciado(e.target.value)}
               placeholder="Nome completo"
@@ -163,7 +163,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
           <label className="block text-sm">
             <span className="text-gray-400">CPF</span>
             <input
-              className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+              className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               value={cpfDigitos}
               onChange={(e) => setCpfDigitos(apenasDigitos(e.target.value).slice(0, 11))}
               placeholder="Apenas números"
@@ -178,7 +178,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
           <label className="block text-sm">
             <span className="text-gray-400">Nacionalidade</span>
             <input
-              className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+              className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               value={nacionalidade}
               onChange={(e) => setNacionalidade(e.target.value)}
             />
@@ -187,7 +187,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
           <label className="block text-sm">
             <span className="text-gray-400">Estado civil</span>
             <select
-              className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+              className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               value={estadoCivil}
               onChange={(e) => setEstadoCivil(e.target.value)}
             >
@@ -202,7 +202,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
           <label className="block text-sm">
             <span className="text-gray-400">Logradouro (rua/avenida)</span>
             <input
-              className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+              className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               value={logradouro}
               onChange={(e) => setLogradouro(e.target.value)}
             />
@@ -212,7 +212,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
             <label className="block text-sm">
               <span className="text-gray-400">Número</span>
               <input
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+                className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 value={numeroResidencial}
                 onChange={(e) => setNumeroResidencial(e.target.value)}
               />
@@ -220,7 +220,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
             <label className="block text-sm">
               <span className="text-gray-400">Bairro</span>
               <input
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+                className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 value={bairro}
                 onChange={(e) => setBairro(e.target.value)}
               />
@@ -230,7 +230,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
           <label className="block text-sm">
             <span className="text-gray-400">CEP (somente números)</span>
             <input
-              className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+              className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               value={cepDigitos}
               onChange={(e) => setCepDigitos(apenasDigitos(e.target.value).slice(0, 8))}
               placeholder="00000000"
@@ -246,7 +246,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
             <label className="block text-sm">
               <span className="text-gray-400">Cidade</span>
               <input
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+                className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 value={cidade}
                 onChange={(e) => setCidade(e.target.value)}
               />
@@ -254,7 +254,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
             <label className="block text-sm">
               <span className="text-gray-400">UF</span>
               <select
-                className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+                className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 value={uf}
                 onChange={(e) => setUf(e.target.value)}
               >
@@ -288,7 +288,7 @@ export default function DeclaracaoResidenciaEditor({ onVoltar }) {
             className="mx-auto bg-white text-black shadow-lg"
             style={{
               width: '210mm',
-              maxWidth: '100%',
+             maxWidth: '100%',
               minHeight: '260mm',
               padding: '18mm 20mm',
               fontFamily: '"Times New Roman", Times, serif',

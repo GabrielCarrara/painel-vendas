@@ -35,9 +35,56 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
-    const { userIdToUpdate, payload: rawPayload } = await req.json()
-    if (!userIdToUpdate || !rawPayload) {
-      throw new Error('ID do usuário ou dados para atualização não fornecidos.')
+    const { action = 'update', userIdToUpdate, payload: rawPayload } = await req.json()
+    if (!userIdToUpdate) {
+      throw new Error('ID do usuário não fornecido.')
+    }
+
+    if (action === 'delete') {
+      const { data: perfilAlvo, error: perfilAlvoError } = await supabaseAdmin
+        .from('usuarios_custom')
+        .select('id, auth_id')
+        .eq('id', userIdToUpdate)
+        .maybeSingle()
+
+      if (perfilAlvoError) {
+        throw new Error('Erro ao localizar usuário: ' + perfilAlvoError.message)
+      }
+      if (!perfilAlvo) {
+        throw new Error('Usuário não encontrado.')
+      }
+
+      const authUserId = perfilAlvo.auth_id || perfilAlvo.id
+      if (authUserId === user.id) {
+        return new Response(JSON.stringify({ error: 'Não é permitido excluir sua própria conta.' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(authUserId)
+      if (authDeleteError) {
+        throw new Error('Erro ao excluir autenticação: ' + authDeleteError.message)
+      }
+
+      // Remove também perfis duplicados vinculados ao mesmo usuário do Auth.
+      const { error: profileDeleteError } = await supabaseAdmin
+        .from('usuarios_custom')
+        .delete()
+        .or(`id.eq.${perfilAlvo.id},id.eq.${authUserId},auth_id.eq.${authUserId}`)
+
+      if (profileDeleteError) {
+        throw new Error('Autenticação excluída, mas houve erro ao remover o perfil: ' + profileDeleteError.message)
+      }
+
+      return new Response(JSON.stringify({ message: 'Usuário excluído definitivamente.' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (!rawPayload) {
+      throw new Error('Dados para atualização não fornecidos.')
     }
 
     const payload = { ...rawPayload }
@@ -73,8 +120,15 @@ serve(async (req) => {
       }
     }
     if (Object.keys(authData).length > 0) {
+      const { data: perfilAuth } = await supabaseAdmin
+        .from('usuarios_custom')
+        .select('id, auth_id')
+        .eq('id', userIdToUpdate)
+        .maybeSingle();
+      const authUserIdToUpdate = perfilAuth?.auth_id || perfilAuth?.id || userIdToUpdate;
+
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-        userIdToUpdate,
+        authUserIdToUpdate,
         authData
       );
       if (authError) {

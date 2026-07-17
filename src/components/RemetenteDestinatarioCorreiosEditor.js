@@ -41,13 +41,15 @@ function Quadrante({ titulo, valor }) {
     <div
       style={{
         border: '1px solid #000',
-        padding: '5mm 4mm',
-        minHeight: '18mm',
-        fontSize: '11pt',
+        padding: '4mm 3mm',
+        minHeight: '16mm',
+        fontSize: '10pt',
         lineHeight: 1.25,
+        overflow: 'visible',
+        wordBreak: 'break-word',
       }}
     >
-      <div style={{ fontSize: '8pt', fontWeight: 'bold', marginBottom: '2mm', textTransform: 'uppercase' }}>{titulo}</div>
+      <div style={{ fontSize: '7.5pt', fontWeight: 'bold', marginBottom: '1.5mm', textTransform: 'uppercase' }}>{titulo}</div>
       <div style={{ fontWeight: 'bold' }}>{valor || '—'}</div>
     </div>
   );
@@ -56,23 +58,23 @@ function Quadrante({ titulo, valor }) {
 function BlocoCorreios({ titulo, nome, docFmt, cepFmt, cidade, uf, log, num, bairro, comp, tel }) {
   const cidadeUf = [cidade?.trim(), (uf || '').toUpperCase()].filter(Boolean).join(' – ');
   return (
-    <div style={{ border: '3px solid #000', padding: '6mm', marginBottom: '10mm' }}>
-      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13pt', marginBottom: '5mm', letterSpacing: '0.06em' }}>{titulo}</div>
-      <div style={{ marginBottom: '4mm', fontSize: '12pt' }}>
+    <div style={{ border: '3px solid #000', padding: '5mm', marginBottom: '8mm' }}>
+      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12pt', marginBottom: '4mm', letterSpacing: '0.06em' }}>{titulo}</div>
+      <div style={{ marginBottom: '3mm', fontSize: '11pt', wordBreak: 'break-word' }}>
         <strong>NOME:</strong> {nome?.trim() || '—'}
       </div>
-      <div style={{ marginBottom: '4mm', fontSize: '12pt' }}>
+      <div style={{ marginBottom: '3mm', fontSize: '11pt' }}>
         <strong>CPF/CNPJ:</strong> {docFmt || '—'}
       </div>
-      <div style={{ marginBottom: '4mm', fontSize: '12pt' }}>
+      <div style={{ marginBottom: '3mm', fontSize: '11pt', wordBreak: 'break-word' }}>
         <strong>CEP:</strong> {cepFmt || '—'} {cidadeUf ? <span> / {cidadeUf}</span> : null}
       </div>
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: '3mm',
-          marginBottom: '4mm',
+          gap: '2.5mm',
+          marginBottom: '3mm',
         }}
       >
         <Quadrante titulo="Logradouro (rua ou avenida)" valor={log} />
@@ -80,7 +82,7 @@ function BlocoCorreios({ titulo, nome, docFmt, cepFmt, cidade, uf, log, num, bai
         <Quadrante titulo="Bairro" valor={bairro} />
         <Quadrante titulo="Complemento" valor={comp} />
       </div>
-      <div style={{ fontSize: '12pt' }}>
+      <div style={{ fontSize: '11pt' }}>
         <strong>CONTATO:</strong> {tel?.trim() || '—'}
       </div>
     </div>
@@ -202,26 +204,27 @@ export default function RemetenteDestinatarioCorreiosEditor({ onVoltar }) {
     }
   };
 
-  const fieldClass = 'mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white';
-  const labelClass = 'block text-sm text-gray-400';
+  const fieldClass =
+    'mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500';
+  const labelClass = 'block text-xs font-medium text-gray-400 uppercase tracking-wide';
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="animate-fade-in space-y-4">
+      <div className="flex flex-wrap items-center gap-2 p-3 bg-gray-800/50 rounded-xl">
         <button
           type="button"
           onClick={onVoltar}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-700 px-4 py-2 font-semibold text-white hover:bg-gray-600"
+          className="inline-flex items-center gap-1.5 rounded-md bg-gray-700 hover:bg-gray-600 px-2.5 py-1.5 text-xs font-semibold text-white"
         >
-          <FaArrowLeft /> Voltar
+          <FaArrowLeft size={11} /> Voltar
         </button>
-        <h2 className="text-xl font-bold text-white">Remetente e destinatário (Correios)</h2>
+        <h2 className="text-sm font-semibold text-white">Remetente e destinatário (Correios)</h2>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className="max-h-[calc(100dvh-10rem)] space-y-6 overflow-y-auto rounded-xl border border-gray-700 bg-gray-800/50 p-5">
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-semibold text-indigo-300">Remetente</legend>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="space-y-4 rounded-xl border border-gray-700/60 bg-gray-800/40 p-3">
+          <fieldset className="space-y-2.5">
+            <legend className="text-xs font-semibold text-indigo-300 uppercase tracking-wide mb-1">Remetente</legend>
             <label className={labelClass}>
               Nome completo
               <input className={fieldClass} value={remetente} onChange={(e) => setRemetente(e.target.value)} />
@@ -234,9 +237,9 @@ export default function RemetenteDestinatarioCorreiosEditor({ onVoltar }) {
                 onChange={(e) => setDocRemDig(apenasDigitos(e.target.value).slice(0, 14))}
                 inputMode="numeric"
               />
-              {docRemDig ? <span className="mt-1 block text-xs text-gray-500">No PDF: {docRemFmt}</span> : null}
+              {docRemDig ? <span className="mt-0.5 block text-[11px] text-gray-500 normal-case tracking-normal">No PDF: {docRemFmt}</span> : null}
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <label className={labelClass}>
                 Logradouro
                 <input className={fieldClass} value={logRem} onChange={(e) => setLogRem(e.target.value)} />
@@ -246,7 +249,7 @@ export default function RemetenteDestinatarioCorreiosEditor({ onVoltar }) {
                 <input className={fieldClass} value={numRem} onChange={(e) => setNumRem(e.target.value)} />
               </label>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <label className={labelClass}>
                 Bairro
                 <input className={fieldClass} value={baiRem} onChange={(e) => setBaiRem(e.target.value)} />
@@ -264,12 +267,12 @@ export default function RemetenteDestinatarioCorreiosEditor({ onVoltar }) {
                 onChange={(e) => setCepRemDig(apenasDigitos(e.target.value).slice(0, 8))}
                 inputMode="numeric"
               />
-              {cepRemDig ? <span className="mt-1 block text-xs text-gray-500">No PDF: {cepRemFmt}</span> : null}
-              {cepRemStatus ? <p className="mt-1 text-xs text-amber-400">{cepRemStatus}</p> : null}
+              {cepRemDig ? <span className="mt-0.5 block text-[11px] text-gray-500 normal-case tracking-normal">No PDF: {cepRemFmt}</span> : null}
+              {cepRemStatus ? <p className="mt-0.5 text-[11px] text-amber-400 normal-case tracking-normal">{cepRemStatus}</p> : null}
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <label className={labelClass}>
-                Cidade (ViaCEP; pode editar)
+                Cidade
                 <input className={fieldClass} value={cityRem} onChange={(e) => setCityRem(e.target.value)} />
               </label>
               <label className={labelClass}>
@@ -283,8 +286,8 @@ export default function RemetenteDestinatarioCorreiosEditor({ onVoltar }) {
             </label>
           </fieldset>
 
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-semibold text-indigo-300">Destinatário</legend>
+          <fieldset className="space-y-2.5">
+            <legend className="text-xs font-semibold text-indigo-300 uppercase tracking-wide mb-1">Destinatário</legend>
             <label className={labelClass}>
               Nome completo
               <input className={fieldClass} value={destinatario} onChange={(e) => setDestinatario(e.target.value)} />
@@ -297,9 +300,9 @@ export default function RemetenteDestinatarioCorreiosEditor({ onVoltar }) {
                 onChange={(e) => setDocDestDig(apenasDigitos(e.target.value).slice(0, 14))}
                 inputMode="numeric"
               />
-              {docDestDig ? <span className="mt-1 block text-xs text-gray-500">No PDF: {docDestFmt}</span> : null}
+              {docDestDig ? <span className="mt-0.5 block text-[11px] text-gray-500 normal-case tracking-normal">No PDF: {docDestFmt}</span> : null}
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <label className={labelClass}>
                 Logradouro
                 <input className={fieldClass} value={logDest} onChange={(e) => setLogDest(e.target.value)} />
@@ -309,7 +312,7 @@ export default function RemetenteDestinatarioCorreiosEditor({ onVoltar }) {
                 <input className={fieldClass} value={numDest} onChange={(e) => setNumDest(e.target.value)} />
               </label>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <label className={labelClass}>
                 Bairro
                 <input className={fieldClass} value={baiDest} onChange={(e) => setBaiDest(e.target.value)} />
@@ -327,12 +330,12 @@ export default function RemetenteDestinatarioCorreiosEditor({ onVoltar }) {
                 onChange={(e) => setCepDestDig(apenasDigitos(e.target.value).slice(0, 8))}
                 inputMode="numeric"
               />
-              {cepDestDig ? <span className="mt-1 block text-xs text-gray-500">No PDF: {cepDestFmt}</span> : null}
-              {cepDestStatus ? <p className="mt-1 text-xs text-amber-400">{cepDestStatus}</p> : null}
+              {cepDestDig ? <span className="mt-0.5 block text-[11px] text-gray-500 normal-case tracking-normal">No PDF: {cepDestFmt}</span> : null}
+              {cepDestStatus ? <p className="mt-0.5 text-[11px] text-amber-400 normal-case tracking-normal">{cepDestStatus}</p> : null}
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <label className={labelClass}>
-                Cidade (ViaCEP; pode editar)
+                Cidade
                 <input className={fieldClass} value={cityDest} onChange={(e) => setCityDest(e.target.value)} />
               </label>
               <label className={labelClass}>
@@ -350,27 +353,26 @@ export default function RemetenteDestinatarioCorreiosEditor({ onVoltar }) {
             type="button"
             disabled={gerando}
             onClick={gerarPdf}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            <FaFilePdf /> {gerando ? 'Gerando…' : 'GERAR PDF'}
+            <FaFilePdf size={14} /> {gerando ? 'Gerando…' : 'Gerar PDF'}
           </button>
         </div>
 
         <div>
-          <h3 className="mb-2 font-semibold text-gray-400">Pré-visualização</h3>
+          <h3 className="mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">Pré-visualização</h3>
           <div className="overflow-x-auto rounded-lg border border-gray-700/60 bg-gray-900/20 p-2">
             <div
               ref={printRef}
-              className="bg-white text-black shadow-lg"
+              className="bg-white text-black shadow-lg mx-auto"
               style={{
                 width: '210mm',
-                minWidth: '210mm',
+                maxWidth: '100%',
                 minHeight: '260mm',
                 padding: '10mm',
                 boxSizing: 'border-box',
                 fontFamily: 'Arial, Helvetica Neue, Helvetica, sans-serif',
                 color: '#000',
-                margin: '0 auto',
               }}
             >
               <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '11pt', marginBottom: '8mm' }}>

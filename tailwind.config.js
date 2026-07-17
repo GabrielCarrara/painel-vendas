@@ -21,10 +21,15 @@ module.exports = {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
+        glowPulse: {
+          '0%, 100%': { opacity: '0.45' },
+          '50%': { opacity: '0.75' },
+        },
       },
       animation: {
         'fade-in-up': 'fadeInUp 0.8s ease-out forwards',
         'fade-in': 'fadeIn 0.5s ease-out forwards',
+        'glow-pulse': 'glowPulse 6s ease-in-out infinite',
       },
     },
   },

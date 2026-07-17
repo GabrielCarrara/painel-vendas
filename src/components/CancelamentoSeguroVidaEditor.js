@@ -15,7 +15,7 @@ const BADGE_ASSINATURA = 'ASSINAR FÍSICO OU GOV';
 function SelectUf({ value, onChange }) {
   return (
     <select
-      className="mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white"
+      className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >
@@ -90,8 +90,8 @@ export default function CancelamentoSeguroVidaEditor({ onVoltar }) {
     }
   };
 
-  const fieldClass = 'mt-1 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-white';
-  const labelClass = 'block text-sm text-gray-400';
+  const fieldClass = 'mt-1 w-full rounded-md border border-gray-600 bg-gray-900/60 px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500';
+  const labelClass = 'block text-xs font-medium text-gray-400 uppercase tracking-wide';
 
   return (
     <div className="space-y-6">
@@ -112,7 +112,7 @@ export default function CancelamentoSeguroVidaEditor({ onVoltar }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <div className="max-h-[calc(100dvh-12rem)] space-y-5 overflow-y-auto rounded-xl border border-gray-700 bg-gray-800/50 p-5">
+        <div className="space-y-3 rounded-xl border border-gray-700/60 bg-gray-800/40 p-3">
           <fieldset className="space-y-3">
             <legend className="text-sm font-semibold text-indigo-300">Dados</legend>
             <label className={labelClass}>
@@ -157,7 +157,7 @@ export default function CancelamentoSeguroVidaEditor({ onVoltar }) {
             className="mx-auto bg-white text-black shadow-lg"
             style={{
               width: '210mm',
-              maxWidth: '100%',
+             maxWidth: '100%',
               minHeight: '297mm',
               padding: '16mm 18mm',
               fontFamily: 'Arial, Helvetica Neue, Helvetica, sans-serif',

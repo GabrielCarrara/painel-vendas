@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaDownload, FaEdit, FaFileAlt, FaFileExcel, FaFileWord } from 'react-icons/fa';
+import { FaDownload, FaEdit, FaFileAlt, FaFileExcel, FaFileWord, FaSpinner } from 'react-icons/fa';
 import DeclaracaoResidenciaEditor from '../components/DeclaracaoResidenciaEditor';
 import ProcuracaoPagamentoVeiculoEditor from '../components/ProcuracaoPagamentoVeiculoEditor';
 import CancelamentoTransferenciaEditor from '../components/CancelamentoTransferenciaEditor';
@@ -79,69 +79,86 @@ export default function PainelDocumentos() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-white">Documentos</h2>
-        <p className="mt-1 text-gray-400">
-          Arquivos disponíveis na pasta institucional. Modelos <strong className="text-gray-300">.doc</strong>,{' '}
-          <strong className="text-gray-300">.docx</strong> e <strong className="text-gray-300">.xlsx</strong> podem ser preenchidos no painel e exportados em PDF
-          e/ou Excel, conforme o documento.
-        </p>
+    <div className="animate-fade-in space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-gray-800/50 rounded-xl">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-1.5 text-gray-300">
+            <FaFileAlt size={12} /> Documentos
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Modelos .doc, .docx e .xlsx — preencha no painel e exporte em PDF/Excel.
+          </p>
+        </div>
+        {!carregando && !erro && (
+          <span className="text-xs text-gray-500 shrink-0">
+            {itens.length} arquivo{itens.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
-      {carregando && <p className="text-gray-500">Carregando…</p>}
-      {erro && <p className="text-amber-400">{erro}</p>}
+      {carregando && (
+        <div className="flex justify-center items-center py-12">
+          <FaSpinner className="animate-spin text-indigo-400" size={28} />
+        </div>
+      )}
+      {erro && (
+        <p className="text-sm text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+          {erro}
+        </p>
+      )}
 
       {!carregando && !erro && (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           {itens.map((item) => {
             const ext = (item.filename || '').split('.').pop()?.toLowerCase() || '';
             const isWord = ext === 'doc' || ext === 'docx';
             const isExcel = ext === 'xlsx' || ext === 'xls';
-            const fileIcon = isWord ? <FaFileWord size={22} /> : isExcel ? <FaFileExcel size={22} /> : <FaFileAlt size={22} />;
+            const fileIcon = isWord ? (
+              <FaFileWord size={16} className="text-blue-400" />
+            ) : isExcel ? (
+              <FaFileExcel size={16} className="text-emerald-400" />
+            ) : (
+              <FaFileAlt size={16} className="text-indigo-400" />
+            );
+
             return (
               <li
                 key={item.id}
-                className="flex flex-col rounded-xl border border-gray-700 bg-gray-800/40 p-5 shadow-lg transition hover:border-indigo-500/50"
+                className="flex flex-col rounded-lg border border-gray-700/60 bg-gray-800/40 p-3 hover:border-indigo-500/40 transition-colors"
               >
-                <div className="mb-3 flex items-start gap-3">
-                  <span className="mt-0.5 text-indigo-400">{fileIcon}</span>
+                <div className="flex items-start gap-2.5 mb-2.5 min-w-0">
+                  <span className="mt-0.5 shrink-0">{fileIcon}</span>
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-white">{item.title}</h3>
-                      {item.badge ? (
-                        <span
-                          className="max-w-full break-words rounded border border-amber-500/50 bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold uppercase leading-snug tracking-wide text-amber-200 sm:text-[10px]"
-                          title={item.badge}
-                        >
-                          ({item.badge})
-                        </span>
-                      ) : null}
-                    </div>
-                    {item.subtitle ? <p className="text-sm text-gray-500">{item.subtitle}</p> : null}
-                    <p className="mt-1 truncate text-xs text-gray-600" title={item.filename}>
-                      {item.filename}
-                    </p>
+                    <h3 className="text-sm font-semibold text-white leading-snug">{item.title}</h3>
+                    {item.badge ? (
+                      <span
+                        className="inline-block mt-1 max-w-full break-words rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-snug tracking-wide text-amber-200"
+                        title={item.badge}
+                      >
+                        {item.badge}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="mt-auto flex flex-wrap gap-2 pt-2">
+                <div className="mt-auto flex gap-1.5">
                   {item.editor ? (
                     <button
                       type="button"
                       onClick={() => setEditor(item.editor)}
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1.5 text-xs font-semibold text-white"
                     >
-                      <FaEdit />{' '}
-                      {item.editor === 'vistoria_antecipada' ? 'Preencher (PDF / Excel)' : 'Preencher e gerar PDF'}
+                      <FaEdit size={11} />
+                      {item.editor === 'vistoria_antecipada' ? 'Preencher' : 'Preencher PDF'}
                     </button>
                   ) : null}
                   <a
                     href={urlArquivo(item.filename)}
                     download={item.filename}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-700 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-600"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-md bg-gray-700 hover:bg-gray-600 px-2.5 py-1.5 text-xs font-semibold text-white shrink-0"
+                    title="Baixar arquivo"
                   >
-                    <FaDownload /> Baixar
+                    <FaDownload size={11} /> Baixar
                   </a>
                 </div>
               </li>

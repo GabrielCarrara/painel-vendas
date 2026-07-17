@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import * as XLSX from "xlsx";
 import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
 import 'dayjs/locale/pt-br';
 import LembretesLeads from '../components/LembretesLeads';
 import { useNavigate } from 'react-router-dom';
-import { FaSignOutAlt, FaUserCircle } from 'react-icons/fa';
+import { FaSignOutAlt, FaUserCircle, FaBars } from 'react-icons/fa';
 import MinhaContaModal from '../components/MinhaContaModal';
+import logoFenix from '../assets/logo.png';
 import { 
     FaChartBar, FaUsers, FaPlusCircle, FaTrophy, FaFilter, FaEdit, FaTrash, FaSave, FaTimes, 
     FaDollarSign, FaUserTie, FaExclamationTriangle, FaClipboard, FaWhatsapp, FaChartLine, FaCogs,
@@ -17,7 +17,6 @@ import {
     FaCalendarAlt,
     FaFileAlt,
     FaPrint,
-    FaFileExcel,
 } from "react-icons/fa";
 
 import PainelCRM from "./PainelCRM";
@@ -31,32 +30,29 @@ import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria';
 import ProcessosKanban from '../components/ProcessosKanban';
 import PainelDocumentos from './PainelDocumentos';
 import {
-  PERCENT_CHEIA,
-  PERCENT_MEIA,
-  persistirMudancaStatusParcela,
   totalComissaoP1RecebidaNoMes,
-  totaisPagamentosP2P3,
-  calcularEstornoMes,
   isParcelaCheia,
   normalizarMesVenda,
   dayjsMesRef,
   nomeMesPortuguesUpper,
+  valorComissaoP1,
 } from '../utils/comissoes';
-import {
-  filtrarVendasVendedoresUltimos8Meses,
-  ordenarLinhasComoExcel,
-} from '../utils/vendasLista8MesesVendedores';
 import { limparFlagsLembreteRetorno } from '../utils/crmLembreteStorage';
+import { lerAbaPainel, salvarAbaPainel } from '../utils/abaPainelStorage';
 
-const STATUS_OPCOES = ['PENDENTE', 'PAGO', 'VENCIDO', 'ESTORNO', 'CANCELADO'];
+dayjs.locale('pt-br');
 
+const ABA_STORAGE_KEY = 'painel_diretor_aba';
+const ABAS_VALIDAS = ['vendas', 'contempladas', 'hs_cotas', 'processos', 'crm', 'ranking', 'documentos', 'usuarios', 'acoes'];
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, label, value, color }) => (
-  <div className="bg-gray-800 p-5 rounded-xl shadow-lg flex items-center space-x-4 transition-transform hover:scale-105">
-    <div className={`p-3 rounded-full ${color}`}>{icon}</div>
-    <div>
-      <p className="text-sm text-gray-400">{label}</p>
-      <p className="text-2xl font-bold text-white">{(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+  <div className="bg-gray-800 rounded-lg border border-gray-700/50 px-3.5 py-3 flex items-center gap-3 min-w-0">
+    <div className={`p-2 rounded-md shrink-0 ${color}`}>{icon}</div>
+    <div className="min-w-0 flex-1">
+      <p className="text-xs text-gray-400 leading-tight">{label}</p>
+      <p className="text-base sm:text-lg font-bold text-white whitespace-nowrap tabular-nums mt-0.5 leading-tight">
+        {(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+      </p>
     </div>
   </div>
 );
@@ -71,10 +67,15 @@ const EmptyStateRow = ({ message, colSpan }) => (
 export default function PainelDiretor() {
   dayjs.locale('pt-br'); 
 
-  const [aba, setAba] = useState("vendas");
+  const [aba, setAba] = useState(() => lerAbaPainel(ABA_STORAGE_KEY, ABAS_VALIDAS));
   const [vendas, setVendas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [filtros, setFiltros] = useState({ vendedor: "", mes: dayjs().format("YYYY-MM"), administradora: "", filial: "" });  
+  const [filtroCards, setFiltroCards] = useState({
+    mes: dayjs().format('MM'),
+    ano: dayjs().format('YYYY'),
+  });
+  const [metaCards, setMetaCards] = useState(0);
   const [editandoId, setEditandoId] = useState(null);
   const [vendaEditada, setVendaEditada] = useState({});
   const [novaVenda, setNovaVenda] = useState({ cliente: "", grupo: "", cota: "", administradora: "GAZIN", valor: "", parcela: "cheia", mes: dayjs().format("YYYY-MM"), usuario_id: "" });
@@ -87,18 +88,10 @@ export default function PainelDiretor() {
   const navigate = useNavigate();
   const [modalContaVisivel, setModalContaVisivel] = useState(false);
   const [modalRelatorioHS, setModalRelatorioHS] = useState(false);
+  const [modalRelatorioGazin, setModalRelatorioGazin] = useState(false);
   const [modalRelatorioGeral, setModalRelatorioGeral] = useState(false);
-  const [pagamentosDoMes, setPagamentosDoMes] = useState([]);
-
-  const buscarPagamentosDoMes = useCallback(async (mes) => {
-    if (!mes) return;
-    const { data, error } = await supabase
-      .from('pagamentos_comissao')
-      .select('*')
-      .eq('mes_pagamento', mes);
-    if (!error && data) setPagamentosDoMes(data);
-    else setPagamentosDoMes([]);
-  }, []);
+  const [modalLancarVenda, setModalLancarVenda] = useState(false);
+  const [menuLateralAberto, setMenuLateralAberto] = useState(false);
 
   const handleLogout = async () => {
       limparFlagsLembreteRetorno();
@@ -109,7 +102,7 @@ export default function PainelDiretor() {
   const buscarUsuarios = async () => {
       const { data } = await supabase
         .from("usuarios_custom")
-        .select("id, nome, id_filial, email, cargo, telefone, ativo, foto_url")
+        .select("id, nome, id_filial, email, cargo, telefone, ativo, foto_url, senha_intranet_gazin")
         .order('nome', { ascending: true });
       if (data) setUsuarios(data);
   };
@@ -166,7 +159,6 @@ export default function PainelDiretor() {
               buscarVendas(),
               fetchConfiguracoes(filtros.mes, perfilData.id_filial),
               buscarTodasFiliais(),
-              buscarPagamentosDoMes(filtros.mes),
             ]);
           }
         }
@@ -174,25 +166,63 @@ export default function PainelDiretor() {
       };
   
       carregarDadosIniciais();
-      // Montagem inicial apenas; fetchConfiguracoes/pagamentos reagem em outros efeitos.
+      // Montagem inicial apenas; fetchConfiguracoes reage em outros efeitos.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
    
       
     useEffect(() => {
-      // Usa a filial do filtro de Vendas (se selecionada) para manter os cards consistentes
+      // Configurações do ranking / aba ranking (não influenciam os cards do Relatório de Vendas)
       const filialIdEfetiva = filtros.filial || filialSelecionadaId;
       if (filtros.mes && filialIdEfetiva) {
         fetchConfiguracoes(filtros.mes, filialIdEfetiva);
       }
     }, [filtros.mes, filtros.filial, filialSelecionadaId, fetchConfiguracoes]);
 
+    const mesReferenciaCards = `${filtroCards.ano}-${filtroCards.mes}`;
+
     useEffect(() => {
-      buscarPagamentosDoMes(filtros.mes);
-    }, [filtros.mes, buscarPagamentosDoMes, vendas]);
+      const carregarMetaCards = async () => {
+        const { data } = await supabase
+          .from('configuracoes_mensais')
+          .select('meta_geral')
+          .eq('mes', mesReferenciaCards);
+        if (data?.length) {
+          setMetaCards(data.reduce((s, r) => s + (parseFloat(r.meta_geral) || 0), 0));
+        } else {
+          setMetaCards(0);
+        }
+      };
+      carregarMetaCards();
+    }, [mesReferenciaCards]);
     
   
     const nomeVendedor = (id) => usuarios.find((u) => u.id === id)?.nome || "Desconhecido";
+
+    const limparFormularioNovaVenda = () => {
+      setNovaVenda((prev) => ({
+        cliente: "",
+        grupo: "",
+        cota: "",
+        administradora: "GAZIN",
+        valor: "",
+        parcela: "cheia",
+        mes: filtros.mes || dayjs().format("YYYY-MM"),
+        usuario_id: prev.usuario_id || usuarioAtual?.id || "",
+      }));
+    };
+
+    const abrirModalLancarVenda = () => {
+      limparFormularioNovaVenda();
+      setModalLancarVenda(true);
+    };
+
+    const formatInputMoeda = (txt) => {
+      if (!txt) return '';
+      const valorNumerico = String(txt).replace(/\D/g, '');
+      if (!valorNumerico) return '';
+      return (parseFloat(valorNumerico) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    };
   
    const cadastrarVenda = async () => {
       if (!usuarioAtual) return alert("Usuário não autenticado.");
@@ -204,7 +234,7 @@ export default function PainelDiretor() {
           ...novaVenda, 
           valor: valorNumerico, 
           cliente: novaVenda.cliente.toUpperCase(), 
-          mes: dayjs(novaVenda.mes).format("YYYY-MM"),
+          mes: filtros.mes || dayjs(novaVenda.mes).format("YYYY-MM"),
           // Define o status inicial de todas as parcelas
           // P1 agora é confirmada pela automação Gazin; começa pendente.
           status_parcela_1: 'PENDENTE',
@@ -227,52 +257,25 @@ export default function PainelDiretor() {
   
       // Recarrega os dados, limpa o formulário e volta para a aba de vendas
       await buscarVendas();
-      await buscarPagamentosDoMes(filtros.mes);
-      setNovaVenda((prev) => ({
-        cliente: "",
-        grupo: "",
-        cota: "",
-        administradora: "GAZIN",
-        valor: "",
-        parcela: "cheia",
-        mes: dayjs().format("YYYY-MM"),
-        usuario_id: prev.usuario_id || usuarioAtual?.id || "",
-      }));
-      setAba("vendas");
+      limparFormularioNovaVenda();
+      setModalLancarVenda(false);
       alert("Venda cadastrada com sucesso!");
     };
     
-    const editarVenda = (venda) => { setEditandoId(venda.id); setVendaEditada({ ...venda, valor: venda.valor.toString() }); };
+    const editarVenda = (venda) => { setEditandoId(venda.id); setVendaEditada({ ...venda, valor: parseFloat(venda.valor) || 0 }); };
     const salvarEdicao = async () => { 
-      const dadosParaAtualizar = { ...vendaEditada, valor: parseFloat(vendaEditada.valor) };
+      const dadosParaAtualizar = { ...vendaEditada, valor: parseFloat(vendaEditada.valor) || 0 };
       await supabase.from("vendas").update(dadosParaAtualizar).eq("id", editandoId); 
       setEditandoId(null); setVendaEditada({}); buscarVendas(); 
     };
-    const excluirVenda = async (id) => { if (window.confirm("Tem certeza?")) { await supabase.from("vendas").delete().eq("id", id); buscarVendas(); } };
-   
-    const handleStatusChange = async (venda, parcelaIndex, novoStatus) => {
-      const nomeColuna = `status_parcela_${parcelaIndex}`;
-      const statusAntigo = venda[nomeColuna];
-  
-      if (statusAntigo === novoStatus) {
-          return;
+    const excluirVenda = async (id) => {
+      if (!window.confirm("Tem certeza?")) return;
+      await supabase.from("vendas").delete().eq("id", id);
+      if (editandoId === id) {
+        setEditandoId(null);
+        setVendaEditada({});
       }
-
-      const res = await persistirMudancaStatusParcela(
-        supabase,
-        venda,
-        parcelaIndex,
-        novoStatus,
-        statusAntigo
-      );
-
-      if (!res.ok) {
-        alert('Erro ao atualizar status da venda: ' + (res.error?.message || 'desconhecido'));
-        return;
-      }
-
-      await buscarVendas();
-      await buscarPagamentosDoMes(filtros.mes);
+      buscarVendas();
     };
   
   // COLE ESTE BLOCO CORRIGIDO NO LUGAR DO SEU calculosDoMes ATUAL
@@ -288,77 +291,60 @@ export default function PainelDiretor() {
       const mesFiltroNorm = filtros.mes ? normalizarMesVenda(filtros.mes) : '';
 
       const vendasFiltradas = vendas.filter((v) => {
-          // Nova condição: a venda pertence a um usuário da filial selecionada?
           const matchFilial = !filtros.filial || idsUsuariosDaFilial.includes(v.usuario_id);
-  
           const matchVendedor = !filtros.vendedor || v.usuario_id === filtros.vendedor;
           const matchMes = !mesFiltroNorm || normalizarMesVenda(v.mes) === mesFiltroNorm;
           const matchAdm = !filtros.administradora || v.administradora === filtros.administradora;
-  
           return matchFilial && matchVendedor && matchMes && matchAdm;
       });
   
-      // Totais dos cards: independentes de vendedor e administradora (apenas mês + filial)
-      const vendasBaseParaCards = vendas.filter((v) => {
-          const matchFilialBase = !filtros.filial || idsUsuariosDaFilial.includes(v.usuario_id);
-          const matchMesBase = !mesFiltroNorm || normalizarMesVenda(v.mes) === mesFiltroNorm;
-          return matchFilialBase && matchMesBase;
-      });
-
       const totaisPorVendedor = {};
       usuarios.forEach(u => { totaisPorVendedor[u.id] = { nome: u.nome, vendido: 0 }; });
   
-      let totalMesTodos = 0;
-      let totalComissaoVendedor = 0;
-      let totalVendidoGAZIN = 0;
-      let totalVendidoHS = 0;
-      // Totais dos cards
-      vendasBaseParaCards.forEach((venda) => {
-        const valor = parseFloat(venda.valor) || 0;
-  
-        // matchMesBase garante que estamos no mês selecionado
-        totalMesTodos += valor;
-
-        const percentuais = isParcelaCheia(venda) ? PERCENT_CHEIA : PERCENT_MEIA;
-        const comissaoP1DaVenda = valor * percentuais[0];
-        totalComissaoVendedor += comissaoP1DaVenda;
-
-        if (venda.administradora === 'GAZIN') totalVendidoGAZIN += valor;
-        if (venda.administradora === 'HS') totalVendidoHS += valor;
-      });
-
-      // Totais por vendedor (usados no ranking e texto)
       vendasFiltradas.forEach((venda) => {
         const id = venda.usuario_id;
         const valor = parseFloat(venda.valor) || 0;
-
         if (totaisPorVendedor[id] && (!mesFiltroNorm || normalizarMesVenda(venda.mes) === mesFiltroNorm)) {
             totaisPorVendedor[id].vendido += valor;
         }
       });
   
-      return { vendasFiltradas, totaisPorVendedor, totalMesTodos, totalComissaoVendedor, totalVendidoGAZIN, totalVendidoHS };
+      return { vendasFiltradas, totaisPorVendedor };
   }, [vendas, usuarios, filtros]);
 
+  // Totais dos cards: só mês/ano do Relatório de Vendas (ignoram filtros de lançamentos)
+  const calculosCards = useMemo(() => {
+      const mesNorm = normalizarMesVenda(mesReferenciaCards);
+      let totalMesTodos = 0;
+      let totalVendidoGAZIN = 0;
+      let totalVendidoHS = 0;
+
+      vendas.forEach((venda) => {
+        if (normalizarMesVenda(venda.mes) !== mesNorm) return;
+        const valor = parseFloat(venda.valor) || 0;
+        totalMesTodos += valor;
+        if (venda.administradora === 'GAZIN') totalVendidoGAZIN += valor;
+        if (venda.administradora === 'HS') totalVendidoHS += valor;
+      });
+
+      return { totalMesTodos, totalVendidoGAZIN, totalVendidoHS };
+  }, [vendas, mesReferenciaCards]);
+
   const valorFaltanteParaMeta = useMemo(() => {
-      const meta = configuracoes?.meta_geral || 0;
-      const vendido = calculosDoMes?.totalMesTodos || 0;
-      return meta - vendido;
-  }, [configuracoes?.meta_geral, calculosDoMes?.totalMesTodos]);
+      return (metaCards || 0) - (calculosCards?.totalMesTodos || 0);
+  }, [metaCards, calculosCards?.totalMesTodos]);
   
   
     // CAMINHO DE ABAS
     const abas = [
-      { id: 'vendas', label: 'Dashboard de Vendas', icon: <FaChartBar /> },
-      { id: 'ranking', label: 'Ranking', icon: <FaTrophy /> },
-      { id: 'nova_venda', label: 'Nova Venda', icon: <FaPlusCircle /> },
-      { id: 'contempladas', label: 'Contempladas', icon: <FaChartLine /> },
-      { id: 'crm', label: 'CRM', icon: <FaUsers /> },
-      { id: 'hs_cotas', label: 'Cotas HS', icon: <FaTh /> },
-      { id: 'processos', label: 'Processos', icon: <FaClipboard /> },
-      { id: 'usuarios', label: 'Gerenciar Usuários', icon: <FaUserPlus /> },
-      { id: 'acoes', label: 'Ações', icon: <FaCalendarAlt /> },
-      { id: 'documentos', label: 'Documentos', icon: <FaFileAlt /> },
+      { id: 'vendas', label: 'Controle de Vendas', icon: <FaChartBar /> },
+      { id: 'contempladas', label: 'Cartas Contempladas', icon: <FaChartLine /> },
+      { id: 'hs_cotas', label: 'Controle de Cotas HS', icon: <FaTh /> },
+      { id: 'processos', label: 'Controle de Processos', icon: <FaClipboard /> },
+      { id: 'crm', label: 'Controle de Leads CRM', icon: <FaUsers /> },
+      { id: 'ranking', label: 'Ranking de Vendedores', icon: <FaTrophy /> },
+      { id: 'documentos', label: 'Edição de Documentações', icon: <FaFileAlt /> },
+      { id: 'usuarios', label: 'Gerenciamento de Usuários', icon: <FaUserPlus /> },
     ];
     
     const renderContent = () => {
@@ -367,11 +353,11 @@ export default function PainelDiretor() {
        listaFiliais={listaFiliais} 
     vendasFiltradas={calculosDoMes.vendasFiltradas}
     vendasTodas={vendas}
-    pagamentosDoMes={pagamentosDoMes}
-    totalMesTodos={calculosDoMes.totalMesTodos}
-    totalComissaoVendedor={calculosDoMes.totalComissaoVendedor}
-    totalVendidoGAZIN={calculosDoMes.totalVendidoGAZIN}
-    totalVendidoHS={calculosDoMes.totalVendidoHS}
+    totalMesTodos={calculosCards.totalMesTodos}
+    totalVendidoGAZIN={calculosCards.totalVendidoGAZIN}
+    totalVendidoHS={calculosCards.totalVendidoHS}
+    filtroCards={filtroCards}
+    setFiltroCards={setFiltroCards}
     usuarios={usuarios}
     filtros={filtros} setFiltros={setFiltros} 
     nomeVendedor={nomeVendedor} 
@@ -379,10 +365,9 @@ export default function PainelDiretor() {
     vendaEditada={vendaEditada} setVendaEditada={setVendaEditada}
     editarVenda={editarVenda} salvarEdicao={salvarEdicao} 
     excluirVenda={excluirVenda} 
-    handleStatusChange={handleStatusChange}
     valorFaltanteParaMeta={valorFaltanteParaMeta}
     onAbrirModalRelatorioGeral={() => setModalRelatorioGeral(true)}
-    onAbrirModalRelatorioHS={() => setModalRelatorioHS(true)}
+    onLancarVenda={abrirModalLancarVenda}
   />;
           // CASES PARA ROTAS
           case 'acoes': 
@@ -418,10 +403,11 @@ export default function PainelDiretor() {
               listaFiliais={listaFiliais}
               filialSelecionadaId={filialSelecionadaId}
               setFilialSelecionadaId={setFilialSelecionadaId}
+              onAbrirModalRelatorioHS={() => setModalRelatorioHS(true)}
+              onAbrirModalRelatorioGazin={() => setModalRelatorioGazin(true)}
           />
       );
   }     
-          case 'nova_venda': return <AbaNovaVenda novaVenda={novaVenda} setNovaVenda={setNovaVenda} cadastrarVenda={cadastrarVenda} usuarios={usuarios} usuarioAtual={usuarioAtual} />;
         case 'crm': return (
           <PainelCRM
             cargo={perfilUsuario?.cargo}
@@ -445,143 +431,292 @@ export default function PainelDiretor() {
       
     };
     
-    if (loading) return <LoadingSpinner />;
-    
+    if (loading && !perfilUsuario) return <LoadingSpinner />;
+
     return (
-      <div className="bg-gray-900 text-gray-200 min-h-[100dvh] min-h-screen w-full max-w-[100vw] overflow-x-hidden p-4 sm:p-6 md:p-8">
-        <div className="container mx-auto">
-          <header className="mb-8">
-              <div className="flex justify-between items-center mb-6">
-                  <div>
-                      <h1 className="text-4xl font-bold text-white">Painel do Diretor</h1>
-                      <p className="text-gray-400 mt-1">Gerencie vendas, comissões, rankings e sua equipe.</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                      
-                      <button 
-                          onClick={() => setModalContaVisivel(true)}
-                          className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-                      >
-                          <FaUserCircle /> Minha Conta
-                      </button>
-                      <button 
-                          onClick={handleLogout}
-                          className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-                      >
-                          <FaSignOutAlt /> Sair
-                      </button>
-                  </div>
-              </div>
-              <nav className="mt-6 flex flex-wrap gap-2 border-b border-gray-700 pb-2">
-                  {abas.map((item) => (
-                      <button key={item.id} onClick={() => setAba(item.id)} className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-semibold transition-all ${aba === item.id ? 'bg-gray-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:bg-gray-700/50'}`}>
-                          {item.icon} {item.label}
-                      </button>
-                  ))}
-              </nav>
-          </header>
-          
-          {aba === 'vendas' && (
-            <div className="mt-5 mb-4 print:hidden">
-              <h2 className="text-xl font-bold text-white">Relatório Geral</h2>
-            </div>
-          )}
-          <LembretesLeads />
-          <div className="mt-6">{renderContent()}</div>
-  {perfilUsuario && <LembreteAcaoDiaria usuario={perfilUsuario} />}
-          {modalContaVisivel && perfilUsuario && (
-              <MinhaContaModal 
-                  usuario={perfilUsuario} 
-                  onClose={() => setModalContaVisivel(false)}
-                  onUpdate={() => {
-                      // Função para recarregar os dados do perfil após a atualização
-                      const reFetchProfile = async () => {
-                          const { data: { user } } = await supabase.auth.getUser();
-                          if (user) {
-                              const { data: perfilData } = await supabase
-                                .from('usuarios_custom')
-                                .select('*')
-                                .eq('id', user.id)
-                                .single();
-                              if (perfilData) setPerfilUsuario(perfilData);
-                          }
-                      };
-                      reFetchProfile();
-                      buscarUsuarios();
-                  }}
-              />
-          )}
-          {modalRelatorioHS && (
-              <RelatorioHSModal
-                  vendas={vendas}
-                  usuarios={usuarios}
-                  onClose={() => setModalRelatorioHS(false)}
-              />
-          )}
-      {modalRelatorioGeral && (
-          <RelatorioGeralModal
-              vendas={vendas}
-              usuarios={usuarios}
-              filtros={filtros}
-              listaFiliais={listaFiliais}
-              pagamentosDoMes={pagamentosDoMes}
-              onClose={() => setModalRelatorioGeral(false)}
+      <div className="bg-gray-900 text-gray-200 h-[100dvh] h-screen w-full max-w-[100vw] overflow-hidden flex">
+        {menuLateralAberto && (
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+            onClick={() => setMenuLateralAberto(false)}
           />
-      )}
-  
+        )}
+
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 w-64 h-full bg-gray-950 border-r border-gray-800 flex flex-col overflow-hidden transition-transform duration-200 lg:translate-x-0 lg:static lg:z-auto lg:shrink-0 ${
+            menuLateralAberto ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="relative px-4 py-4 border-b border-gray-800 flex items-center justify-center shrink-0">
+            <img src={logoFenix} alt="Fênix Consórcios" className="h-14 w-auto max-w-[15rem] object-contain" />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 lg:hidden text-gray-400 hover:text-white p-1"
+              onClick={() => setMenuLateralAberto(false)}
+              aria-label="Fechar menu"
+            >
+              <FaTimes size={18} />
+            </button>
+          </div>
+
+          <nav className="flex-1 min-h-0 overflow-hidden px-3 py-3 space-y-0.5">
+            {abas.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setAba(item.id);
+                  salvarAbaPainel(ABA_STORAGE_KEY, item.id);
+                  setMenuLateralAberto(false);
+                }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm font-semibold transition-colors ${
+                  aba === item.id
+                    ? 'bg-indigo-500/15 text-indigo-300'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-100'
+                }`}
+              >
+                <span className="text-sm shrink-0">{item.icon}</span>
+                <span className="truncate">{item.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="p-3 border-t border-gray-800 space-y-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setModalContaVisivel(true);
+                setMenuLateralAberto(false);
+              }}
+              className="w-full bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 text-sm"
+            >
+              <FaUserCircle /> Minha Conta
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 text-sm"
+            >
+              <FaSignOutAlt /> Sair
+            </button>
+          </div>
+        </aside>
+
+        <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
+          <div className="lg:hidden shrink-0 bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center">
+            <button
+              type="button"
+              className="p-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700"
+              onClick={() => setMenuLateralAberto(true)}
+              aria-label="Abrir menu"
+            >
+              <FaBars size={18} />
+            </button>
+          </div>
+
+          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-3 sm:p-4 md:p-5">
+            <div className="w-full min-w-0 max-w-none">
+              <LembretesLeads />
+              <div className="mt-3">{renderContent()}</div>
+            </div>
+          </main>
         </div>
+
+        {perfilUsuario && <LembreteAcaoDiaria usuario={perfilUsuario} />}
+        {modalContaVisivel && perfilUsuario && (
+          <MinhaContaModal
+            usuario={perfilUsuario}
+            onClose={() => setModalContaVisivel(false)}
+            onUpdate={() => {
+              const reFetchProfile = async () => {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                  const { data: perfilData } = await supabase
+                    .from('usuarios_custom')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+                  if (perfilData) setPerfilUsuario(perfilData);
+                }
+              };
+              reFetchProfile();
+              buscarUsuarios();
+            }}
+          />
+        )}
+        {modalRelatorioHS && (
+          <RelatorioHSModal
+            vendas={vendas}
+            usuarios={usuarios}
+            administradora="HS"
+            onClose={() => setModalRelatorioHS(false)}
+          />
+        )}
+        {modalRelatorioGazin && (
+          <RelatorioHSModal
+            vendas={vendas}
+            usuarios={usuarios}
+            administradora="GAZIN"
+            onClose={() => setModalRelatorioGazin(false)}
+          />
+        )}
+        {modalRelatorioGeral && (
+          <RelatorioGeralModal
+            vendas={vendas}
+            usuarios={usuarios}
+            filtros={filtros}
+            listaFiliais={listaFiliais}
+            onClose={() => setModalRelatorioGeral(false)}
+          />
+        )}
+        {modalLancarVenda && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+            <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in">
+              <header className="px-4 py-3 flex justify-between items-center border-b border-gray-700">
+                <h3 className="text-base font-semibold flex items-center gap-2">
+                  <FaPlusCircle className="text-indigo-400" /> Lançar Venda
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => { setModalLancarVenda(false); limparFormularioNovaVenda(); }}
+                  className="p-1.5 text-gray-500 hover:text-white rounded-full"
+                >
+                  <FaTimes size={16} />
+                </button>
+              </header>
+
+              <div className="p-4 space-y-3">
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide">Vendedor</label>
+                  <select
+                    className="w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    value={novaVenda.usuario_id}
+                    onChange={(e) => setNovaVenda({ ...novaVenda, usuario_id: e.target.value })}
+                  >
+                    <option value={usuarioAtual?.id}>Lançar para mim ({usuarioAtual?.email?.split('@')[0]})</option>
+                    {usuarios.filter((u) => u.id !== usuarioAtual?.id).map((u) => (
+                      <option key={u.id} value={u.id}>{u.nome}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide">Cliente</label>
+                    <input
+                      placeholder="Nome do cliente"
+                      className="w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      value={novaVenda.cliente}
+                      onChange={(e) => setNovaVenda({ ...novaVenda, cliente: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide">Valor do crédito</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0,00"
+                      className="w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      value={novaVenda.valor}
+                      onChange={(e) => setNovaVenda({ ...novaVenda, valor: formatInputMoeda(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide">Parcela</label>
+                    <select
+                      className="w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      value={novaVenda.parcela}
+                      onChange={(e) => setNovaVenda({ ...novaVenda, parcela: e.target.value })}
+                    >
+                      <option value="cheia">Cheia</option>
+                      <option value="meia">Meia</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide">Grupo</label>
+                    <input
+                      placeholder="Grupo"
+                      className="w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      value={novaVenda.grupo}
+                      onChange={(e) => setNovaVenda({ ...novaVenda, grupo: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide">Cota</label>
+                    <input
+                      placeholder="Cota"
+                      className="w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      value={novaVenda.cota}
+                      onChange={(e) => setNovaVenda({ ...novaVenda, cota: e.target.value })}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide">Administradora</label>
+                    <select
+                      className="w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      value={novaVenda.administradora}
+                      onChange={(e) => setNovaVenda({ ...novaVenda, administradora: e.target.value })}
+                    >
+                      <option value="GAZIN">GAZIN</option>
+                      <option value="HS">HS</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <footer className="px-4 py-3 flex justify-end gap-2 border-t border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => { setModalLancarVenda(false); limparFormularioNovaVenda(); }}
+                  className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md text-sm font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={cadastrarVenda}
+                  className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2"
+                >
+                  <FaSave size={14} /> Salvar venda
+                </button>
+              </footer>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
   
   
   // --- Componente da Aba de Vendas (Dashboard) ---
-  const AbaVendas = ({ listaFiliais, vendasFiltradas, vendasTodas, pagamentosDoMes, totalMesTodos, totalComissaoVendedor, totalVendidoGAZIN, totalVendidoHS, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, handleStatusChange, valorFaltanteParaMeta, onAbrirModalRelatorioGeral, onAbrirModalRelatorioHS }) => {
-      const [exportandoLista8Meses, setExportandoLista8Meses] = useState(false);
-
-      const exportarExcelVendasVendedores8Meses = useCallback(() => {
-          const filtro = filtrarVendasVendedoresUltimos8Meses({
-              vendasTodas,
-              usuarios,
-              filialId: filtros.filial,
-          });
-          if (filtro.erro) {
-              window.alert(filtro.erro);
-              return;
-          }
-          const linhasOrd = ordenarLinhasComoExcel(filtro.linhas, nomeVendedor);
-
-          setExportandoLista8Meses(true);
-          try {
-              const header = ["Mês referência", "Vendedor", "Cliente", "Grupo", "Cota"];
-              const dados = [
-                  header,
-                  ...linhasOrd.map(({ v, m }) => [
-                      m,
-                      nomeVendedor(v.usuario_id),
-                      String(v.cliente || "").toUpperCase(),
-                      v.grupo ?? "",
-                      v.cota ?? "",
-                  ]),
-              ];
-              const ws = XLSX.utils.aoa_to_sheet(dados);
-              const wb = XLSX.utils.book_new();
-              XLSX.utils.book_append_sheet(wb, ws, "Vendas");
-              const sufixo = dayjs().format("YYYYMMDD_HHmm");
-              XLSX.writeFile(wb, `vendas_vendedores_8meses_${sufixo}.xlsx`);
-          } catch (e) {
-              console.error(e);
-              window.alert("Não foi possível gerar o Excel. Tente novamente.");
-          } finally {
-              setExportandoLista8Meses(false);
-          }
-      }, [vendasTodas, usuarios, filtros.filial, nomeVendedor]);
+  const AbaVendas = ({ listaFiliais, vendasFiltradas, vendasTodas, totalMesTodos, totalVendidoGAZIN, totalVendidoHS, filtroCards, setFiltroCards, usuarios, filtros, setFiltros, nomeVendedor, editandoId, setEditandoId, vendaEditada, setVendaEditada, editarVenda, salvarEdicao, excluirVenda, valorFaltanteParaMeta, onAbrirModalRelatorioGeral, onLancarVenda }) => {
+      const opcoesMes = [
+        { value: '01', label: 'Janeiro' },
+        { value: '02', label: 'Fevereiro' },
+        { value: '03', label: 'Março' },
+        { value: '04', label: 'Abril' },
+        { value: '05', label: 'Maio' },
+        { value: '06', label: 'Junho' },
+        { value: '07', label: 'Julho' },
+        { value: '08', label: 'Agosto' },
+        { value: '09', label: 'Setembro' },
+        { value: '10', label: 'Outubro' },
+        { value: '11', label: 'Novembro' },
+        { value: '12', label: 'Dezembro' },
+      ];
+      const anoAtual = dayjs().year();
+      const anoMinimo = 2025;
+      const anoMaximo = Math.max(anoAtual, anoMinimo);
+      const opcoesAno = Array.from(
+        { length: anoMaximo - anoMinimo + 1 },
+        (_, i) => String(anoMinimo + i)
+      );
 
       const dMes = dayjsMesRef(filtros.mes);
-      const mesSelecionadoLabel = dMes.format('MMMM [de] YYYY');
       const faltaParaMetaClamped = valorFaltanteParaMeta > 0 ? valorFaltanteParaMeta : 0;
       const mesLabel = dMes.format('MMMM');
-      const [modalEstornoAberto, setModalEstornoAberto] = useState(false);
   
       const vendedorSelecionadoId = filtros.vendedor;
       const nomeVendedorSelecionado = vendedorSelecionadoId ? nomeVendedor(vendedorSelecionadoId) : "";
@@ -590,11 +725,10 @@ export default function PainelDiretor() {
 
       const mesP1VendasLabel = dMes.subtract(1, 'month').format('MMMM [de] YYYY');
       const mesP1RecebeLabel = dMes.format('MMMM [de] YYYY');
-      const subtituloComissaoP1 = `Comissão P1 (0,30% meia ou 0,60% cheia) das vendas lançadas em ${mesP1VendasLabel}. Você recebe esse valor em ${mesP1RecebeLabel}.`;
+      const subtituloComissaoP1 = `Comissão P1 das vendas de ${mesP1VendasLabel}, recebida em ${mesP1RecebeLabel}.`;
       const mesNomeUpper = nomeMesPortuguesUpper(filtros.mes);
       const mesSeguinteLabel = dMes.add(1, 'month').format('MMMM [de] YYYY');
-      const subtituloEstornoCard = `Esse valor é seu estorno de clientes que foram excluídos no mês de ${mesLabel} que reflete na comissão de ${mesSeguinteLabel}`;
-      const subtituloTotalReceber = `Valor total que vai receber das comissões em ${mesSeguinteLabel} já descontado o estorno`;
+      const subtituloComissaoMesAtual = `Comissão P1 das vendas de ${mesLabel}, a receber em ${mesSeguinteLabel}.`;
 
       const totaisVendedorParaPrint = useMemo(() => {
           const mesRef = filtros.mes;
@@ -603,46 +737,25 @@ export default function PainelDiretor() {
             return {
               totalVendidoMes: 0,
               totalComissaoP1: 0,
-              totalComissaoP2Liberada: 0,
-              totalComissaoP3Liberada: 0,
-              totalEstorno: 0,
-              totalAPagar: 0,
-              itensEstorno: [],
+              totalComissaoMesAtual: 0,
             };
           }
 
           const mesRefNorm = normalizarMesVenda(mesRef);
-          const totalVendidoMes = (vendasTodas || [])
-            .filter((v) => v.usuario_id === uid && normalizarMesVenda(v.mes) === mesRefNorm)
-            .reduce((s, v) => s + (parseFloat(v.valor) || 0), 0);
-
-          const vendasPorId = {};
-          (vendasTodas || []).forEach((v) => {
-            vendasPorId[v.id] = v;
-          });
-
-          const vendasDoVendedor = (vendasTodas || []).filter((v) => v.usuario_id === uid);
-
-          const totalComissaoP1 = totalComissaoP1RecebidaNoMes(vendasDoVendedor, uid, mesRef);
-          const { totalComissaoP2Liberada, totalComissaoP3Liberada } = totaisPagamentosP2P3(
-            pagamentosDoMes,
-            uid,
-            vendasPorId
+          const vendasDoMes = (vendasTodas || []).filter(
+            (v) => v.usuario_id === uid && normalizarMesVenda(v.mes) === mesRefNorm
           );
-          const { totalEstorno, itens: itensEstorno } = calcularEstornoMes(vendasDoVendedor, mesRef);
-
-          const totalAPagar = totalComissaoP1 + totalComissaoP2Liberada + totalComissaoP3Liberada - totalEstorno;
+          const totalVendidoMes = vendasDoMes.reduce((s, v) => s + (parseFloat(v.valor) || 0), 0);
+          const totalComissaoMesAtual = vendasDoMes.reduce((s, v) => s + valorComissaoP1(v), 0);
+          const vendasDoVendedor = (vendasTodas || []).filter((v) => v.usuario_id === uid);
+          const totalComissaoP1 = totalComissaoP1RecebidaNoMes(vendasDoVendedor, uid, mesRef);
 
           return {
               totalVendidoMes,
               totalComissaoP1,
-              totalComissaoP2Liberada,
-              totalComissaoP3Liberada,
-              totalEstorno,
-              totalAPagar,
-              itensEstorno,
+              totalComissaoMesAtual,
           };
-      }, [vendasTodas, pagamentosDoMes, filtros.mes, vendedorSelecionadoId]);
+      }, [vendasTodas, filtros.mes, vendedorSelecionadoId]);
 
       const PrintMetricCard = ({ title, value, subtitle }) => (
           <div className="bg-white border border-gray-300 rounded-lg p-3">
@@ -660,103 +773,76 @@ export default function PainelDiretor() {
       }, [usuarios, filtros.filial]);
   
       return (
-      <div className="animate-fade-in space-y-8">
-          {/* Cards de estatísticas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 print:hidden">
-              <StatCard icon={<FaDollarSign size={24} />} label={`Total Vendido em ${mesSelecionadoLabel}`} value={totalMesTodos} color="bg-green-500/20 text-green-400" />
-              <StatCard
-                icon={<FaBullseye size={24} />}
-                label={`Valor faltante para atingir a meta de ${mesLabel}`}
-                value={faltaParaMetaClamped}
-                color={faltaParaMetaClamped > 0 ? "bg-red-500/20 text-red-400" : "bg-green-500/20"}
-              />
-              <StatCard
-                icon={<FaDollarSign size={24} />}
-                label={`Total Vendido GAZIN em ${mesSelecionadoLabel}`}
-                value={totalVendidoGAZIN}
-                color="bg-indigo-500/20 text-indigo-300"
-              />
-              <StatCard
-                icon={<FaDollarSign size={24} />}
-                label={`Total Vendido HS em ${mesSelecionadoLabel}`}
-                value={totalVendidoHS}
-                color="bg-purple-500/20 text-purple-300"
-              />
-          </div>
-
+      <div className="animate-fade-in space-y-5">
           <div className="print:hidden">
-              <h2 className="text-xl font-bold text-white">Relatório por Vendedor</h2>
-              {vendedorSelecionadoId ? (
-                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                          <p className="text-sm text-gray-400 font-semibold"><FaDollarSign className="inline-block mr-2" />{`TOTAL VENDIDO MÊS DE ${mesNomeUpper}`}</p>
-                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalVendidoMes)}</p>
-                      </div>
-                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                          <p className="text-sm text-gray-400 font-semibold"><FaFileInvoiceDollar className="inline-block mr-2" />TOTAL DE COMISSÃO P1</p>
-                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP1)}</p>
-                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">{subtituloComissaoP1}</p>
-                      </div>
-                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                          <p className="text-sm text-gray-400 font-semibold"><FaChartLine className="inline-block mr-2" />TOTAL DE COMISSÃO LIBERADA EM P2</p>
-                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP2Liberada)}</p>
-                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">Esse valor é sua comissão de clientes que pagaram a 2º parcela das vendas anteriores</p>
-                      </div>
-                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                          <p className="text-sm text-gray-400 font-semibold"><FaChartLine className="inline-block mr-2" />TOTAL DE COMISSÃO LIBERADA EM P3</p>
-                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP3Liberada)}</p>
-                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">Esse valor é sua comissão de clientes que pagaram a 3º parcela das vendas anteriores</p>
-                      </div>
-                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                          <p className="text-sm text-gray-400 font-semibold flex items-center gap-2 flex-wrap">
-                            <FaExclamationTriangle className="inline-block" />TOTAL DE ESTORNO
-                            <button
-                              type="button"
-                              title="Ver detalhes dos estornos conferidos neste mês"
-                              onClick={() => setModalEstornoAberto(true)}
-                              className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/40 font-bold text-sm"
-                            >
-                              !
-                            </button>
-                          </p>
-                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalEstorno)}</p>
-                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">{subtituloEstornoCard}</p>
-                      </div>
-                      <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-                          <p className="text-sm text-gray-400 font-semibold"><FaUserTie className="inline-block mr-2" />TOTAL À RECEBER</p>
-                          <p className="text-2xl font-extrabold text-white mt-1">{formatarMoeda(totaisVendedorParaPrint.totalAPagar)}</p>
-                          <p className="text-[11px] text-gray-400 mt-2 leading-snug">{subtituloTotalReceber}</p>
-                      </div>
-                  </div>
-              ) : (
-                  <p className="text-sm text-gray-400 mt-3">Selecione um vendedor nos filtros acima para ver o relatório.</p>
-              )}
-          </div>
-
-          {modalEstornoAberto && vendedorSelecionadoId && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 print:hidden">
-              <div className="bg-gray-800 border border-gray-600 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl">
-                <div className="flex justify-between items-center px-4 py-3 border-b border-gray-700">
-                  <h3 className="text-lg font-bold text-white">Estornos em {mesLabel}</h3>
-                  <button type="button" onClick={() => setModalEstornoAberto(false)} className="text-gray-400 hover:text-white text-xl px-2">&times;</button>
-                </div>
-                <div className="p-4 overflow-y-auto max-h-[60vh] text-sm">
-                  {(totaisVendedorParaPrint.itensEstorno || []).length === 0 ? (
-                    <p className="text-gray-400">Nenhum estorno (P2–P5) conferido neste mês para este vendedor.</p>
-                  ) : (
-                    <ul className="space-y-3">
-                      {totaisVendedorParaPrint.itensEstorno.map((it, idx) => (
-                        <li key={`${it.vendaId}-${it.parcela}-${idx}`} className="border border-gray-700 rounded-lg p-3 bg-gray-900/50">
-                          <p className="font-semibold text-white">{(it.cliente || '').toUpperCase()}</p>
-                          <p className="text-gray-400 text-xs mt-1">Parcela com estorno: P{it.parcela} · Valor P1 estornado: {formatarMoeda(it.valorEstornoComissaoP1)}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <h2 className="text-lg font-bold text-white leading-none">Relatório de Vendas</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={filtroCards.mes}
+                  onChange={(e) => setFiltroCards((prev) => ({ ...prev, mes: e.target.value }))}
+                  className="bg-gray-800 border border-gray-600 rounded-lg px-2.5 py-1.5 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  aria-label="Mês do relatório de vendas"
+                >
+                  {opcoesMes.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={filtroCards.ano}
+                  onChange={(e) => setFiltroCards((prev) => ({ ...prev, ano: e.target.value }))}
+                  className="bg-gray-800 border border-gray-600 rounded-lg px-2.5 py-1.5 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  aria-label="Ano do relatório de vendas"
+                >
+                  {opcoesAno.map((ano) => (
+                    <option key={ano} value={ano}>{ano}</option>
+                  ))}
+                </select>
               </div>
             </div>
-          )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <StatCard icon={<FaDollarSign size={18} />} label="Total Vendido" value={totalMesTodos} color="bg-green-500/20 text-green-400" />
+                <StatCard
+                  icon={<FaBullseye size={18} />}
+                  label="Valor Faltante para Meta"
+                  value={faltaParaMetaClamped}
+                  color={faltaParaMetaClamped > 0 ? "bg-red-500/20 text-red-400" : "bg-green-500/20"}
+                />
+                <StatCard
+                  icon={<FaDollarSign size={18} />}
+                  label="Total de Vendas Gazin"
+                  value={totalVendidoGAZIN}
+                  color="bg-indigo-500/20 text-indigo-300"
+                />
+                <StatCard
+                  icon={<FaDollarSign size={18} />}
+                  label="Total de Vendas HS"
+                  value={totalVendidoHS}
+                  color="bg-purple-500/20 text-purple-300"
+                />
+            </div>
+          </div>
+
+          <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <h2 className="text-lg font-bold text-white leading-none">Relatório de Vendas Lançadas</h2>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                      type="button"
+                      onClick={onLancarVenda}
+                      className="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+                  >
+                      <FaPlusCircle size={12} /> Lançar Venda
+                  </button>
+                  <button
+                      type="button"
+                      onClick={onAbrirModalRelatorioGeral}
+                      className="bg-blue-600 hover:bg-blue-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+                  >
+                      <FaPrint size={12} /> Relatório de Comissão Mensal
+                  </button>
+              </div>
+          </div>
 
           {/* PRINT */}
           <div className="hidden print:block space-y-4">
@@ -773,32 +859,17 @@ export default function PainelDiretor() {
               </h2>
 
               {vendedorSelecionadoId ? (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                       <PrintMetricCard title={`TOTAL VENDIDO MÊS DE ${mesNomeUpper}`} value={totaisVendedorParaPrint.totalVendidoMes} />
                       <PrintMetricCard
-                          title="TOTAL DE COMISSÃO P1"
+                          title="COMISSÃO DAS VENDAS DO MÊS PASSADO"
                           value={totaisVendedorParaPrint.totalComissaoP1}
                           subtitle={subtituloComissaoP1}
                       />
                       <PrintMetricCard
-                          title="TOTAL DE COMISSÃO LIBERADA EM P2"
-                          value={totaisVendedorParaPrint.totalComissaoP2Liberada}
-                          subtitle="Esse valor é sua comissão de clientes que pagaram a 2º parcela das vendas anteriores"
-                      />
-                      <PrintMetricCard
-                          title="TOTAL DE COMISSÃO LIBERADA EM P3"
-                          value={totaisVendedorParaPrint.totalComissaoP3Liberada}
-                          subtitle="Esse valor é sua comissão de clientes que pagaram a 3º parcela das vendas anteriores"
-                      />
-                      <PrintMetricCard
-                          title="TOTAL DE ESTORNO"
-                          value={totaisVendedorParaPrint.totalEstorno}
-                          subtitle={subtituloEstornoCard}
-                      />
-                      <PrintMetricCard
-                          title="TOTAL À RECEBER"
-                          value={totaisVendedorParaPrint.totalAPagar}
-                          subtitle={subtituloTotalReceber}
+                          title="COMISSÃO A RECEBER (MÊS ATUAL)"
+                          value={totaisVendedorParaPrint.totalComissaoMesAtual}
+                          subtitle={subtituloComissaoMesAtual}
                       />
                   </div>
               ) : (
@@ -806,152 +877,218 @@ export default function PainelDiretor() {
               )}
           </div>
           
-          <main className="bg-gray-800/50 rounded-xl shadow-2xl p-6 print:hidden"> 
+          <main className="bg-gray-800/50 rounded-xl shadow-2xl p-4 print:hidden"> 
   
               {/* --- DIV DE FILTROS E BOTÕES (LAYOUT CORRIGIDO) --- */}
-              <div className="print-hidden mb-6 pb-6 border-b border-gray-700">
-                  
-                  {/* Agrupador para Filtros */}
-                  <div className="flex flex-wrap items-center gap-4">
-                      <h2 className="text-xl font-semibold flex items-center gap-2 whitespace-nowrap"><FaFilter /> Filtros</h2>
-                      
-                      <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500" />
-  
-                      <select 
-                          value={filtros.filial} 
-                          onChange={(e) => setFiltros({ ...filtros, filial: e.target.value, vendedor: "" })} 
-                          className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
+              <div className="print-hidden mb-4 pb-4 border-b border-gray-700 space-y-3">
+                  <h2 className="text-sm font-semibold flex items-center gap-2 text-gray-300">
+                    <FaFilter size={12} /> Filtros
+                  </h2>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2">
+                      <select
+                        value={(filtros.mes || '').split('-')[1] || dayjs().format('MM')}
+                        onChange={(e) => {
+                          const ano = (filtros.mes || '').split('-')[0] || dayjs().format('YYYY');
+                          setFiltros({ ...filtros, mes: `${ano}-${e.target.value}` });
+                        }}
+                        className="w-full bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        aria-label="Mês das vendas lançadas"
+                      >
+                        {opcoesMes.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={(filtros.mes || '').split('-')[0] || dayjs().format('YYYY')}
+                        onChange={(e) => {
+                          const mes = (filtros.mes || '').split('-')[1] || dayjs().format('MM');
+                          setFiltros({ ...filtros, mes: `${e.target.value}-${mes}` });
+                        }}
+                        className="w-full bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        aria-label="Ano das vendas lançadas"
+                      >
+                        {opcoesAno.map((ano) => (
+                          <option key={ano} value={ano}>{ano}</option>
+                        ))}
+                      </select>
+
+                      <select
+                          value={filtros.filial}
+                          onChange={(e) => setFiltros({ ...filtros, filial: e.target.value, vendedor: "" })}
+                          className="w-full bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none"
                       >
                           <option value="">Todas as Filiais</option>
                           {listaFiliais.map((filial) => (
                               <option key={filial.id} value={filial.id}>{filial.nome}</option>
                           ))}
                       </select>
-  
-                      <select 
-                          value={filtros.vendedor} 
-                          onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })} 
-                          className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
+
+                      <select
+                          value={filtros.vendedor}
+                          onChange={(e) => setFiltros({ ...filtros, vendedor: e.target.value })}
+                          className="w-full bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none"
                       >
                           <option value="">Todos os Vendedores</option>
                           {vendedoresFiltradosParaDropdown.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
                       </select>
-  
-                      <select value={filtros.administradora} onChange={(e) => setFiltros({ ...filtros, administradora: e.target.value })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500">
+
+                      <select
+                        value={filtros.administradora}
+                        onChange={(e) => setFiltros({ ...filtros, administradora: e.target.value })}
+                        className="w-full bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+                      >
                           <option value="">Todas Administradoras</option>
-                          <option value="HS">HS</option><option value="GAZIN">GAZIN</option>
+                          <option value="HS">HS</option>
+                          <option value="GAZIN">GAZIN</option>
                       </select>
                   </div>
-  
-                  {/* Agrupador para Botões (separado, para quebrar a linha) */}
-                  <div className="flex flex-wrap items-center gap-4 mt-4 justify-start">
-                      <button 
-                          onClick={onAbrirModalRelatorioHS}
-                          className="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-                      >
-                          <FaChartLine /> RANK HS
-                      </button>
-                      <button 
-                          onClick={onAbrirModalRelatorioGeral} 
-                          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-                      >
-                          <FaPrint /> Gerar Relatório de Comissão Mensal
-                      </button>
-                      <button
-                          type="button"
-                          disabled={exportandoLista8Meses}
-                          onClick={exportarExcelVendasVendedores8Meses}
-                          title="Últimos 8 meses fechados (exclui o mês corrente). Apenas vendas de usuários com cargo Vendedor. Respeita o filtro de filial, se houver."
-                          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-                      >
-                          <FaFileExcel /> {exportandoLista8Meses ? "Gerando…" : "Lista Excel — vendas (8 meses)"}
-                      </button>
-                  </div>
               </div>
+
+              {vendedorSelecionadoId && (
+                <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="bg-gray-900/40 border border-gray-700 rounded-lg px-3.5 py-3">
+                    <p className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
+                      <FaDollarSign /> Total Vendido
+                    </p>
+                    <p className="text-lg font-bold text-white mt-1 tabular-nums">{formatarMoeda(totaisVendedorParaPrint.totalVendidoMes)}</p>
+                  </div>
+                  <div className="bg-gray-900/40 border border-gray-700 rounded-lg px-3.5 py-3">
+                    <p className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
+                      <FaFileInvoiceDollar /> Comissão do mês passado
+                    </p>
+                    <p className="text-lg font-bold text-white mt-1 tabular-nums">{formatarMoeda(totaisVendedorParaPrint.totalComissaoP1)}</p>
+                  </div>
+                  <div className="bg-gray-900/40 border border-gray-700 rounded-lg px-3.5 py-3">
+                    <p className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
+                      <FaUserTie /> Comissão a receber (mês atual)
+                    </p>
+                    <p className="text-lg font-bold text-white mt-1 tabular-nums">{formatarMoeda(totaisVendedorParaPrint.totalComissaoMesAtual)}</p>
+                  </div>
+                </div>
+              )}
               {/* --- FIM DA DIV DE FILTROS E BOTÕES --- */}
               
               {/* Tabela de Lançamentos */}
-              <div>
-                  <h3 className="text-xl font-bold mb-4 text-white">Lançamentos de Vendas</h3>
-                  <div className="overflow-x-auto">
-                      <table className="min-w-full text-sm text-left">
-                          <thead className="border-b border-gray-700"><tr className="text-gray-400 uppercase">
-                              <th className="px-4 py-3">Cliente</th>
-                              <th className="px-4 py-3">Produto</th>
-                              <th className="px-4 py-3">Valor</th>
-                              <th className="px-4 py-3">Vendedor</th>
-                              <th className="px-4 py-3 text-center">Comissões</th>
-                              <th className="px-4 py-3 text-center">Ações</th>
-                          </tr></thead>
+              <div className="min-w-0">
+                  <div className="w-full min-w-0">
+                      <table className="w-full table-fixed text-xs text-left">
+                          <thead className="border-b border-gray-700">
+                            <tr className="text-gray-400 uppercase tracking-wide">
+                              <th className="w-[18%] px-2 py-2">Cliente</th>
+                              <th className="w-[9%] px-2 py-2">Admin</th>
+                              <th className="w-[11%] px-2 py-2">Grupo/Cota</th>
+                              <th className="w-[7%] px-2 py-2">Tipo</th>
+                              <th className="w-[13%] px-2 py-2">Valor</th>
+                              <th className="w-[20%] px-2 py-2">Vendedor</th>
+                              <th className="w-[12%] px-2 py-2 text-right">Comissão</th>
+                              <th className="w-[10%] px-2 py-2 text-center">Ações</th>
+                            </tr>
+                          </thead>
                           <tbody>
-                              {vendasFiltradas.length > 0 ? vendasFiltradas.map((venda) => (
-                                  <tr key={venda.id} className="border-b border-gray-700/50 hover:bg-gray-700/50 transition-colors">
+                              {vendasFiltradas.length > 0 ? vendasFiltradas.map((venda) => {
+                                  const comissaoMes = valorComissaoP1(venda);
+                                  const tipoCheia = isParcelaCheia(venda);
+                                  return (
+                                  <tr key={venda.id} className="border-b border-gray-700/50 hover:bg-gray-700/40 transition-colors">
                                       {editandoId === venda.id ? (
                                           <>
-                                              <td className="p-2"><input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-2 rounded w-full"/></td>
-                                              <td className="p-2 space-y-2">
-                                                  <input placeholder="Admin" value={vendaEditada.administradora || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-                                                  <input placeholder="Grupo" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-                                                  <input placeholder="Cota" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/>
-                                                  <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-2 rounded w-full">
-                                                      <option value="cheia">Parcela Cheia</option>
-                                                      <option value="meia">Parcela Meia</option>
+                                              <td className="p-1.5">
+                                                <input value={vendaEditada.cliente || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cliente: e.target.value.toUpperCase() })} className="bg-gray-600 p-1.5 rounded w-full text-xs"/>
+                                              </td>
+                                              <td className="p-1.5">
+                                                <select value={vendaEditada.administradora || 'GAZIN'} onChange={(e) => setVendaEditada({ ...vendaEditada, administradora: e.target.value })} className="bg-gray-600 p-1.5 rounded w-full text-xs">
+                                                  <option value="GAZIN">GAZIN</option>
+                                                  <option value="HS">HS</option>
+                                                </select>
+                                              </td>
+                                              <td className="p-1.5">
+                                                <div className="flex gap-1">
+                                                  <input placeholder="G" value={vendaEditada.grupo || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, grupo: e.target.value })} className="bg-gray-600 p-1.5 rounded w-1/2 text-xs"/>
+                                                  <input placeholder="C" value={vendaEditada.cota || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, cota: e.target.value })} className="bg-gray-600 p-1.5 rounded w-1/2 text-xs"/>
+                                                </div>
+                                              </td>
+                                              <td className="p-1.5">
+                                                <select value={vendaEditada.parcela || 'cheia'} onChange={(e) => setVendaEditada({...vendaEditada, parcela: e.target.value})} className="bg-gray-600 p-1.5 rounded w-full text-xs">
+                                                      <option value="cheia">Cheia</option>
+                                                      <option value="meia">Meia</option>
                                                   </select>
                                               </td>
-                                              <td className="p-2"><input type="number" value={vendaEditada.valor || ''} onChange={(e) => setVendaEditada({ ...vendaEditada, valor: e.target.value })} className="bg-gray-600 p-2 rounded w-full"/></td>
-                                              <td className="p-2">{nomeVendedor(venda.usuario_id)}</td>
-                                              <td className="p-2 text-center">-</td>
-                                              <td className="p-2">
-                                                  <div className="flex gap-2 justify-center">
-                                                      <button onClick={salvarEdicao} className="p-2 text-green-400 hover:text-green-300"><FaSave size={18} /></button>
-                                                      <button onClick={() => setEditandoId(null)} className="p-2 text-gray-400 hover:text-gray-200"><FaTimes size={18} /></button>
+                                              <td className="p-1.5">
+                                                <input
+                                                  type="text"
+                                                  inputMode="numeric"
+                                                  value={
+                                                    vendaEditada.valor
+                                                      ? Number(vendaEditada.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                      : ''
+                                                  }
+                                                  onChange={(e) => {
+                                                    const digits = String(e.target.value).replace(/\D/g, '');
+                                                    const valor = digits ? parseFloat(digits) / 100 : 0;
+                                                    setVendaEditada({ ...vendaEditada, valor });
+                                                  }}
+                                                  className="bg-gray-600 p-1.5 rounded w-full text-xs tabular-nums"
+                                                  placeholder="0,00"
+                                                />
+                                              </td>
+                                              <td className="p-1.5 truncate" title={nomeVendedor(venda.usuario_id)}>{nomeVendedor(venda.usuario_id)}</td>
+                                              <td className="p-1.5 text-right text-gray-400">—</td>
+                                              <td className="p-1.5">
+                                                  <div className="flex gap-1 justify-center">
+                                                      <button type="button" onClick={salvarEdicao} className="p-1 text-green-400 hover:text-green-300" title="Salvar"><FaSave size={14} /></button>
+                                                      <button type="button" onClick={() => { setEditandoId(null); setVendaEditada({}); }} className="p-1 text-gray-400 hover:text-gray-200" title="Cancelar"><FaTimes size={14} /></button>
+                                                      <button type="button" onClick={() => excluirVenda(venda.id)} className="p-1 text-red-500 hover:text-red-400" title="Excluir"><FaTrash size={14} /></button>
                                                   </div>
                                               </td>
                                           </>
                                       ) : (
                                           <>
-                                              <td className="px-4 py-3 font-medium">{venda.cliente.toUpperCase()}</td>
-                                              <td className="px-4 py-3">
-                                                  <div className="flex flex-col">
-                                                      <div><span className="font-semibold">{venda.administradora}</span><span className="text-xs text-gray-400 ml-2">G: {venda.grupo} / C: {venda.cota}</span></div>
-                                                      <div className="mt-1.5"><span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${isParcelaCheia(venda) ? 'bg-blue-900/70 text-blue-300' : 'bg-yellow-900/70 text-yellow-300'}`}>{isParcelaCheia(venda) ? 'Parcela Cheia' : 'Parcela Meia'}</span></div>
-                                                  </div>
+                                              <td className="px-2 py-2 font-medium text-white truncate" title={(venda.cliente || '').toUpperCase()}>
+                                                {(venda.cliente || '').toUpperCase()}
                                               </td>
-                                              <td className="px-4 py-3 text-green-400 font-semibold">{parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
-                                              <td className="px-4 py-3">{nomeVendedor(venda.usuario_id)}</td>
-                                              <td className="px-4 py-3">
-                                                  <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
-                                                      {[1, 2, 3, 4, 5].map((i) => {
-                                                          const statusAtual = venda[`status_parcela_${i}`] || 'PENDENTE';
-                                                          let corSeletor = 'bg-gray-700 border-gray-600 text-gray-300';
-                                                          if (statusAtual === 'PAGO') corSeletor = 'bg-green-500/20 border-green-700 text-green-300';
-                                                          if (statusAtual === 'PENDENTE') corSeletor = 'bg-yellow-500/20 border-yellow-700 text-yellow-300';
-                                                          if (statusAtual === 'VENCIDO' || statusAtual === 'ESTORNO') corSeletor = 'bg-red-500/20 border-red-700 text-red-300';
-                                                          if (statusAtual === 'CANCELADO') corSeletor = 'bg-gray-600 border-gray-500 text-gray-200';
-      
-                                                          return (
-                                                              <select 
-                                                                  key={i}
-                                                                  value={statusAtual}
-                                                                  onChange={(e) => handleStatusChange(venda, i, e.target.value)}
-                                                                  className={`p-1 text-xs rounded-md border focus:ring-2 focus:ring-indigo-400 font-medium ${corSeletor}`}
-                                                              >
-                                                                  {STATUS_OPCOES.map(opt => <option key={opt} value={opt}>{`P${i}: ${opt}`}</option>)}
-                                                              </select>
-                                                          );
-                                                      })}
-                                                  </div>
+                                              <td className="px-2 py-2">
+                                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                                  venda.administradora === 'HS'
+                                                    ? 'bg-purple-500/15 text-purple-300'
+                                                    : 'bg-indigo-500/15 text-indigo-300'
+                                                }`}>
+                                                  {venda.administradora || '—'}
+                                                </span>
                                               </td>
-                                              <td className="px-4 py-3">
-                                                  <div className="flex gap-3 justify-center">
-                                                      <button onClick={() => editarVenda(venda)} className="p-2 text-blue-400 hover:text-blue-300"><FaEdit size={18} /></button>
-                                                      <button onClick={() => excluirVenda(venda.id)} className="p-2 text-red-500 hover:text-red-400"><FaTrash size={18} /></button>
+                                              <td className="px-2 py-2 text-gray-300 tabular-nums truncate" title={`G: ${venda.grupo || '—'} / C: ${venda.cota || '—'}`}>
+                                                {venda.grupo || '—'} / {venda.cota || '—'}
+                                              </td>
+                                              <td className="px-2 py-2">
+                                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                                  tipoCheia
+                                                    ? 'bg-sky-500/15 text-sky-300'
+                                                    : 'bg-amber-500/15 text-amber-300'
+                                                }`}>
+                                                  {tipoCheia ? 'Cheia' : 'Meia'}
+                                                </span>
+                                              </td>
+                                              <td className="px-2 py-2 text-green-400 font-semibold tabular-nums truncate">
+                                                {parseFloat(venda.valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                              </td>
+                                              <td className="px-2 py-2 text-gray-200 truncate" title={nomeVendedor(venda.usuario_id)}>
+                                                {nomeVendedor(venda.usuario_id)}
+                                              </td>
+                                              <td className="px-2 py-2 text-right font-semibold text-cyan-300 tabular-nums truncate">
+                                                {comissaoMes.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                              </td>
+                                              <td className="px-2 py-2">
+                                                  <div className="flex gap-1 justify-center">
+                                                      <button onClick={() => editarVenda(venda)} className="p-1 text-blue-400 hover:text-blue-300"><FaEdit size={14} /></button>
+                                                      <button onClick={() => excluirVenda(venda.id)} className="p-1 text-red-500 hover:text-red-400"><FaTrash size={14} /></button>
                                                   </div>
                                               </td>
                                           </>
                                       )}
                                   </tr>
-                              )) : <EmptyStateRow message="Nenhuma venda encontrada para os filtros aplicados" colSpan={6} />}
+                                  );
+                              }) : <EmptyStateRow message="Nenhuma venda encontrada para os filtros aplicados" colSpan={8} />}
                           </tbody>
                       </table>
                   </div>
@@ -961,44 +1098,33 @@ export default function PainelDiretor() {
       );
   };
   
-  // --- Componente da Aba de Nova Venda ---
-  const AbaNovaVenda = ({ novaVenda, setNovaVenda, cadastrarVenda, usuarios, usuarioAtual }) => {
-      const formatInputMoeda = (txt) => {
-          if (!txt) return '';
-          const valorNumerico = String(txt).replace(/\D/g, '');
-          if (!valorNumerico) return '';
-          return (parseFloat(valorNumerico) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      };
-      
-      return (
-          <div className="bg-gray-800/50 rounded-xl shadow-2xl p-6 mt-8 max-w-4xl mx-auto animate-fade-in">
-              <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-3"><FaPlusCircle /> Cadastrar Nova Venda</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  <div className="lg:col-span-3">
-                      <label className="block mb-1 text-sm font-medium text-gray-400">Lançar para o vendedor:</label>
-                      <select className="w-full bg-gray-700 p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500" value={novaVenda.usuario_id} onChange={(e) => setNovaVenda({ ...novaVenda, usuario_id: e.target.value })}>
-                          <option value={usuarioAtual?.id}>Lançar para mim ({usuarioAtual?.email.split('@')[0]})</option>
-                          {usuarios.filter(u => u.id !== usuarioAtual?.id).map(u => (<option key={u.id} value={u.id}>{u.nome}</option>))}
-                      </select>
-                  </div>
-                  <input placeholder="Nome do Cliente" className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.cliente} onChange={(e) => setNovaVenda({ ...novaVenda, cliente: e.target.value.toUpperCase() })} required/>
-                  <input placeholder="Valor do Crédito" type="text" className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.valor} onChange={(e) => setNovaVenda({ ...novaVenda, valor: formatInputMoeda(e.target.value) })} required/>
-                  <select className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.parcela} onChange={(e) => setNovaVenda({ ...novaVenda, parcela: e.target.value })}><option value="cheia">Parcela Cheia</option><option value="meia">Parcela Meia</option></select>
-                  <input placeholder="Grupo" className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.grupo} onChange={(e) => setNovaVenda({ ...novaVenda, grupo: e.target.value })} required/>
-                  <input placeholder="Cota" className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.cota} onChange={(e) => setNovaVenda({ ...novaVenda, cota: e.target.value })} required/>
-                  <select className="bg-gray-700 p-3 rounded-lg border border-gray-600" value={novaVenda.administradora} onChange={(e) => setNovaVenda({ ...novaVenda, administradora: e.target.value })}><option value="GAZIN">GAZIN</option><option value="HS">HS</option></select>
-              </div>
-              <button onClick={cadastrarVenda} className="mt-6 bg-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-all flex items-center gap-2"><FaSave /> Salvar Venda</button>
-          </div>
-      );
-  };
-  
   // --- Componente da Aba de Ranking (VERSÃO FINAL CORRIGIDA) ---
-  const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, configuracoes: initialConfig, onSave, listaFiliais, filialSelecionadaId, setFilialSelecionadaId }) => {
+  const AbaRanking = ({ perfilUsuario, vendas, usuarios, filtros, setFiltros, configuracoes: initialConfig, onSave, listaFiliais, filialSelecionadaId, setFilialSelecionadaId, onAbrirModalRelatorioHS, onAbrirModalRelatorioGazin }) => {
       const [config, setConfig] = useState(initialConfig);
       const [modalConfigVisivel, setModalConfigVisivel] = useState(false);
-      const [selecaoDupla, setSelecaoDupla] = useState([]);
+      const [modalWhatsappVisivel, setModalWhatsappVisivel] = useState(false);
+      const [selecaoDupla, setSelecaoDupla] = useState(['', '']);
       const [textoRanking, setTextoRanking] = useState('');
+
+      const opcoesMes = [
+        { value: '01', label: 'Janeiro' },
+        { value: '02', label: 'Fevereiro' },
+        { value: '03', label: 'Março' },
+        { value: '04', label: 'Abril' },
+        { value: '05', label: 'Maio' },
+        { value: '06', label: 'Junho' },
+        { value: '07', label: 'Julho' },
+        { value: '08', label: 'Agosto' },
+        { value: '09', label: 'Setembro' },
+        { value: '10', label: 'Outubro' },
+        { value: '11', label: 'Novembro' },
+        { value: '12', label: 'Dezembro' },
+      ];
+      const anoAtual = dayjs().year();
+      const opcoesAno = Array.from(
+        { length: Math.max(anoAtual, 2025) - 2025 + 1 },
+        (_, i) => String(2025 + i)
+      );
   
       useEffect(() => {
           setConfig(initialConfig);
@@ -1025,29 +1151,50 @@ export default function PainelDiretor() {
               return { nomes: dupla.join(' e '), total, membros: dupla };
           }).sort((a, b) => b.total - a.total);
       }, [config.duplas, totaisPorVendedor]);
+
+      const nomeCurto = (nomeCompleto = '') => {
+          const partes = String(nomeCompleto).trim().split(/\s+/).filter(Boolean);
+          if (partes.length === 0) return '';
+          const formatar = (p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+          if (partes.length === 1) return formatar(partes[0]);
+          return `${formatar(partes[0])} ${formatar(partes[partes.length - 1])}`;
+      };
+
+      const formatarDuplaCurta = (membros = []) =>
+          membros.map(nomeCurto).filter(Boolean).join(' e ');
   
       const rankingIndividual = useMemo(() => Object.values(totaisPorVendedor).filter(v => v.vendido > 0).sort((a, b) => b.vendido - a.vendido), [totaisPorVendedor]);
       const vendidoGeral = useMemo(() => rankingIndividual.reduce((acc, v) => acc + v.vendido, 0), [rankingIndividual]);
       const faltaParaMeta = useMemo(() => (config.meta_geral || 0) - vendidoGeral, [config.meta_geral, vendidoGeral]);
+
+      const vendedoresDisponiveis = useMemo(() => {
+          const emDupla = new Set((config.duplas || []).flat());
+          return usuarios
+            .filter((u) => u.nome && !emDupla.has(u.nome))
+            .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      }, [usuarios, config.duplas]);
   
       // Componente para exibir o card de ranking
       const RankingCard = ({ posicao, nome, valor, isCurrentUser }) => {
           const medalhas = ['🥇', '🥈', '🥉'];
-          const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold">{posicao + 1}º</span>;
+          const prefixo = posicao < 3 ? medalhas[posicao] : <span className="text-gray-400 font-bold text-sm">{posicao + 1}º</span>;
           return (
-              <div className={`p-4 rounded-xl flex items-center justify-between transition-all ${isCurrentUser ? 'bg-indigo-600/30 ring-2 ring-indigo-500' : 'bg-gray-800'}`}>
-                  <div className="flex items-center gap-4"><span className="text-2xl w-8 text-center">{prefixo}</span><span className={`font-bold ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{nome}</span></div>
-                  <span className="font-bold text-lg text-green-400">{valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+              <div className={`px-3 py-2 rounded-lg flex items-center justify-between gap-2 ${isCurrentUser ? 'bg-indigo-600/30 ring-1 ring-indigo-500' : 'bg-gray-800'}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-base w-6 text-center shrink-0">{prefixo}</span>
+                    <span className={`text-sm font-semibold truncate ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{nome}</span>
+                  </div>
+                  <span className="text-sm font-bold text-green-400 whitespace-nowrap tabular-nums">{valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
               </div>
           );
       };
   
       // Funções para gerenciar as duplas
       const adicionarDupla = () => {
-          if (selecaoDupla.length !== 2) return;
-          const novaListaDuplas = [...(config.duplas || []), selecaoDupla];
-          setConfig({ ...config, duplas: novaListaDuplas });
-          setSelecaoDupla([]);
+          const [p1, p2] = selecaoDupla;
+          if (!p1 || !p2 || p1 === p2) return;
+          setConfig({ ...config, duplas: [...(config.duplas || []), [p1, p2]] });
+          setSelecaoDupla(['', '']);
       };
   
       const removerDupla = (indexParaRemover) => {
@@ -1132,115 +1279,258 @@ export default function PainelDiretor() {
   
       // PARTE VISUAL DO COMPONENTE
       return (
-          <div className="animate-fade-in space-y-8">
-              {/* --- SEÇÃO DE FILTROS --- */}
-              <div className="flex flex-wrap items-center gap-4 p-4 bg-gray-800/50 rounded-xl">
-                  <h3 className="text-xl font-bold flex items-center gap-2"><FaFilter /> Visualizar Dados de:</h3>
-                  <input type="month" value={filtros.mes} onChange={(e) => setFiltros({ ...filtros, mes: e.target.value })} className="w-full md:w-auto bg-gray-700 p-3 rounded-lg border border-gray-600" />
-                  {perfilUsuario?.cargo?.toLowerCase() === 'diretor' && (
-                      <select value={filialSelecionadaId || ''} onChange={(e) => setFilialSelecionadaId(e.target.value)} className="w-full md:w-auto bg-gray-700 p-3 rounded-lg border border-gray-600">
-                          <option value="" disabled>Selecione uma filial</option>
-                          {listaFiliais.map(filial => (<option key={filial.id} value={filial.id}>{filial.nome}</option>))}
+          <div className="animate-fade-in space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-3 bg-gray-800/50 rounded-xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5 text-gray-300">
+                        <FaFilter size={12} /> Filtros
+                      </h3>
+                      <select
+                        value={(filtros.mes || '').split('-')[1] || dayjs().format('MM')}
+                        onChange={(e) => {
+                          const ano = (filtros.mes || '').split('-')[0] || dayjs().format('YYYY');
+                          setFiltros({ ...filtros, mes: `${ano}-${e.target.value}` });
+                        }}
+                        className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600"
+                        aria-label="Mês do ranking"
+                      >
+                        {opcoesMes.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
                       </select>
-                  )}
+                      <select
+                        value={(filtros.mes || '').split('-')[0] || dayjs().format('YYYY')}
+                        onChange={(e) => {
+                          const mes = (filtros.mes || '').split('-')[1] || dayjs().format('MM');
+                          setFiltros({ ...filtros, mes: `${e.target.value}-${mes}` });
+                        }}
+                        className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600"
+                        aria-label="Ano do ranking"
+                      >
+                        {opcoesAno.map((ano) => (
+                          <option key={ano} value={ano}>{ano}</option>
+                        ))}
+                      </select>
+                      {perfilUsuario?.cargo?.toLowerCase() === 'diretor' && (
+                          <select
+                            value={filialSelecionadaId || ''}
+                            onChange={(e) => setFilialSelecionadaId(e.target.value)}
+                            className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600"
+                          >
+                              <option value="" disabled>Selecione uma filial</option>
+                              {listaFiliais.map(filial => (<option key={filial.id} value={filial.id}>{filial.nome}</option>))}
+                          </select>
+                      )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                      <button
+                          type="button"
+                          onClick={onAbrirModalRelatorioHS}
+                          className="bg-cyan-600 hover:bg-cyan-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+                      >
+                          <FaChartLine size={12} /> RANK HS
+                      </button>
+                      <button
+                          type="button"
+                          onClick={onAbrirModalRelatorioGazin}
+                          className="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+                      >
+                          <FaChartLine size={12} /> RANK GAZIN
+                      </button>
+                      <button
+                          type="button"
+                          onClick={() => setModalWhatsappVisivel(true)}
+                          className="bg-green-600 hover:bg-green-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+                      >
+                          <FaWhatsapp size={12} /> WhatsApp
+                      </button>
+                      <button
+                          type="button"
+                          onClick={() => setModalConfigVisivel(true)}
+                          className="bg-gray-700 hover:bg-gray-600 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5"
+                      >
+                          <FaCogs size={12} /> Metas e Duplas
+                      </button>
+                  </div>
               </div>
-  
-             {/* --- BOTÃO PARA ABRIR O MODAL DE CONFIGURAÇÕES --- */}
-  <div className="flex justify-end">
-      <button 
-          onClick={() => setModalConfigVisivel(true)}
-          className="bg-gray-700 hover:bg-gray-600 px-5 py-2 rounded-lg font-semibold flex items-center gap-2"
-      >
-          <FaCogs /> Configurar Metas e Duplas
-      </button>
-  </div>
+
+              {modalWhatsappVisivel && (
+                  <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+                      <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 animate-fade-in">
+                          <header className="p-4 flex justify-between items-center border-b border-gray-700">
+                              <h3 className="text-base font-semibold flex items-center gap-2">
+                                  <FaWhatsapp className="text-green-400" /> Pré-visualização do Ranking
+                              </h3>
+                              <button type="button" onClick={() => setModalWhatsappVisivel(false)} className="p-2 text-gray-500 hover:text-white rounded-full">
+                                  <FaTimes size={18} />
+                              </button>
+                          </header>
+                          <div className="p-4">
+                              <textarea readOnly value={textoRanking} className="w-full h-72 bg-gray-900/50 p-2.5 rounded-lg text-xs font-mono whitespace-pre-wrap" />
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                  <button type="button" onClick={copiarParaClipboard} className="bg-blue-600 hover:bg-blue-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5">
+                                      <FaClipboard size={12} /> Copiar Ranking
+                                  </button>
+                                  <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(textoRanking)}`} target="_blank" rel="noopener noreferrer" className="bg-green-600 hover:bg-green-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5">
+                                      <FaWhatsapp size={12} /> Enviar no WhatsApp
+                                  </a>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              )}
               
               {/* --- MODAL DE CONFIGURAÇÕES --- */}
   {modalConfigVisivel && (
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl border border-gray-700 animate-fade-in">
-              <header className="p-4 flex justify-between items-center border-b border-gray-700">
-                  <h3 className="text-lg font-semibold flex items-center gap-2"><FaCogs /> Configurações de {dayjs(filtros.mes).format('MMMM')}</h3>
-                  <button onClick={() => setModalConfigVisivel(false)} className="p-2 text-gray-500 hover:text-white rounded-full"><FaTimes size={20} /></button>
+          <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in">
+              <header className="px-4 py-3 flex justify-between items-center border-b border-gray-700">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    <FaCogs className="text-indigo-400" /> Metas e Duplas — {dayjs(filtros.mes).format('MMMM YYYY')}
+                  </h3>
+                  <button type="button" onClick={() => setModalConfigVisivel(false)} className="p-1.5 text-gray-500 hover:text-white rounded-full">
+                    <FaTimes size={16} />
+                  </button>
               </header>
-              <div className="p-6 grid md:grid-cols-2 gap-6">
+
+              <div className="p-4 space-y-5">
                   <div>
-                      <label className="block mb-1 text-sm font-medium text-gray-400">Meta Geral do Escritório (R$)</label>
-                      <input type="number" value={config.meta_geral || ''} onChange={e => setConfig({...config, meta_geral: parseFloat(e.target.value) || 0})} className="w-full bg-gray-700 p-3 rounded-lg border border-gray-600" />
+                      <label className="block mb-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">Meta geral do escritório</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">R$</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={
+                            config.meta_geral
+                              ? Number(config.meta_geral).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : ''
+                          }
+                          onChange={(e) => {
+                            const digits = String(e.target.value).replace(/\D/g, '');
+                            const valor = digits ? parseFloat(digits) / 100 : 0;
+                            setConfig({ ...config, meta_geral: valor });
+                          }}
+                          className="w-full bg-gray-900/60 pl-10 pr-3 py-2.5 rounded-lg border border-gray-600 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          placeholder="0,00"
+                        />
+                      </div>
                   </div>
+
                   <div>
-                      <label className="block mb-1 text-sm font-medium text-gray-400">Formar Duplas para o Mês</label>
-                      <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
-                          <div className="mb-4 space-y-2">
-                              {config.duplas && config.duplas.map((dupla, index) => (
-                                  <div key={index} className="flex justify-between items-center bg-gray-800 p-2 rounded">
-                                      <span>{dupla.join(' e ')}</span>
-                                      <button onClick={() => removerDupla(index)} className="text-red-500 hover:text-red-400"><FaTimes /></button>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">Duplas do mês</label>
+                        <span className="text-xs text-gray-500">{(config.duplas || []).length} formada{(config.duplas || []).length === 1 ? '' : 's'}</span>
+                      </div>
+
+                      <div className="space-y-1.5 mb-3 max-h-40 overflow-y-auto">
+                          {(config.duplas || []).length === 0 ? (
+                            <p className="text-sm text-gray-500 py-2">Nenhuma dupla formada ainda.</p>
+                          ) : (
+                            (config.duplas || []).map((dupla, index) => (
+                              <div key={index} className="flex items-center justify-between gap-2 bg-gray-900/50 border border-gray-700/80 px-3 py-2 rounded-lg">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-xs font-bold text-indigo-400 w-5 shrink-0">{index + 1}</span>
+                                    <span className="text-sm text-gray-200 truncate">{formatarDuplaCurta(dupla)}</span>
                                   </div>
-                              ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => removerDupla(index)}
+                                    className="shrink-0 p-1 text-gray-500 hover:text-red-400 rounded"
+                                    title="Remover dupla"
+                                  >
+                                    <FaTimes size={12} />
+                                  </button>
+                              </div>
+                            ))
+                          )}
+                      </div>
+
+                      <div className="bg-gray-900/40 border border-gray-700 rounded-lg p-3 space-y-2.5">
+                          <p className="text-xs text-gray-400">Nova dupla</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <select
+                              value={selecaoDupla[0] || ''}
+                              onChange={(e) => {
+                                const p1 = e.target.value;
+                                const p2 = selecaoDupla[1] === p1 ? '' : (selecaoDupla[1] || '');
+                                setSelecaoDupla([p1, p2]);
+                              }}
+                              className="bg-gray-800 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                              <option value="">1º vendedor</option>
+                              {vendedoresDisponiveis
+                                .filter((u) => u.nome !== selecaoDupla[1])
+                                .map((user) => (
+                                  <option key={user.id} value={user.nome}>{nomeCurto(user.nome)}</option>
+                                ))}
+                            </select>
+                            <select
+                              value={selecaoDupla[1] || ''}
+                              onChange={(e) => setSelecaoDupla([selecaoDupla[0] || '', e.target.value])}
+                              className="bg-gray-800 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              disabled={!selecaoDupla[0]}
+                            >
+                              <option value="">2º vendedor</option>
+                              {vendedoresDisponiveis
+                                .filter((u) => u.nome !== selecaoDupla[0])
+                                .map((user) => (
+                                  <option key={user.id} value={user.nome}>{nomeCurto(user.nome)}</option>
+                                ))}
+                            </select>
                           </div>
-                          <div className="flex items-center gap-2">
-                              <select multiple value={selecaoDupla} onChange={(e) => setSelecaoDupla(Array.from(e.target.selectedOptions, option => option.value))} className="w-full bg-gray-600 p-2 rounded-lg border border-gray-500" style={{ height: '100px' }}>
-                                  {usuarios.filter(u => !config.duplas?.flat().includes(u.nome)).map(user => (
-                                      <option key={user.id} value={user.nome}>{user.nome}</option>
-                                  ))}
-                              </select>
-                              <button onClick={adicionarDupla} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-semibold h-full" disabled={selecaoDupla.length !== 2}>
-                                  <FaPlusCircle />
-                              </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={adicionarDupla}
+                            disabled={!selecaoDupla[0] || !selecaoDupla[1]}
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-md text-sm font-semibold flex items-center justify-center gap-2"
+                          >
+                            <FaPlusCircle size={14} /> Adicionar dupla
+                          </button>
                       </div>
                   </div>
               </div>
-              <footer className="p-4 flex justify-end gap-3 border-t border-gray-700">
-                  <button onClick={() => setModalConfigVisivel(false)} type="button" className="bg-gray-600 hover:bg-gray-500 px-5 py-2 rounded-lg font-semibold">Cancelar</button>
-                  <button onClick={() => { handleSalvarConfig(); setModalConfigVisivel(false); }} className="bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2"><FaSave /> Salvar e Fechar</button>
+
+              <footer className="px-4 py-3 flex justify-end gap-2 border-t border-gray-700">
+                  <button onClick={() => setModalConfigVisivel(false)} type="button" className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md text-sm font-semibold">Cancelar</button>
+                  <button
+                    type="button"
+                    onClick={() => { handleSalvarConfig(); setModalConfigVisivel(false); }}
+                    className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2"
+                  >
+                    <FaSave size={14} /> Salvar
+                  </button>
               </footer>
           </div>
       </div>
   )}
   
-              {/* --- SEÇÃO DAS METAS --- */}
               <div>
-                  <h3 className="text-xl font-semibold mb-4 text-indigo-400">METAS DO ESCRITÓRIO</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <StatCard icon={<FaBullseye size={24} />} label="Meta Geral" value={config.meta_geral} color="bg-indigo-500/20" />
-                      <StatCard icon={<FaDollarSign size={24} />} label="Vendido Geral" value={vendidoGeral} color="bg-green-500/20" />
-                      <StatCard icon={<FaChartLine size={24} />} label="Falta para a Meta" value={faltaParaMeta > 0 ? faltaParaMeta : 0} color={faltaParaMeta > 0 ? "bg-red-500/20" : "bg-green-500/20"} />
+                  <h3 className="text-sm font-semibold mb-2 text-indigo-400">METAS DO ESCRITÓRIO</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <StatCard icon={<FaBullseye size={18} />} label="Meta Geral" value={config.meta_geral} color="bg-indigo-500/20 text-indigo-300" />
+                      <StatCard icon={<FaDollarSign size={18} />} label="Vendido Geral" value={vendidoGeral} color="bg-green-500/20 text-green-400" />
+                      <StatCard icon={<FaChartLine size={18} />} label="Falta para a Meta" value={faltaParaMeta > 0 ? faltaParaMeta : 0} color={faltaParaMeta > 0 ? "bg-red-500/20 text-red-400" : "bg-green-500/20 text-green-400"} />
                   </div>
               </div>
   
-              {/* --- SEÇÃO DOS RANKINGS --- */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div>
-                      <h3 className="text-xl font-semibold mb-4 text-indigo-400">RANKING INDIVIDUAL</h3>
-                      <div className="space-y-3">
+                      <h3 className="text-sm font-semibold mb-2 text-indigo-400">RANKING INDIVIDUAL</h3>
+                      <div className="space-y-1.5">
                           {rankingIndividual.length > 0 ? rankingIndividual.map((vendedor, index) => (
                               <RankingCard key={vendedor.id} posicao={index} nome={vendedor.nome} valor={vendedor.vendido} isCurrentUser={vendedor.id === perfilUsuario?.id} />
-                          )) : <p className="text-gray-500">Ninguém vendeu ainda este mês.</p>}
+                          )) : <p className="text-sm text-gray-500">Ninguém vendeu ainda este mês.</p>}
                       </div>
                   </div>
                   <div>
-                      <h3 className="text-xl font-semibold mb-4 text-indigo-400">RANKING DE DUPLAS</h3>
-                      <div className="space-y-3">
+                      <h3 className="text-sm font-semibold mb-2 text-indigo-400">RANKING DE DUPLAS</h3>
+                      <div className="space-y-1.5">
                           {totaisDuplas.length > 0 ? totaisDuplas.map((dupla, index) => (
-                              <RankingCard key={dupla.nomes} posicao={index} nome={dupla.nomes} valor={dupla.total} isCurrentUser={dupla.membros.includes(perfilUsuario?.nome)} />
-                          )) : <p className="text-gray-500">Duplas não configuradas para este mês.</p>}
+                              <RankingCard key={dupla.nomes} posicao={index} nome={formatarDuplaCurta(dupla.membros)} valor={dupla.total} isCurrentUser={dupla.membros.includes(perfilUsuario?.nome)} />
+                          )) : <p className="text-sm text-gray-500">Duplas não configuradas para este mês.</p>}
                       </div>
-                  </div>
-              </div>
-              
-              {/* --- SEÇÃO DE PRÉ-VISUALIZAÇÃO E CÓPIA --- */}
-              <div className="bg-gray-800/50 rounded-xl p-6">
-                  <h3 className="text-xl font-bold mb-4">Pré-visualização do Ranking para WhatsApp</h3>
-                  <textarea readOnly value={textoRanking} className="w-full h-64 bg-gray-900/50 p-3 rounded-lg text-sm font-mono whitespace-pre-wrap" />
-                  <div className="flex gap-4 mt-4">
-                      <button onClick={copiarParaClipboard} className="bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2">
-                          <FaClipboard /> Copiar Ranking
-                      </button>
-                      <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(textoRanking)}`} target="_blank" rel="noopener noreferrer" className="bg-green-600 hover:bg-green-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2">
-                          <FaWhatsapp /> Enviar no WhatsApp
-                      </a>
                   </div>
               </div>
               

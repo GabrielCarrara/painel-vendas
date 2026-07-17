@@ -88,16 +88,16 @@ const ModalLembreteAcao = ({ acao, usuario, onClose }) => {
 };
 
 // ==================== COMPONENTE: MODAL DE CRIAÇÃO/EDIÇÃO ====================
-const ModalAcao = ({ acao, filiais, usuarios, onClose, onSave }) => {
+const ModalAcao = ({ acao, filiais, usuarios, filialPadrao = '', dataPadrao, onClose, onSave }) => {
   const [formData, setFormData] = useState(
     acao || {
       local: '',
-      data: dayjs().format('YYYY-MM-DD'),
+      data: dataPadrao || dayjs().format('YYYY-MM-DD'),
       horario: '09:00',
       usuarios: [],
       todos: true,
       descricao: '',
-      id_filial: '',
+      id_filial: filialPadrao ? String(filialPadrao) : '',
     }
   );
 
@@ -160,28 +160,25 @@ const ModalAcao = ({ acao, filiais, usuarios, onClose, onSave }) => {
     onSave(dadosParaSalvar);
   };
 
+  const campoClass = 'w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500';
+  const labelClass = 'block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide';
+
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in">
-      <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700 max-h-[90vh] overflow-y-auto">
-        <header className="p-6 flex justify-between items-center border-b border-gray-700 sticky top-0 bg-gray-800">
-          <h3 className="text-2xl font-bold text-white flex items-center gap-2">
-            <FaCalendarAlt /> {acao ? 'Editar Ação' : 'Nova Ação'}
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+      <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-700 animate-fade-in flex flex-col max-h-[85vh]">
+        <header className="px-4 py-3 flex justify-between items-center border-b border-gray-700">
+          <h3 className="text-base font-semibold text-white flex items-center gap-2">
+            <FaCalendarAlt className="text-indigo-400" /> {acao ? 'Editar ação' : 'Nova ação'}
           </h3>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-white rounded-full">
-            <FaTimes size={20} />
+          <button type="button" onClick={onClose} className="p-1.5 text-gray-500 hover:text-white rounded-full">
+            <FaTimes size={16} />
           </button>
         </header>
 
-        <div className="p-6 space-y-4">
-          {/* Filial */}
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Filial *</label>
-            <select
-              name="id_filial"
-              value={formData.id_filial}
-              onChange={handleChange}
-              className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
-            >
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto">
+          <div className="sm:col-span-2">
+            <label className={labelClass}>Filial *</label>
+            <select name="id_filial" value={formData.id_filial} onChange={handleChange} className={campoClass}>
               <option value="">Selecione uma filial</option>
               {filiais.map(f => (
                 <option key={f.id} value={f.id}>{f.nome}</option>
@@ -189,94 +186,73 @@ const ModalAcao = ({ acao, filiais, usuarios, onClose, onSave }) => {
             </select>
           </div>
 
-          {/* Local */}
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Local da Ação *</label>
+          <div className="sm:col-span-2">
+            <label className={labelClass}>Local da ação *</label>
             <input
               type="text"
               name="local"
               value={formData.local}
               onChange={handleChange}
               placeholder="Ex: Shopping, Supermercado, Centro"
-              className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
+              className={campoClass}
             />
           </div>
 
-          {/* Data e Horário */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Data *</label>
-              <input
-                type="date"
-                name="data"
-                value={formData.data}
-                onChange={handleChange}
-                className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Horário *</label>
-              <input
-                type="time"
-                name="horario"
-                value={formData.horario}
-                onChange={handleChange}
-                className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+          <div>
+            <label className={labelClass}>Data *</label>
+            <input type="date" name="data" value={formData.data} onChange={handleChange} className={campoClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Horário *</label>
+            <input type="time" name="horario" value={formData.horario} onChange={handleChange} className={campoClass} />
           </div>
 
-          {/* Descrição */}
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Descrição (opcional)</label>
+          <div className="sm:col-span-2">
+            <label className={labelClass}>Descrição</label>
             <textarea
               name="descricao"
               value={formData.descricao}
               onChange={handleChange}
               placeholder="Detalhes sobre a ação..."
-              className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500 h-24 resize-none"
+              className={`${campoClass} resize-none`}
+              rows="3"
             />
           </div>
 
-          {/* Seleção de Usuários */}
-          <div>
-            <div className="flex items-center gap-3 mb-3">
+          <div className="sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
               <input
                 type="checkbox"
                 id="todos"
                 name="todos"
                 checked={formData.todos}
                 onChange={handleChange}
-                className="w-5 h-5 rounded"
+                className="w-4 h-4 rounded"
               />
-              <label htmlFor="todos" className="text-sm font-medium text-gray-300">
-                Todos os usuários participam
-              </label>
-            </div>
+              Todos os usuários participam
+            </label>
 
             {!formData.todos && (
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Selecione os participantes:
-                </label>
-                <div className="bg-gray-700/50 p-4 rounded-lg border border-gray-600 max-h-48 overflow-y-auto">
+              <div className="mt-2">
+                <label className={labelClass}>Participantes</label>
+                <div className="bg-gray-900/40 p-2 rounded-md border border-gray-600 max-h-40 overflow-y-auto">
                   {usuariosDisponiveis.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-0.5">
                       {usuariosDisponiveis.map(usuario => (
-                        <label key={usuario.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-600/50 p-2 rounded">
+                        <label key={usuario.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700/50 px-2 py-1.5 rounded">
                           <input
                             type="checkbox"
                             checked={formData.usuarios.map(u => String(u)).includes(String(usuario.id))}
                             onChange={() => handleUsuarioToggle(usuario.id)}
                             className="w-4 h-4 rounded"
                           />
-                          <span className="text-white text-sm">{usuario.nome}</span>
+                          <span className="text-gray-200 text-sm">{usuario.nome}</span>
                         </label>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-400 text-sm">
-                      {formData.id_filial ? 'Nenhum usuário encontrado nesta filial' : 'Selecione uma filial primeiro'}
+                    <p className="text-gray-500 text-xs py-1.5 px-2">
+                      {formData.id_filial ? 'Nenhum usuário nesta filial' : 'Selecione uma filial primeiro'}
                     </p>
                   )}
                 </div>
@@ -285,18 +261,12 @@ const ModalAcao = ({ acao, filiais, usuarios, onClose, onSave }) => {
           </div>
         </div>
 
-        <footer className="p-4 flex justify-end gap-3 border-t border-gray-700 sticky bottom-0 bg-gray-800">
-          <button
-            onClick={onClose}
-            className="bg-gray-600 hover:bg-gray-500 px-5 py-2 rounded-lg font-semibold text-white"
-          >
+        <footer className="px-4 py-3 flex justify-end gap-2 border-t border-gray-700">
+          <button type="button" onClick={onClose} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md text-sm font-semibold text-white">
             Cancelar
           </button>
-          <button
-            onClick={handleSave}
-            className="bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-lg font-semibold text-white flex items-center gap-2"
-          >
-            <FaSave /> Salvar
+          <button type="button" onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-semibold text-white flex items-center gap-2">
+            <FaSave size={14} /> Salvar
           </button>
         </footer>
       </div>
@@ -307,43 +277,28 @@ const ModalAcao = ({ acao, filiais, usuarios, onClose, onSave }) => {
 // ==================== COMPONENTE: CARD DE AÇÃO DO CALENDÁRIO ====================
 const CardAcao = ({ acao, podeEditar, onEdit, onDelete, onView }) => {
   return (
-    <div className="bg-gradient-to-br from-indigo-600/20 to-gray-800 rounded-lg border border-indigo-500/50 p-3 hover:shadow-lg hover:shadow-indigo-500/20 transition-all">
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex-1">
-          <p className="font-bold text-indigo-300 text-sm flex items-center gap-1">
-            <FaMapMarkerAlt size={12} /> {acao.local}
-          </p>
-          <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
-            <FaClock size={10} /> {acao.horario}
-          </p>
-        </div>
-        {!podeEditar && (
+    <div
+      onClick={() => (podeEditar ? onEdit(acao) : onView(acao))}
+      className="bg-indigo-500/15 rounded border border-indigo-500/40 px-1.5 py-1 hover:bg-indigo-500/25 transition-colors cursor-pointer group"
+      title={`${acao.local} · ${acao.horario}`}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <p className="font-semibold text-indigo-200 text-[11px] truncate flex items-center gap-1 min-w-0">
+          <FaMapMarkerAlt size={9} className="shrink-0" /> {acao.local}
+        </p>
+        {podeEditar && (
           <button
-            onClick={() => onView(acao)}
-            className="p-1 text-indigo-400 hover:text-indigo-300"
-            title="Ver detalhes"
+            onClick={(e) => { e.stopPropagation(); onDelete(acao.id); }}
+            className="p-0.5 text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+            title="Deletar"
           >
-            <FaEye size={14} />
+            <FaTrash size={9} />
           </button>
         )}
       </div>
-
-      {podeEditar && (
-        <div className="flex gap-2 pt-2 border-t border-indigo-500/30">
-          <button
-            onClick={() => onEdit(acao)}
-            className="flex-1 text-xs bg-blue-600/50 hover:bg-blue-600 py-1 rounded text-white flex items-center justify-center gap-1"
-          >
-            <FaEdit size={10} /> Editar
-          </button>
-          <button
-            onClick={() => onDelete(acao.id)}
-            className="flex-1 text-xs bg-red-600/50 hover:bg-red-600 py-1 rounded text-white flex items-center justify-center gap-1"
-          >
-            <FaTrash size={10} /> Deletar
-          </button>
-        </div>
-      )}
+      <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
+        <FaClock size={8} /> {acao.horario}
+      </p>
     </div>
   );
 };
@@ -525,8 +480,23 @@ export default function PainelAcoes({ usuario, podeEditar = false, filiais = [],
     return filiais.find(f => f.id === parseInt(filialSelecionada))?.nome || 'Selecione';
   }, [filialSelecionada, filiais]);
 
+  // Filial padrão para novo cadastro: sempre "Pontes e Lacerda" se existir
+  const filialPadrao = useMemo(() => {
+    const pl = filiais.find(f => /pontes e lacerda/i.test(f.nome || ''));
+    return pl ? pl.id : (filialSelecionada || '');
+  }, [filiais, filialSelecionada]);
+
+  // Data padrão para novo cadastro: dia seguinte à última ação da filial padrão
+  const dataPadrao = useMemo(() => {
+    const idFilial = parseInt(filialPadrao);
+    const acoesFilial = acoes.filter(a => a.id_filial === idFilial);
+    if (acoesFilial.length === 0) return dayjs().format('YYYY-MM-DD');
+    const ultimaData = acoesFilial.reduce((max, a) => (a.data > max ? a.data : max), acoesFilial[0].data);
+    return dayjs(ultimaData).add(1, 'day').format('YYYY-MM-DD');
+  }, [acoes, filialPadrao]);
+
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in space-y-4">
       {/* LEMBRETE */}
       {lembreteVisivel && (
         <ModalLembreteAcao
@@ -542,6 +512,8 @@ export default function PainelAcoes({ usuario, podeEditar = false, filiais = [],
           acao={acaoEditando}
           filiais={filiais}
           usuarios={usuarios}
+          filialPadrao={filialPadrao}
+          dataPadrao={dataPadrao}
           onClose={() => {
             setModalVisivel(false);
             setAcaoEditando(null);
@@ -550,30 +522,17 @@ export default function PainelAcoes({ usuario, podeEditar = false, filiais = [],
         />
       )}
 
-      {/* CABEÇALHO */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-bold text-white flex items-center gap-2">
-          <FaCalendarAlt /> Ações Mensais - {nomeFilial}
-        </h2>
-
-        <div className="flex items-center gap-4">
-          {podeEditar && (
-            <button
-              onClick={() => {
-                setAcaoEditando(null);
-                setModalVisivel(true);
-              }}
-              className="bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2 text-white"
-            >
-              <FaPlus /> Nova Ação
-            </button>
-          )}
-
+      {/* BARRA SUPERIOR */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-3 bg-gray-800/50 rounded-xl">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold flex items-center gap-1.5 text-gray-300">
+            <FaCalendarAlt size={12} /> Ações — {nomeFilial}
+          </h3>
           {filiais.length > 0 && (
             <select
               value={filialSelecionada}
               onChange={(e) => setFilialSelecionada(e.target.value)}
-              className="bg-gray-700 p-3 rounded-lg border border-gray-600 text-white"
+              className="bg-gray-700 px-2.5 py-1.5 text-sm rounded-md border border-gray-600"
             >
               {filiais.map(f => (
                 <option key={f.id} value={f.id}>{f.nome}</option>
@@ -581,70 +540,86 @@ export default function PainelAcoes({ usuario, podeEditar = false, filiais = [],
             </select>
           )}
         </div>
-      </div>
 
-      {/* NAVEGAÇÃO DE MÊS */}
-      <div className="flex justify-between items-center mb-6 bg-gray-800/50 p-4 rounded-xl">
-        <button
-          onClick={() => setMesSelecionado(mesSelecionado.subtract(1, 'month'))}
-          className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"
-        >
-          <FaChevronLeft />
-        </button>
-
-        <h3 className="text-2xl font-bold text-white">
-          {mesSelecionado.format('MMMM [de] YYYY')}
-        </h3>
-
-        <button
-          onClick={() => setMesSelecionado(mesSelecionado.add(1, 'month'))}
-          className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"
-        >
-          <FaChevronRight />
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-gray-700/60 rounded-md px-1 py-0.5">
+            <button
+              type="button"
+              onClick={() => setMesSelecionado(mesSelecionado.subtract(1, 'month'))}
+              className="p-1.5 hover:bg-gray-600 rounded text-gray-200"
+              aria-label="Mês anterior"
+            >
+              <FaChevronLeft size={12} />
+            </button>
+            <span className="text-sm font-semibold text-white capitalize min-w-[130px] text-center">
+              {mesSelecionado.format('MMMM [de] YYYY')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setMesSelecionado(mesSelecionado.add(1, 'month'))}
+              className="p-1.5 hover:bg-gray-600 rounded text-gray-200"
+              aria-label="Próximo mês"
+            >
+              <FaChevronRight size={12} />
+            </button>
+          </div>
+          {podeEditar && (
+            <button
+              type="button"
+              onClick={() => {
+                setAcaoEditando(null);
+                setModalVisivel(true);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 text-white shrink-0"
+            >
+              <FaPlus size={12} /> Nova Ação
+            </button>
+          )}
+        </div>
       </div>
 
       {/* CALENDÁRIO */}
       {loading ? (
-        <div className="flex justify-center items-center py-20">
-          <FaSpinner className="animate-spin text-indigo-400" size={48} />
+        <div className="flex justify-center items-center py-16">
+          <FaSpinner className="animate-spin text-indigo-400" size={32} />
         </div>
       ) : (
-        <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-700">
+        <div className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
           {/* Cabeçalho de dias da semana */}
-          <div className="grid grid-cols-7 gap-2 mb-4">
+          <div className="grid grid-cols-7 gap-1.5 mb-1.5">
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'].map(dia => (
-              <div key={dia} className="text-center font-bold text-indigo-400 py-2">
+              <div key={dia} className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wide py-1">
                 {dia}
               </div>
             ))}
           </div>
 
           {/* Grade de dias */}
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1.5">
             {diasCalendario.map((dia, idx) => {
               const dataFormatada = dia.data.format('YYYY-MM-DD');
               const acoesdo = acoesDoMes.filter(a => a.data === dataFormatada);
               const ehHoje = dayjs().format('YYYY-MM-DD') === dataFormatada;
+              const foraDoMes = dia.mesAnterior || dia.mesProximo;
 
               return (
                 <div
                   key={idx}
-                  className={`min-h-24 p-2 rounded-lg border-2 transition-all ${
-                    dia.mesAnterior || dia.mesProximo
-                      ? 'bg-gray-700/30 border-gray-700/50'
+                  className={`min-h-[72px] sm:min-h-[88px] p-1.5 rounded-lg border transition-colors ${
+                    foraDoMes
+                      ? 'bg-gray-800/20 border-gray-700/40'
                       : ehHoje
-                      ? 'bg-green-500/20 border-green-500'
-                      : 'bg-gray-700/50 border-gray-600/50'
-                  } hover:border-indigo-500`}
+                      ? 'bg-green-500/10 border-green-500/70'
+                      : 'bg-gray-900/30 border-gray-700/60 hover:border-indigo-500/50'
+                  }`}
                 >
-                  <p className={`text-sm font-bold mb-1 ${
-                    dia.mesAnterior || dia.mesProximo ? 'text-gray-500' : 'text-white'
+                  <p className={`text-xs font-semibold mb-1 ${
+                    foraDoMes ? 'text-gray-600' : ehHoje ? 'text-green-300' : 'text-gray-300'
                   }`}>
                     {dia.data.date()}
                   </p>
 
-                  <div className="space-y-1 text-xs">
+                  <div className="space-y-1">
                     {acoesdo.map(acao => (
                       <CardAcao
                         key={acao.id}
@@ -666,23 +641,20 @@ export default function PainelAcoes({ usuario, podeEditar = false, filiais = [],
               );
             })}
           </div>
+
+          {/* LEGENDA */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 pt-3 border-t border-gray-700/50">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 bg-green-500/20 border border-green-500 rounded-sm" />
+              <span className="text-[11px] text-gray-400">Hoje</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 bg-indigo-600/20 border border-indigo-500 rounded-sm" />
+              <span className="text-[11px] text-gray-400">Ação cadastrada</span>
+            </div>
+          </div>
         </div>
       )}
-
-      {/* LEGENDA */}
-      <div className="mt-6 bg-gray-800/50 p-4 rounded-xl border border-gray-700 text-sm text-gray-300">
-        <p className="font-semibold mb-2 text-white">Legenda:</p>
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-green-500/20 border-2 border-green-500 rounded"></div>
-            <span>Hoje</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-indigo-600/20 border border-indigo-500 rounded"></div>
-            <span>Ação cadastrada</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

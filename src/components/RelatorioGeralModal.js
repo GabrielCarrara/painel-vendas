@@ -1,16 +1,12 @@
-// src/components/RelatorioGeralModal.js — comissão mensal: P1 do mês anterior; P2/P3 liberadas no mês do filtro
+// src/components/RelatorioGeralModal.js — comissão mensal: apenas P1 (vendas do mês anterior ao mês de pagamento)
 import React, { useMemo } from 'react';
 import { FaTimes, FaPrint } from 'react-icons/fa';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 import {
   isParcelaCheia,
-  valorComissaoParcela,
-  mesAnteriorYYYYMM,
+  valorComissaoP1,
   normalizarMesVenda,
-  totalComissaoP1RecebidaNoMes,
-  totaisPagamentosP2P3,
-  calcularEstornoMes,
   dayjsMesRef,
 } from '../utils/comissoes';
 
@@ -19,80 +15,51 @@ function mesmoUsuario(a, b) {
   return String(a) === String(b);
 }
 
-/** P2 ou P3 contabilizada no mês do relatório (pagamentos_comissao + venda ainda PAGO). */
-function valorComissaoP2P3NoMes(pagamentosDoMes, venda, parcelaIndex, usuarioId) {
-  const temRegistro = (pagamentosDoMes || []).some(
-    (p) =>
-      mesmoUsuario(p.usuario_id, usuarioId) &&
-      String(p.venda_id) === String(venda.id) &&
-      p.parcela_index === parcelaIndex
-  );
-  if (!temRegistro) return 0;
-  if (venda[`status_parcela_${parcelaIndex}`] !== 'PAGO') return 0;
-  return valorComissaoParcela(venda, parcelaIndex);
+function formatarMoeda(valor) {
+  return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export default function RelatorioGeralModal({
-  vendas,
-  usuarios,
-  filtros,
-  listaFiliais,
-  pagamentosDoMes = [],
+  vendas = [],
+  usuarios = [],
+  filtros = {},
+  listaFiliais = [],
   onClose,
 }) {
   const relatorio = useMemo(() => {
     dayjs.locale('pt-br');
-    const mesComissao = filtros.mes;
-    const dMes = dayjsMesRef(mesComissao);
-    const mesLabel = dMes.format('MMMM [de] YYYY');
-    const mesVendaP1 = mesAnteriorYYYYMM(mesComissao);
-    const mesVendasP1Label = dayjsMesRef(mesVendaP1).format('MMMM [de] YYYY');
+    // Usa o mesmo mês do filtro de vendas lançadas (mês das vendas / P1 a calcular)
+    const mesVendas = filtros.mes || dayjs().format('YYYY-MM');
+    const dMes = dayjsMesRef(mesVendas);
+    const mesVendasLabel = dMes.format('MMMM [de] YYYY');
+    const mesRecebimentoLabel = dMes.add(1, 'month').format('MMMM [de] YYYY');
 
-    const filialSelecionada = listaFiliais.find((f) => String(f.id) === String(filtros.filial));
+    const filialSelecionada = (listaFiliais || []).find((f) => String(f.id) === String(filtros.filial));
     const filialLabel = filialSelecionada ? filialSelecionada.nome : 'Todas as Filiais';
 
-    const usuariosFiltrados = filtros.filial
-      ? usuarios.filter((u) => String(u.id_filial) === String(filtros.filial))
-      : usuarios;
+    let usuariosFiltrados = filtros.filial
+      ? (usuarios || []).filter((u) => String(u.id_filial) === String(filtros.filial))
+      : (usuarios || []);
 
-    const vendasPorId = {};
-    (vendas || []).forEach((v) => {
-      if (v && v.id != null) vendasPorId[String(v.id)] = v;
-    });
+    if (filtros.vendedor) {
+      usuariosFiltrados = usuariosFiltrados.filter((u) => mesmoUsuario(u.id, filtros.vendedor));
+    }
+
+    const mesVendasNorm = normalizarMesVenda(mesVendas);
 
     const dadosAgrupados = usuariosFiltrados
       .map((vendedor) => {
         const uid = vendedor.id;
-        const ids = new Set();
 
-        (vendas || []).forEach((v) => {
-          if (!mesmoUsuario(v.usuario_id, uid)) return;
-          if (normalizarMesVenda(v.mes) === mesVendaP1 && v.status_parcela_1 === 'PAGO') {
-            ids.add(v.id);
-          }
-        });
-
-        (pagamentosDoMes || []).forEach((p) => {
-          if (!mesmoUsuario(p.usuario_id, uid)) return;
-          if (p.parcela_index !== 2 && p.parcela_index !== 3) return;
-          ids.add(p.venda_id);
-        });
-
-        const linhas = [...ids]
-          .map((id) => vendasPorId[String(id)])
-          .filter(Boolean)
-          .map((venda) => {
-            const mesV = normalizarMesVenda(venda.mes);
-            const entraP1 = mesV === mesVendaP1;
-            const valorP1 =
-              entraP1 && venda.status_parcela_1 === 'PAGO' ? valorComissaoParcela(venda, 1) : null;
-            const valorP2 = valorComissaoP2P3NoMes(pagamentosDoMes, venda, 2, uid);
-            const valorP3 = valorComissaoP2P3NoMes(pagamentosDoMes, venda, 3, uid);
-            return { venda, valorP1, valorP2, valorP3, entraP1 };
+        const linhas = (vendas || [])
+          .filter((v) => {
+            if (!mesmoUsuario(v.usuario_id, uid)) return false;
+            if (normalizarMesVenda(v.mes) !== mesVendasNorm) return false;
+            if (filtros.administradora && v.administradora !== filtros.administradora) return false;
+            return true;
           })
+          .map((venda) => ({ venda, valorP1: valorComissaoP1(venda) }))
           .sort((a, b) => (a.venda.cliente || '').localeCompare(b.venda.cliente || ''));
-
-        const vendasDoVendedorFull = (vendas || []).filter((v) => mesmoUsuario(v.usuario_id, uid));
 
         const totalVendido = linhas.reduce((acc, { venda }) => acc + (parseFloat(venda.valor) || 0), 0);
         const totalVendidoGazin = linhas
@@ -101,202 +68,227 @@ export default function RelatorioGeralModal({
         const totalVendidoHS = linhas
           .filter(({ venda }) => venda.administradora === 'HS')
           .reduce((acc, { venda }) => acc + (parseFloat(venda.valor) || 0), 0);
-
-        const totalComissaoP1 = totalComissaoP1RecebidaNoMes(vendasDoVendedorFull, uid, mesComissao);
-        const { totalComissaoP2Liberada, totalComissaoP3Liberada } = totaisPagamentosP2P3(
-          pagamentosDoMes,
-          uid,
-          vendasPorId
-        );
-        const { totalEstorno } = calcularEstornoMes(vendasDoVendedorFull, mesComissao);
-        const totalComissaoLiquida =
-          totalComissaoP1 + totalComissaoP2Liberada + totalComissaoP3Liberada - totalEstorno;
+        const totalComissaoP1 = linhas.reduce((acc, { valorP1 }) => acc + valorP1, 0);
 
         return {
           id: vendedor.id,
-          nome: vendedor.nome,
+          nome: vendedor.nome || 'Sem nome',
           linhas,
           totalVendido,
           totalVendidoGazin,
           totalVendidoHS,
           totalComissaoP1,
-          totalComissaoP2Liberada,
-          totalComissaoP3Liberada,
-          totalEstorno,
-          totalComissaoLiquida,
         };
       })
       .filter((v) => v.linhas.length > 0)
       .sort((a, b) => a.nome.localeCompare(b.nome));
 
     return {
-      mesLabel,
-      mesVendasP1Label,
+      mesVendasLabel,
+      mesRecebimentoLabel,
       filialLabel,
       dadosAgrupados,
     };
-  }, [vendas, usuarios, filtros, listaFiliais, pagamentosDoMes]);
+  }, [vendas, usuarios, filtros, listaFiliais]);
 
   const handlePrint = () => {
-    const printArea = document.getElementById('relatorio-geral-print-area');
-    if (!printArea) return;
-
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      window.alert('Permita pop-ups para imprimir o relatório.');
+      window.alert('Permita pop-ups no navegador para imprimir o relatório.');
       return;
     }
 
-    const printStyles = `
-      <style>
-        body { background-color: #fff; color: #000; margin: 20px; font-family: Arial, sans-serif; }
-        h1 { font-size: 24px; font-weight: bold; }
-        h2 { font-size: 20px; font-weight: bold; margin-top: 20px; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
-        h3 { font-size: 16px; margin-bottom: 15px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
-        th, td { border: 1px solid #999; padding: 8px; text-align: left; }
-        th { background-color: #f0f0f0; }
-        tfoot td { font-weight: bold; background-color: #f9f9f9; }
-        .valor { text-align: right; }
-        .parcela-cheia { font-weight: bold; }
-        .parcela-meia { font-style: italic; }
-        .na { color: #666; }
-      </style>
-    `;
+    const blocos = relatorio.dadosAgrupados
+      .map((vendedor) => {
+        const rows = vendedor.linhas
+          .map(({ venda, valorP1 }) => {
+            const tipo = isParcelaCheia(venda) ? 'Cheia' : 'Meia';
+            return `<tr>
+              <td>${venda.cliente || ''}</td>
+              <td>${dayjsMesRef(venda.mes).format('MM/YYYY')}</td>
+              <td>${venda.administradora || ''}</td>
+              <td>${venda.grupo || ''}/${venda.cota || ''}</td>
+              <td>${tipo}</td>
+              <td class="valor">${formatarMoeda(venda.valor)}</td>
+              <td class="valor">${formatarMoeda(valorP1)}</td>
+            </tr>`;
+          })
+          .join('');
 
-    printWindow.document.write(
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório de Comissão Mensal</title>${printStyles}</head><body>${printArea.innerHTML}</body></html>`
-    );
+        return `
+          <h2>VENDEDOR: ${String(vendedor.nome || '').toUpperCase()}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Mês venda</th>
+                <th>Admin</th>
+                <th>Grupo/Cota</th>
+                <th>Parcela</th>
+                <th class="valor">Valor</th>
+                <th class="valor">Comissão P1</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+            <tfoot>
+              <tr>
+                <td colspan="5">Total valor das vendas:</td>
+                <td class="valor">${formatarMoeda(vendedor.totalVendido)}</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colspan="5">Total Vendido GAZIN:</td>
+                <td class="valor">${formatarMoeda(vendedor.totalVendidoGazin)}</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colspan="5">Total Vendido HS:</td>
+                <td class="valor">${formatarMoeda(vendedor.totalVendidoHS)}</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colspan="6">Total comissão P1 (vendas de ${relatorio.mesVendasLabel}):</td>
+                <td class="valor">${formatarMoeda(vendedor.totalComissaoP1)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        `;
+      })
+      .join('');
+
+    const corpo =
+      relatorio.dadosAgrupados.length === 0
+        ? `<p>Nenhuma venda encontrada para comissão P1 em ${relatorio.mesVendasLabel}.</p>`
+        : blocos;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Relatório de Comissão Mensal</title>
+  <style>
+    body { background: #fff; color: #000; margin: 20px; font-family: Arial, sans-serif; }
+    h1 { font-size: 22px; margin-bottom: 8px; }
+    h2 { font-size: 16px; margin-top: 24px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    h3 { font-size: 13px; font-weight: normal; margin: 4px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 12px; }
+    th, td { border: 1px solid #999; padding: 6px 8px; text-align: left; color: #000; }
+    th { background: #f0f0f0; }
+    tfoot td { font-weight: bold; background: #f9f9f9; }
+    .valor { text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>Relatório de Comissão Mensal</h1>
+  <h3>Vendas do mês: ${relatorio.mesVendasLabel}</h3>
+  <h3>Comissão P1 a receber em ${relatorio.mesRecebimentoLabel}.</h3>
+  <h3>Filial: ${relatorio.filialLabel}</h3>
+  ${corpo}
+</body>
+</html>`;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => {
       printWindow.print();
-      printWindow.close();
-    }, 300);
-  };
-
-  const formatarMoeda = (valor) => (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-  const celP1 = (valorP1, entraP1) => {
-    if (!entraP1) return <span className="na">—</span>;
-    return formatarMoeda(valorP1);
+    }, 400);
   };
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl border border-gray-700 animate-fade-in flex flex-col">
-        <header className="p-4 flex justify-between items-center border-b border-gray-700">
+      <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl border border-gray-700 animate-fade-in flex flex-col max-h-[90vh]">
+        <header className="p-4 flex justify-between items-center border-b border-gray-700 shrink-0">
           <h3 className="text-lg font-semibold text-white">Relatório de Comissão Mensal</h3>
-          <button onClick={onClose} className="p-2 text-gray-500 hover:text-white rounded-full">
+          <button type="button" onClick={onClose} className="p-2 text-gray-500 hover:text-white rounded-full">
             <FaTimes size={20} />
           </button>
         </header>
 
-        <div id="relatorio-geral-print-area" className="p-6 max-h-[70vh] overflow-y-auto">
-          <h1 className="text-white print:text-black">Relatório de Comissão Mensal</h1>
-          <h3 className="text-gray-300 print:text-black">
-            Mês de pagamento (comissão): {relatorio.mesLabel}
-          </h3>
-          <h3 className="text-gray-300 print:text-black text-sm mt-1">
-            P1: vendas lançadas em {relatorio.mesVendasP1Label}. P2 e P3: valores conferidos como PAGO neste
-            mês (qualquer mês de lançamento da venda).
-          </h3>
-          <h3 className="text-gray-300 print:text-black">Filial: {relatorio.filialLabel}</h3>
+        <div className="p-6 overflow-y-auto text-gray-200">
+          <h1 className="text-xl font-bold text-white mb-2">Relatório de Comissão Mensal</h1>
+          <p className="text-sm text-gray-300">Vendas do mês: {relatorio.mesVendasLabel}</p>
+          <p className="text-sm text-gray-300">Comissão P1 a receber em {relatorio.mesRecebimentoLabel}.</p>
+          <p className="text-sm text-gray-300 mb-4">Filial: {relatorio.filialLabel}</p>
 
           {relatorio.dadosAgrupados.length === 0 && (
-            <p className="text-gray-400">Nenhuma linha de comissão para os filtros selecionados.</p>
+            <p className="text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3">
+              Nenhuma venda encontrada para <strong>{relatorio.mesVendasLabel}</strong> com os filtros atuais.
+            </p>
           )}
 
           {relatorio.dadosAgrupados.map((vendedor) => (
-            <div key={vendedor.id} style={{ breakInside: 'avoid' }}>
-              <h2 className="text-white print:text-black">VENDEDOR: {vendedor.nome.toUpperCase()}</h2>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Cliente</th>
-                    <th>Mês venda</th>
-                    <th>Admin</th>
-                    <th>Grupo/Cota</th>
-                    <th>Parcela</th>
-                    <th className="valor">Valor</th>
-                    <th className="valor">Comissão P1</th>
-                    <th className="valor">Comissão P2</th>
-                    <th className="valor">Comissão P3</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vendedor.linhas.map(({ venda, valorP1, valorP2, valorP3, entraP1 }) => (
-                    <tr key={venda.id}>
-                      <td>{venda.cliente}</td>
-                      <td>{dayjsMesRef(venda.mes).format('MM/YYYY')}</td>
-                      <td>{venda.administradora}</td>
-                      <td>
-                        {venda.grupo}/{venda.cota}
-                      </td>
-                      <td className={isParcelaCheia(venda) ? 'parcela-cheia' : 'parcela-meia'}>
-                        {isParcelaCheia(venda) ? 'Cheia' : 'Meia'}
-                      </td>
-                      <td className="valor">{formatarMoeda(venda.valor)}</td>
-                      <td className="valor">{celP1(valorP1, entraP1)}</td>
-                      <td className="valor">{formatarMoeda(valorP2)}</td>
-                      <td className="valor">{formatarMoeda(valorP3)}</td>
+            <div key={vendedor.id} className="mb-8">
+              <h2 className="text-base font-bold text-white border-b border-gray-600 pb-2 mb-3">
+                VENDEDOR: {String(vendedor.nome || '').toUpperCase()}
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left border-collapse">
+                  <thead>
+                    <tr className="text-gray-400 border-b border-gray-600">
+                      <th className="px-2 py-2">Cliente</th>
+                      <th className="px-2 py-2">Mês venda</th>
+                      <th className="px-2 py-2">Admin</th>
+                      <th className="px-2 py-2">Grupo/Cota</th>
+                      <th className="px-2 py-2">Parcela</th>
+                      <th className="px-2 py-2 text-right">Valor</th>
+                      <th className="px-2 py-2 text-right">Comissão P1</th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan="5">Total valor das vendas (linhas acima):</td>
-                    <td className="valor">{formatarMoeda(vendedor.totalVendido)}</td>
-                    <td colSpan="3" />
-                  </tr>
-                  <tr>
-                    <td colSpan="5">Total Vendido GAZIN:</td>
-                    <td className="valor">{formatarMoeda(vendedor.totalVendidoGazin)}</td>
-                    <td colSpan="3" />
-                  </tr>
-                  <tr>
-                    <td colSpan="5">Total Vendido HS:</td>
-                    <td className="valor">{formatarMoeda(vendedor.totalVendidoHS)}</td>
-                    <td colSpan="3" />
-                  </tr>
-                  <tr>
-                    <td colSpan="6">Total comissão P1 (mês venda {relatorio.mesVendasP1Label}):</td>
-                    <td className="valor">{formatarMoeda(vendedor.totalComissaoP1)}</td>
-                    <td colSpan="2" />
-                  </tr>
-                  <tr>
-                    <td colSpan="6">Total comissão P2 liberada neste mês:</td>
-                    <td className="valor">{formatarMoeda(vendedor.totalComissaoP2Liberada)}</td>
-                    <td colSpan="2" />
-                  </tr>
-                  <tr>
-                    <td colSpan="6">Total comissão P3 liberada neste mês:</td>
-                    <td className="valor">{formatarMoeda(vendedor.totalComissaoP3Liberada)}</td>
-                    <td colSpan="2" />
-                  </tr>
-                  <tr>
-                    <td colSpan="6">Total estorno (P2–P5 conferidos neste mês):</td>
-                    <td className="valor">{formatarMoeda(vendedor.totalEstorno)}</td>
-                    <td colSpan="2" />
-                  </tr>
-                  <tr>
-                    <td colSpan="6">Total líquido a receber (P1 + P2 + P3 − estorno):</td>
-                    <td className="valor">{formatarMoeda(vendedor.totalComissaoLiquida)}</td>
-                    <td colSpan="2" />
-                  </tr>
-                </tfoot>
-              </table>
+                  </thead>
+                  <tbody>
+                    {vendedor.linhas.map(({ venda, valorP1 }) => (
+                      <tr key={venda.id} className="border-b border-gray-700/60">
+                        <td className="px-2 py-2 text-white">{venda.cliente}</td>
+                        <td className="px-2 py-2">{dayjsMesRef(venda.mes).format('MM/YYYY')}</td>
+                        <td className="px-2 py-2">{venda.administradora}</td>
+                        <td className="px-2 py-2">{venda.grupo}/{venda.cota}</td>
+                        <td className="px-2 py-2">{isParcelaCheia(venda) ? 'Cheia' : 'Meia'}</td>
+                        <td className="px-2 py-2 text-right text-green-400">{formatarMoeda(venda.valor)}</td>
+                        <td className="px-2 py-2 text-right text-cyan-300 font-semibold">{formatarMoeda(valorP1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-gray-600">
+                      <td colSpan={5} className="px-2 py-2 font-semibold">Total valor das vendas:</td>
+                      <td className="px-2 py-2 text-right font-semibold">{formatarMoeda(vendedor.totalVendido)}</td>
+                      <td />
+                    </tr>
+                    <tr>
+                      <td colSpan={5} className="px-2 py-2">Total Vendido GAZIN:</td>
+                      <td className="px-2 py-2 text-right">{formatarMoeda(vendedor.totalVendidoGazin)}</td>
+                      <td />
+                    </tr>
+                    <tr>
+                      <td colSpan={5} className="px-2 py-2">Total Vendido HS:</td>
+                      <td className="px-2 py-2 text-right">{formatarMoeda(vendedor.totalVendidoHS)}</td>
+                      <td />
+                    </tr>
+                    <tr>
+                      <td colSpan={6} className="px-2 py-2 font-semibold text-white">
+                        Total comissão P1 (vendas de {relatorio.mesVendasLabel}):
+                      </td>
+                      <td className="px-2 py-2 text-right font-bold text-cyan-300">
+                        {formatarMoeda(vendedor.totalComissaoP1)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           ))}
         </div>
 
-        <footer className="p-4 flex justify-end gap-4 border-t border-gray-700">
-          <button onClick={onClose} type="button" className="bg-gray-600 hover:bg-gray-500 px-5 py-2 rounded-lg font-semibold">
+        <footer className="p-4 flex justify-end gap-4 border-t border-gray-700 shrink-0">
+          <button type="button" onClick={onClose} className="bg-gray-600 hover:bg-gray-500 px-5 py-2 rounded-lg font-semibold">
             Fechar
           </button>
           <button
+            type="button"
             onClick={handlePrint}
-            className="bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-lg font-semibold flex items-center gap-2"
+            disabled={relatorio.dadosAgrupados.length === 0}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed px-5 py-2 rounded-lg font-semibold flex items-center gap-2"
           >
             <FaPrint /> Imprimir Relatório
           </button>

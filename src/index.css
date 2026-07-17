@@ -30,3 +30,19 @@
     }
   }
 }
+
+@layer components {
+  .login-page {
+    font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .login-page input:-webkit-autofill,
+  .login-page input:-webkit-autofill:hover,
+  .login-page input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #fff;
+    -webkit-box-shadow: 0 0 0 1000px rgba(17, 24, 39, 0.92) inset;
+    box-shadow: 0 0 0 1000px rgba(17, 24, 39, 0.92) inset;
+    caret-color: #fff;
+    transition: background-color 9999s ease-in-out 0s;
+  }
+}
