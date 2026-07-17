@@ -7,7 +7,7 @@ import PainelCRM from './PainelCRM';
 import {
   FaDollarSign, FaHandHoldingUsd, FaEdit, FaTrash, FaSave, FaPlus,
   FaFileInvoiceDollar, FaUsers, FaTrophy, FaSpinner, FaExclamationTriangle, FaCheckCircle,
-  FaBullseye, FaChartLine, FaTh, FaLandmark, FaTimes, FaBars,
+  FaBullseye, FaChartLine, FaTh, FaTimes, FaBars,
   FaSignOutAlt, FaUserCircle, FaCalendarAlt, FaClipboard
 } from 'react-icons/fa';
 import dayjs from 'dayjs';
