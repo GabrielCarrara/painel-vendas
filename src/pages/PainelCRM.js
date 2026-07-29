@@ -4,8 +4,16 @@ import { supabase } from "../supabaseClient";
 import dayjs from "dayjs";
 import {
   FaUsers, FaPlus, FaFire, FaCheckCircle, FaArchive, FaSnowflake,
-  FaEdit, FaTrash, FaSave, FaTimes, FaExclamationTriangle, FaSpinner, FaEye, FaFilter,
+  FaEdit, FaTrash, FaSave, FaTimes, FaExclamationTriangle, FaSpinner, FaEye, FaFilter, FaPrint,
 } from "react-icons/fa";
+
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 function isoParaInputDate(val) {
   if (!val) return "";
@@ -185,6 +193,79 @@ export default function PainelCRMAprimorado({
     return u ? `${u.nome} (${rotuloCargo(u.cargo)})` : "Usuário";
   }, [usuarioLeadsId, usuarioLogadoId, listaUsuarios]);
 
+  const nomeUsuarioRelatorio = useMemo(() => {
+    if (!usuarioLeadsId) return "";
+    const u = listaUsuarios.find((x) => x.id === usuarioLeadsId);
+    if (u?.nome) return u.nome;
+    if (usuarioLeadsId === usuarioLogadoId) return "Meu CRM";
+    return "Usuário";
+  }, [usuarioLeadsId, usuarioLogadoId, listaUsuarios]);
+
+  const imprimirRelatorioLeads = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      aviso("Pop-up bloqueado", "Permita pop-ups no navegador para imprimir o relatório.", "info");
+      return;
+    }
+
+    const ordenados = [...leads].sort((a, b) =>
+      (a.nome || "").localeCompare(b.nome || "", "pt-BR")
+    );
+    const rows = ordenados
+      .map(
+        (lead) => `<tr>
+          <td>${escapeHtml((lead.nome || "").toUpperCase())}</td>
+          <td>${escapeHtml(lead.telefone || "")}</td>
+        </tr>`
+      )
+      .join("");
+
+    const corpo =
+      ordenados.length === 0
+        ? "<p>Nenhum lead cadastrado neste CRM.</p>"
+        : `<table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Telefone</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+
+    const dataGeracao = dayjs().format("DD/MM/YYYY HH:mm");
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Relatório de Leads — ${escapeHtml(nomeUsuarioRelatorio)}</title>
+  <style>
+    body { background: #fff; color: #000; margin: 24px; font-family: Arial, sans-serif; }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    h2 { font-size: 16px; margin: 0 0 16px; font-weight: normal; }
+    .meta { font-size: 12px; color: #555; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid #999; padding: 8px 10px; text-align: left; }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <h1>Relatório de Leads CRM</h1>
+  <h2>Usuário: <strong>${escapeHtml(nomeUsuarioRelatorio)}</strong></h2>
+  <p class="meta">Gerado em ${dataGeracao} — ${ordenados.length} lead(s)</p>
+  ${corpo}
+</body>
+</html>`;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 400);
+  };
+
   const buscarLeads = useCallback(async (targetUserId) => {
     if (!targetUserId) return;
     const { data, error } = await supabase
@@ -357,6 +438,14 @@ export default function PainelCRMAprimorado({
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={imprimirRelatorioLeads}
+                title="Imprimir relatório (nome e telefone)"
+                className="bg-gray-700 hover:bg-gray-600 px-2 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 border border-gray-600 text-gray-200 shrink-0"
+              >
+                <FaPrint size={11} /> Imprimir
+              </button>
             </>
           ) : (
             <h3 className="text-sm font-semibold flex items-center gap-1.5 text-gray-300">
