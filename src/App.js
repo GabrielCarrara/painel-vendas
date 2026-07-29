@@ -17,19 +17,23 @@ import PainelGerente from './pages/PainelGerente';
 import PainelDiretor from './pages/PainelDiretor';
 import PainelVendedor from './pages/PainelVendedor';
 import ConsultorPage from './pages/public/ConsultorPage';
+import PrivacidadePage from './pages/public/PrivacidadePage';
 import ProtectedRoute from './routes/ProtectedRoute';
+import CookieConsentBanner from './components/CookieConsentBanner';
 
 function App() {
   return (
     <BrowserRouter>
+      <CookieConsentBanner />
       <Routes>
         {/* Rotas Públicas */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/sobre-nos" element={<SobreNosPage />} /> {/* <-- ADICIONE ESTA LINHA */}
+          <Route path="/sobre-nos" element={<SobreNosPage />} />
           <Route path="/contato" element={<ContatoPage />} />
-                    <Route path="/aplicativos" element={<AplicativosPage />} /> {/* <-- ROTA ADICIONADA */}
+          <Route path="/aplicativos" element={<AplicativosPage />} />
           <Route path="/cartas" element={<CartasPage />} />
+          <Route path="/privacidade" element={<PrivacidadePage />} />
         </Route>
         
         {/* Rotas de Login e Painéis (sem o layout público) */}
@@ -46,10 +50,6 @@ function App() {
         
         {/* ROTA DINÂMICA DO CONSULTOR (sem o menu principal) */}
         <Route path="/:slug" element={<ConsultorPage />} />
-        
-        <Route path="*" element={<Navigate to="/" />} />
-        
-        {/* Redirecionamento para a página inicial caso a rota não exista */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>

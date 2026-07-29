@@ -230,8 +230,13 @@ const Footer = () => (
             </div>
             
             {/* Linha de Copyright */}
-            <div className="mt-12 pt-8 border-t border-gray-800/80 text-center text-gray-500 text-sm">
+            <div className="mt-12 pt-8 border-t border-gray-800/80 text-center text-gray-500 text-sm space-y-2">
                 <p>&copy; {new Date().getFullYear()} Fênix Consórcios e Investimentos LTDA. Todos os direitos reservados.</p>
+                <p>
+                    <Link to="/privacidade" className="hover:text-fenix-orange transition-colors">
+                        Política de Privacidade
+                    </Link>
+                </p>
             </div>
         </div>
     </footer>
