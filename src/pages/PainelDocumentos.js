@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaDownload, FaEdit, FaFileAlt, FaFileExcel, FaFileWord, FaSpinner } from 'react-icons/fa';
+import { FaDownload, FaEdit, FaFileAlt, FaFileExcel, FaFilePdf, FaFileWord, FaSpinner } from 'react-icons/fa';
 import DeclaracaoResidenciaEditor from '../components/DeclaracaoResidenciaEditor';
 import ProcuracaoPagamentoVeiculoEditor from '../components/ProcuracaoPagamentoVeiculoEditor';
 import CancelamentoTransferenciaEditor from '../components/CancelamentoTransferenciaEditor';
@@ -14,7 +14,10 @@ import RemetenteDestinatarioCorreiosEditor from '../components/RemetenteDestinat
 
 function urlArquivo(filename) {
   const base = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
-  const enc = encodeURIComponent(filename);
+  const enc = String(filename || '')
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
   return `${base}/arquivos/${enc}`;
 }
 
@@ -86,7 +89,7 @@ export default function PainelDocumentos() {
             <FaFileAlt size={12} /> Documentos
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Modelos .doc, .docx e .xlsx — preencha no painel e exporte em PDF/Excel.
+            Preencha no painel e exporte. Quatro modelos Gazin usam o PDF original com textos posicionáveis.
           </p>
         </div>
         {!carregando && !erro && (
@@ -113,10 +116,13 @@ export default function PainelDocumentos() {
             const ext = (item.filename || '').split('.').pop()?.toLowerCase() || '';
             const isWord = ext === 'doc' || ext === 'docx';
             const isExcel = ext === 'xlsx' || ext === 'xls';
+            const isPdf = ext === 'pdf';
             const fileIcon = isWord ? (
               <FaFileWord size={16} className="text-blue-400" />
             ) : isExcel ? (
               <FaFileExcel size={16} className="text-emerald-400" />
+            ) : isPdf ? (
+              <FaFilePdf size={16} className="text-red-400" />
             ) : (
               <FaFileAlt size={16} className="text-indigo-400" />
             );
@@ -154,7 +160,7 @@ export default function PainelDocumentos() {
                   ) : null}
                   <a
                     href={urlArquivo(item.filename)}
-                    download={item.filename}
+                    download={(item.filename || '').split('/').pop() || item.filename}
                     className="inline-flex items-center justify-center gap-1.5 rounded-md bg-gray-700 hover:bg-gray-600 px-2.5 py-1.5 text-xs font-semibold text-white shrink-0"
                     title="Baixar arquivo"
                   >

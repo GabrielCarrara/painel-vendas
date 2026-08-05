@@ -1,9 +1,9 @@
 [
   {
     "id": "declaracao_residencia",
-    "filename": "declaracao_residencia.doc",
+    "filename": "templates/declaracao_residencia_novo.pdf",
     "title": "Declaração de residência",
-    "subtitle": "Lei 7115/83",
+    "subtitle": "Lei 7115/83 — PDF original",
     "editor": "declaracao_residencia",
     "badge": "ASSINAR FÍSICO OU GOV"
   },
@@ -23,8 +23,9 @@
   },
   {
     "id": "termo_veiculo_multa",
-    "filename": "Termo de Veículo com Multa.docx",
+    "filename": "templates/termo_multa_novo.pdf",
     "title": "Termo de Veículo com Multa",
+    "subtitle": "PDF original",
     "editor": "veiculo_multa",
     "badge": "ASSINAR FÍSICO OU GOV"
   },
@@ -37,8 +38,9 @@
   },
   {
     "id": "termo_cancelamento",
-    "filename": "TERMO CANCELAMENTO TRANSFERENCIA (1) (1).docx",
+    "filename": "templates/cancelamento_transferencia_novo.pdf",
     "title": "Solicitação do Cancelamento de Transferência",
+    "subtitle": "PDF original",
     "editor": "cancelamento_transferencia",
     "badge": "RECONHECIDO FIRMA / ASSINATURA GOV"
   },
@@ -58,8 +60,9 @@
   },
   {
     "id": "certidao_negativa_de_uniao_estavel",
-    "filename": "certidao_negativa_de_uniao_estavel.docx",
-    "title": "Certidão negativa de união estável",
+    "filename": "templates/declaracao_negativa_uniao_estavel_novo.pdf",
+    "title": "Declaração negativa de união estável",
+    "subtitle": "PDF original",
     "editor": "certidao_negativa_uniao_estavel",
     "badge": "OBRIGATÓRIO TESTEMUNHAS E RECONHECER FIRMA DE TODOS."
   },
