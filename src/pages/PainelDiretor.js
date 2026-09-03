@@ -16,6 +16,7 @@ import {
     FaUserPlus,
     FaFileAlt,
     FaPrint,
+    FaBuilding,
 } from "react-icons/fa";
 
 import PainelCRM from "./PainelCRM";
@@ -27,6 +28,7 @@ import HSCotas from './HSCotas';
 import PainelAcoes from './PainelAcoes';
 import LembreteAcaoDiaria from '../components/LembreteAcaoDiaria';
 import ProcessosKanban from '../components/ProcessosKanban';
+import LeadsV4Kanban from '../components/LeadsV4Kanban';
 import PainelDocumentos from './PainelDocumentos';
 import {
   totalComissaoP1RecebidaNoMes,
@@ -42,7 +44,7 @@ import { lerAbaPainel, salvarAbaPainel } from '../utils/abaPainelStorage';
 dayjs.locale('pt-br');
 
 const ABA_STORAGE_KEY = 'painel_diretor_aba';
-const ABAS_VALIDAS = ['vendas', 'contempladas', 'hs_cotas', 'processos', 'crm', 'ranking', 'documentos', 'usuarios', 'acoes'];
+const ABAS_VALIDAS = ['vendas', 'contempladas', 'hs_cotas', 'processos', 'crm', 'leads_v4', 'ranking', 'documentos', 'usuarios', 'acoes'];
 // --- Componentes de UI Reutilizáveis ---
 const StatCard = ({ icon, label, value, color }) => (
   <div className="bg-gray-800 rounded-lg border border-gray-700/50 px-3.5 py-3 flex items-center gap-3 min-w-0">
@@ -341,6 +343,7 @@ export default function PainelDiretor() {
       { id: 'hs_cotas', label: 'Controle de Cotas HS', icon: <FaTh /> },
       { id: 'processos', label: 'Controle de Processos', icon: <FaClipboard /> },
       { id: 'crm', label: 'Controle de Leads CRM', icon: <FaUsers /> },
+      { id: 'leads_v4', label: 'Leads V4 Company', icon: <FaBuilding /> },
       { id: 'ranking', label: 'Ranking de Vendedores', icon: <FaTrophy /> },
       { id: 'documentos', label: 'Edição de Documentações', icon: <FaFileAlt /> },
       { id: 'usuarios', label: 'Gerenciamento de Usuários', icon: <FaUserPlus /> },
@@ -413,7 +416,8 @@ export default function PainelDiretor() {
             usuarioLogadoId={perfilUsuario?.id || usuarioAtual?.id}
             listaUsuarios={usuarios}
           />
-        ); 
+        );
+        case 'leads_v4': return <LeadsV4Kanban usuario={perfilUsuario} listaUsuarios={usuarios} />; 
         case 'contempladas': return <PainelContempladas usuario={perfilUsuario} />;
         case 'hs_cotas': return <HSCotas usuario={perfilUsuario} />;  
         case 'processos': return <ProcessosKanban usuario={perfilUsuario} />;
@@ -463,7 +467,7 @@ export default function PainelDiretor() {
             </button>
           </div>
 
-          <nav className="flex-1 min-h-0 overflow-hidden px-3 py-3 space-y-0.5">
+          <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-0.5">
             {abas.map((item) => (
               <button
                 key={item.id}
