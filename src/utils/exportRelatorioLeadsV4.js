@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import logoFenix from '../assets/logo.png';
+import logoFenix from '../assets/logo-preta.png';
 
 const STATUS_LABEL = {
   NOVO: 'NOVO',
@@ -116,7 +116,7 @@ export function exportarRelatorioLeadsV4({
       : 'Todos os períodos';
   const statusTxt = statusFiltro ? STATUS_LABEL[statusFiltro] || statusFiltro : 'Todas as classificações';
   const geradoEm = dayjs().format('DD/MM/YYYY HH:mm');
-  const logoSrc = logoFenix || `${window.location.origin}/logo.png`;
+  const logoSrc = logoFenix || `${window.location.origin}/logo-preta.png`;
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
