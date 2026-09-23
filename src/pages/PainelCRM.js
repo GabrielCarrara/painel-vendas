@@ -442,8 +442,8 @@ export default function PainelCRMAprimorado({
   const leadsFiltrados = useMemo(() => {
     const base = leads.filter((lead) => !filtroTipo || lead.tipo === filtroTipo);
     return base.slice().sort((a, b) => {
-      const aV4 = String(a.origem || '').toUpperCase() === 'V4 COMPANY' || !!a.v4_lead_id;
-      const bV4 = String(b.origem || '').toUpperCase() === 'V4 COMPANY' || !!b.v4_lead_id;
+      const aV4 = ['V4 COMPANY', 'LEADS LP'].includes(String(a.origem || '').toUpperCase()) || !!a.v4_lead_id;
+      const bV4 = ['V4 COMPANY', 'LEADS LP'].includes(String(b.origem || '').toUpperCase()) || !!b.v4_lead_id;
       if (aV4 !== bV4) return aV4 ? -1 : 1;
       const ad = a.data_contato || a.created_at || '';
       const bd = b.data_contato || b.created_at || '';
@@ -681,9 +681,11 @@ export default function PainelCRMAprimorado({
                         <td className="px-2 py-2.5 whitespace-nowrap">{lead.telefone}</td>
                         <td className="px-2 py-2.5">
                           {lead.origem}
-                          {(String(lead.origem || '').toUpperCase() === 'V4 COMPANY' || lead.v4_lead_id) && (
+                          {(String(lead.origem || '').toUpperCase() === 'V4 COMPANY' ||
+                            String(lead.origem || '').toUpperCase() === 'LEADS LP' ||
+                            lead.v4_lead_id) && (
                             <span className="ml-1 inline-block px-1.5 py-0.5 text-[9px] font-bold rounded bg-indigo-500/20 text-indigo-300">
-                              V4
+                              {String(lead.origem || '').toUpperCase() === 'LEADS LP' ? 'LP' : 'V4'}
                             </span>
                           )}
                         </td>

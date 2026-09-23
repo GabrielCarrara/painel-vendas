@@ -8,6 +8,23 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000',
 ]
 
+/** Fontes oficiais — sync processa todas em uma chamada. */
+const DEFAULT_SOURCES = [
+  {
+    id: 'v4_company',
+    label: 'V4 Company',
+    url: 'https://docs.google.com/spreadsheets/d/1mU29T-Du8DCl2d71nkqy-5x_z1rbZ7SqQd0TwAtxmI4/edit?usp=sharing',
+    /** Sem prefixo: mantém sheet_row_key dos leads já existentes. */
+    keyPrefix: '',
+  },
+  {
+    id: 'lp',
+    label: 'Leads LP',
+    url: 'https://docs.google.com/spreadsheets/d/1cUOIIzOx4blIdheqwp4KM9WCzR5gHWrbF5eK8bzm7gg/edit?gid=0#gid=0',
+    keyPrefix: 'lp|',
+  },
+] as const
+
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get('Origin') ?? ''
   const allowed =
@@ -81,16 +98,20 @@ function parseCsv(text: string): string[][] {
 function classifyHeader(header: string): string | null {
   const h = normalizeHeader(header)
   if (!h) return null
-  if (/contato|observacao|anuncio|campanha|atendimento comercial/.test(h)) return null
-  if (h === 'data') return 'data_lead'
+  if (/^(contato|observacao|anuncio|campanha|campaign|source|medium|content|term|gclid|fbclid)$/.test(h)) {
+    return null
+  }
+  if (/atendimento comercial/.test(h)) return null
+  if (h === 'data' || h === 'data de entrada') return 'data_lead'
   if (h === 'nome' || h === 'nome completo') return 'nome'
   if (h === 'e mail' || h === 'email') return 'email'
   if (h === 'telefone') return 'telefone'
+  if (h === 'cidade') return 'cidade'
   if (h === 'faixa etaria') return 'faixa_etaria'
   if (/ja fez consorcio/.test(h)) return 'ja_fez_consorcio'
   if (/procurando emprestimo/.test(h)) return 'procurando_emprestimo'
-  if (/renda familiar/.test(h)) return 'renda_familiar'
-  if (h === 'conjunto') return 'conjunto'
+  if (/renda familiar/.test(h) || /media de investimento/.test(h)) return 'renda_familiar'
+  if (h === 'conjunto' || h === 'objetivo') return 'conjunto'
   return null
 }
 
@@ -182,14 +203,131 @@ function jwtRole(authHeader: string | null) {
   }
 }
 
-function rowKey(mapped: Record<string, string>) {
+function rowKey(mapped: Record<string, string>, keyPrefix: string) {
   const parts = [
     digits(mapped.telefone || ''),
     String(mapped.email || '').trim().toLowerCase(),
     String(mapped.data_lead || '').trim(),
     stripAccents(String(mapped.nome || '')).toLowerCase().trim(),
   ]
-  return parts.join('|')
+  return `${keyPrefix}${parts.join('|')}`
+}
+
+type ExistingRow = { id: string; sheet_row_key: string; fonte: string | null }
+
+async function syncOneSource(
+  admin: ReturnType<typeof createClient>,
+  source: { id: string; label: string; url: string; keyPrefix: string },
+  existing: ExistingRow[]
+) {
+  const csvText = await fetchSheetCsv(source.url)
+  const rows = parseCsv(csvText)
+  const headers = rows[0] || []
+  const dataRows = rows.slice(1)
+
+  if (!headers.length) {
+    throw new Error(`A planilha ${source.label} veio vazia.`)
+  }
+
+  const fieldIndex: Record<string, number> = {}
+  headers.forEach((h, i) => {
+    const field = classifyHeader(h)
+    if (field && fieldIndex[field] === undefined) fieldIndex[field] = i
+  })
+
+  if (fieldIndex.nome === undefined) {
+    throw new Error(`Não encontrei a coluna de nome na planilha ${source.label}.`)
+  }
+
+  const ofFonte = existing.filter((r) => {
+    const f = r.fonte || 'v4_company'
+    return f === source.id
+  })
+  const known = new Map(ofFonte.map((r) => [r.sheet_row_key, r.id]))
+
+  const toInsert: Record<string, unknown>[] = []
+  const toOrder: { id: string; sheet_row_index: number }[] = []
+  const sheetKeys = new Set<string>()
+  let skipped = 0
+
+  for (let i = 0; i < dataRows.length; i += 1) {
+    const row = dataRows[i]
+    const sheetRowIndex = i + 1
+    const mapped: Record<string, string> = {}
+    for (const [field, idx] of Object.entries(fieldIndex)) {
+      mapped[field] = String(row[idx] ?? '').trim()
+    }
+    if (!mapped.nome) {
+      skipped += 1
+      continue
+    }
+    const key = rowKey(mapped, source.keyPrefix)
+    if (!key.replace(/\|/g, '') || sheetKeys.has(key)) {
+      skipped += 1
+      continue
+    }
+    sheetKeys.add(key)
+    const conjunto = classifyConjunto(mapped.conjunto || '')
+    const existingId = known.get(key)
+    if (existingId) {
+      toOrder.push({ id: existingId, sheet_row_index: sheetRowIndex })
+      skipped += 1
+      continue
+    }
+    toInsert.push({
+      sheet_row_key: key,
+      sheet_row_index: sheetRowIndex,
+      fonte: source.id,
+      nome: mapped.nome,
+      telefone: mapped.telefone || null,
+      email: mapped.email || null,
+      cidade: mapped.cidade || null,
+      data_lead: parseSheetDate(mapped.data_lead) || new Date().toISOString(),
+      faixa_etaria: mapped.faixa_etaria || null,
+      ja_fez_consorcio: mapped.ja_fez_consorcio || null,
+      procurando_emprestimo: mapped.procurando_emprestimo || null,
+      renda_familiar: mapped.renda_familiar || null,
+      conjunto: conjunto.conjunto,
+      conjunto_tipo: conjunto.conjunto_tipo,
+      status: 'NOVO',
+      raw_payload: { ...mapped, _fonte: source.id, _fonte_label: source.label },
+    })
+  }
+
+  let inserted = 0
+  const chunkSize = 200
+  for (let i = 0; i < toInsert.length; i += chunkSize) {
+    const chunk = toInsert.slice(i, i + chunkSize)
+    const { error: insErr } = await admin.from('leads_v4_company').insert(chunk)
+    if (insErr) throw new Error(`${source.label}: ${insErr.message}`)
+    inserted += chunk.length
+  }
+
+  for (const item of toOrder) {
+    const { error: updErr } = await admin
+      .from('leads_v4_company')
+      .update({ sheet_row_index: item.sheet_row_index, fonte: source.id })
+      .eq('id', item.id)
+    if (updErr) throw new Error(`${source.label}: ${updErr.message}`)
+  }
+
+  const toDelete = ofFonte.filter((r) => !sheetKeys.has(r.sheet_row_key))
+  let deleted = 0
+  for (let i = 0; i < toDelete.length; i += chunkSize) {
+    const ids = toDelete.slice(i, i + chunkSize).map((r) => r.id)
+    const { error: delErr } = await admin.from('leads_v4_company').delete().in('id', ids)
+    if (delErr) throw new Error(`${source.label}: ${delErr.message}`)
+    deleted += ids.length
+  }
+
+  return {
+    fonte: source.id,
+    label: source.label,
+    inserted,
+    skipped,
+    deleted,
+    total: dataRows.length,
+  }
 }
 
 serve(async (req) => {
@@ -231,132 +369,58 @@ serve(async (req) => {
       }
     }
 
-    const body = await req.json().catch(() => ({}))
-    const incomingUrl = typeof body?.spreadsheet_url === 'string' ? body.spreadsheet_url.trim() : ''
-
     const admin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    if (incomingUrl) {
-      const { error: cfgErr } = await admin
-        .from('leads_v4_config')
-        .update({ spreadsheet_url: incomingUrl, updated_at: new Date().toISOString(), last_sync_error: null })
-        .eq('id', 1)
-      if (cfgErr) throw new Error(cfgErr.message)
-    }
+    const sources = DEFAULT_SOURCES.map((s) => ({ ...s }))
 
-    const { data: config, error: readCfgErr } = await admin
+    await admin
       .from('leads_v4_config')
-      .select('spreadsheet_url')
-      .eq('id', 1)
-      .single()
-    if (readCfgErr) throw new Error(readCfgErr.message)
-
-    const sheetUrl = String(config?.spreadsheet_url || '').trim()
-    if (!sheetUrl) {
-      throw new Error('Cole o link da planilha do Google Sheets e sincronize.')
-    }
-
-    const csvText = await fetchSheetCsv(sheetUrl)
-
-    const rows = parseCsv(csvText)
-    const headers = rows[0] || []
-    const dataRows = rows.slice(1)
-
-    if (!headers.length) {
-      throw new Error('A planilha veio vazia.')
-    }
-    const fieldIndex: Record<string, number> = {}
-    headers.forEach((h, i) => {
-      const field = classifyHeader(h)
-      if (field && fieldIndex[field] === undefined) fieldIndex[field] = i
-    })
-
-    if (fieldIndex.nome === undefined) {
-      throw new Error('Não encontrei a coluna de nome na planilha.')
-    }
-
-    const { data: existing, error: existingErr } = await admin.from('leads_v4_company').select('id, sheet_row_key')
-    if (existingErr) throw new Error(existingErr.message)
-    const known = new Map(
-      (existing || []).map((r: { id: string; sheet_row_key: string }) => [r.sheet_row_key, r.id])
-    )
-
-    const toInsert: Record<string, unknown>[] = []
-    const toOrder: { id: string; sheet_row_index: number }[] = []
-    const sheetKeys = new Set<string>()
-    let skipped = 0
-
-    for (let i = 0; i < dataRows.length; i += 1) {
-      const row = dataRows[i]
-      const sheetRowIndex = i + 1
-      const mapped: Record<string, string> = {}
-      for (const [field, idx] of Object.entries(fieldIndex)) {
-        mapped[field] = String(row[idx] ?? '').trim()
-      }
-      if (!mapped.nome) {
-        skipped += 1
-        continue
-      }
-      const key = rowKey(mapped)
-      if (!key.replace(/\|/g, '') || sheetKeys.has(key)) {
-        skipped += 1
-        continue
-      }
-      sheetKeys.add(key)
-      const conjunto = classifyConjunto(mapped.conjunto || '')
-      const existingId = known.get(key)
-      if (existingId) {
-        toOrder.push({ id: existingId, sheet_row_index: sheetRowIndex })
-        skipped += 1
-        continue
-      }
-      toInsert.push({
-        sheet_row_key: key,
-        sheet_row_index: sheetRowIndex,
-        nome: mapped.nome,
-        telefone: mapped.telefone || null,
-        email: mapped.email || null,
-        data_lead: parseSheetDate(mapped.data_lead) || new Date().toISOString(),
-        faixa_etaria: mapped.faixa_etaria || null,
-        ja_fez_consorcio: mapped.ja_fez_consorcio || null,
-        procurando_emprestimo: mapped.procurando_emprestimo || null,
-        renda_familiar: mapped.renda_familiar || null,
-        conjunto: conjunto.conjunto,
-        conjunto_tipo: conjunto.conjunto_tipo,
-        status: 'NOVO',
-        raw_payload: mapped,
+      .update({
+        spreadsheet_url: sources.map((s) => s.url).join('\n'),
+        updated_at: new Date().toISOString(),
+        last_sync_error: null,
       })
-    }
+      .eq('id', 1)
 
+    const { data: existing, error: existingErr } = await admin
+      .from('leads_v4_company')
+      .select('id, sheet_row_key, fonte')
+    if (existingErr) throw new Error(existingErr.message)
+
+    const perSource = []
     let inserted = 0
-    const chunkSize = 200
-    for (let i = 0; i < toInsert.length; i += chunkSize) {
-      const chunk = toInsert.slice(i, i + chunkSize)
-      const { error: insErr } = await admin.from('leads_v4_company').insert(chunk)
-      if (insErr) throw new Error(insErr.message)
-      inserted += chunk.length
-    }
-
-    for (const item of toOrder) {
-      const { error: updErr } = await admin
-        .from('leads_v4_company')
-        .update({ sheet_row_index: item.sheet_row_index })
-        .eq('id', item.id)
-      if (updErr) throw new Error(updErr.message)
-    }
-
-    const toDelete = (existing || []).filter(
-      (r: { sheet_row_key: string }) => !sheetKeys.has(r.sheet_row_key)
-    )
+    let skipped = 0
     let deleted = 0
-    for (let i = 0; i < toDelete.length; i += chunkSize) {
-      const ids = toDelete.slice(i, i + chunkSize).map((r: { id: string }) => r.id)
-      const { error: delErr } = await admin.from('leads_v4_company').delete().in('id', ids)
-      if (delErr) throw new Error(delErr.message)
-      deleted += ids.length
+    let total = 0
+
+    // Lista mutável: após cada fonte, incluir inserts para a próxima não precisar
+    let workingExisting: ExistingRow[] = (existing || []).map((r: ExistingRow) => ({
+      id: r.id,
+      sheet_row_key: r.sheet_row_key,
+      fonte: r.fonte || 'v4_company',
+    }))
+
+    for (const source of sources) {
+      const result = await syncOneSource(admin, source, workingExisting)
+      perSource.push(result)
+      inserted += result.inserted
+      skipped += result.skipped
+      deleted += result.deleted
+      total += result.total
+
+      // Recarrega ids desta fonte após inserts
+      const { data: refreshed, error: refErr } = await admin
+        .from('leads_v4_company')
+        .select('id, sheet_row_key, fonte')
+      if (refErr) throw new Error(refErr.message)
+      workingExisting = (refreshed || []).map((r: ExistingRow) => ({
+        id: r.id,
+        sheet_row_key: r.sheet_row_key,
+        fonte: r.fonte || 'v4_company',
+      }))
     }
 
     await admin
@@ -369,9 +433,10 @@ serve(async (req) => {
       })
       .eq('id', 1)
 
-    return new Response(JSON.stringify({ inserted, skipped, deleted, total: dataRows.length }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({ inserted, skipped, deleted, total, sources: perSource }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro ao sincronizar leads.'
     try {

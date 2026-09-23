@@ -44,6 +44,8 @@ create table if not exists public.leads_v4_company (
   observacao_frio text,
   sheet_row_index integer,
   raw_payload jsonb,
+  fonte text not null default 'v4_company' check (fonte = any (array['v4_company'::text, 'lp'::text])),
+  cidade text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -55,6 +57,7 @@ alter table public.leads_v4_company
 create index if not exists leads_v4_company_status_idx on public.leads_v4_company (status);
 create index if not exists leads_v4_company_data_lead_idx on public.leads_v4_company (data_lead desc nulls last);
 create index if not exists leads_v4_company_sheet_row_idx on public.leads_v4_company (sheet_row_index);
+create index if not exists leads_v4_company_fonte_idx on public.leads_v4_company (fonte);
 
 drop trigger if exists trg_leads_v4_company_updated_at on public.leads_v4_company;
 create trigger trg_leads_v4_company_updated_at

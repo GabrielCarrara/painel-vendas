@@ -25,6 +25,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  // A edge function sync-leads-v4 processa as duas planilhas (V4 + LP) internamente.
   const response = await fetch(`${supabaseUrl}/functions/v1/sync-leads-v4`, {
     method: "POST",
     headers: {
@@ -32,10 +33,7 @@ module.exports = async function handler(req, res) {
       apikey: serviceKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      spreadsheet_url:
-        "https://docs.google.com/spreadsheets/d/1mU29T-Du8DCl2d71nkqy-5x_z1rbZ7SqQd0TwAtxmI4/edit?usp=sharing",
-    }),
+    body: JSON.stringify({}),
   });
 
   const data = await response.json().catch(() => ({}));

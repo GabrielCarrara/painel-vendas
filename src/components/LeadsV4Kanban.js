@@ -29,8 +29,28 @@ const COLUNAS_TOPO = COLUNAS.slice(0, 3);
 const COLUNAS_BASE = COLUNAS.slice(3);
 
 const PAGE = 35;
-const SHEET_PADRAO =
-  'https://docs.google.com/spreadsheets/d/1mU29T-Du8DCl2d71nkqy-5x_z1rbZ7SqQd0TwAtxmI4/edit?usp=sharing';
+const SHEETS_FONTES = [
+  {
+    id: 'v4_company',
+    label: 'V4 Company',
+    url: 'https://docs.google.com/spreadsheets/d/1mU29T-Du8DCl2d71nkqy-5x_z1rbZ7SqQd0TwAtxmI4/edit?usp=sharing',
+  },
+  {
+    id: 'lp',
+    label: 'Leads LP',
+    url: 'https://docs.google.com/spreadsheets/d/1cUOIIzOx4blIdheqwp4KM9WCzR5gHWrbF5eK8bzm7gg/edit?gid=0#gid=0',
+  },
+];
+
+function rotuloFonte(fonte) {
+  if (fonte === 'lp') return 'LP';
+  return 'V4';
+}
+
+function origemCrmPorFonte(fonte) {
+  if (fonte === 'lp') return 'LEADS LP';
+  return 'V4 COMPANY';
+}
 const campoClass =
   'w-full bg-gray-900/60 px-2.5 py-2 text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500';
 const labelClass = 'block mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide';
@@ -93,7 +113,6 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState([]);
   const [config, setConfig] = useState(null);
-  const [sheetUrl, setSheetUrl] = useState('');
   const [erro, setErro] = useState('');
   const [info, setInfo] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -133,7 +152,6 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
     if (error) setErro(error.message);
     setLeads((data || []).slice().sort(sortLeadsSheet));
     setConfig(cfg.data || null);
-    setSheetUrl(cfg.data?.spreadsheet_url || SHEET_PADRAO);
     setLoading(false);
   };
 
@@ -175,7 +193,7 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
       if (busy) return;
       busy = true;
       const { data, error } = await supabase.functions.invoke('sync-leads-v4', {
-        body: { spreadsheet_url: SHEET_PADRAO },
+        body: {},
       });
       busy = false;
       if (!error && data && !data.error) {
@@ -207,7 +225,7 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
         if (fim && d.isAfter(fim)) return false;
       }
       if (!txt) return true;
-      const hay = [l.nome, l.telefone, l.email, l.renda_familiar, l.faixa_etaria, l.conjunto, l.descricao_atendimento_inicial, l.observacao_vendedor]
+      const hay = [l.nome, l.telefone, l.email, l.cidade, l.renda_familiar, l.faixa_etaria, l.conjunto, l.fonte, l.descricao_atendimento_inicial, l.observacao_vendedor]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -238,10 +256,10 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
     setErro('');
     setInfo('');
     const { data, error } = await supabase.functions.invoke('sync-leads-v4', {
-      body: { spreadsheet_url: (sheetUrl || SHEET_PADRAO).trim() },
+      body: {},
     });
     if (error) {
-      setErro(data?.error || error.message || 'Falha ao sincronizar a planilha.');
+      setErro(data?.error || error.message || 'Falha ao sincronizar as planilhas.');
       setSyncing(false);
       return;
     }
@@ -250,8 +268,11 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
       setSyncing(false);
       return;
     }
+    const detalhe = Array.isArray(data?.sources)
+      ? data.sources.map((s) => `${s.label}: +${s.inserted}`).join(' · ')
+      : '';
     setInfo(
-      `Sincronizado: ${data?.inserted || 0} novo(s), ${data?.skipped || 0} já existente(s), ${data?.deleted || 0} removido(s).`
+      `Sincronizado: ${data?.inserted || 0} novo(s), ${data?.skipped || 0} já existente(s), ${data?.deleted || 0} removido(s)${detalhe ? ` (${detalhe})` : ''}.`
     );
     await carregar();
     setSyncing(false);
@@ -304,7 +325,7 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
           {
             nome: String(lead.nome || '').toUpperCase(),
             telefone: lead.telefone || '',
-            origem: 'V4 COMPANY',
+            origem: origemCrmPorFonte(lead.fonte),
             tipo: 'LEAD QUENTE',
             usuario_id: usuarioVinculoId,
             data_contato: dataContato,
@@ -326,7 +347,7 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
         .update({
           usuario_id: usuarioVinculoId,
           tipo: 'LEAD QUENTE',
-          origem: 'V4 COMPANY',
+          origem: origemCrmPorFonte(lead.fonte),
           data_contato: dataContato,
           v4_lead_id: lead.id,
         })
@@ -348,7 +369,7 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
     setLeads((prev) => prev.map((l) => (l.id === data.id ? data : l)));
     setModalVincular(null);
     setUsuarioVinculoId('');
-    setInfo('Lead vinculado e enviado ao CRM como LEAD QUENTE (origem V4 COMPANY).');
+    setInfo(`Lead vinculado e enviado ao CRM como LEAD QUENTE (origem ${origemCrmPorFonte(lead.fonte)}).`);
     abrirModal(data);
   };
 
@@ -378,7 +399,7 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
         if (fim && d.isAfter(fim)) return false;
       }
       if (!txt) return true;
-      const hay = [l.nome, l.telefone, l.email, l.renda_familiar, l.faixa_etaria, l.conjunto, l.descricao_atendimento_inicial, l.observacao_vendedor]
+      const hay = [l.nome, l.telefone, l.email, l.cidade, l.renda_familiar, l.faixa_etaria, l.conjunto, l.fonte, l.descricao_atendimento_inicial, l.observacao_vendedor]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -453,10 +474,22 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
             <div className="font-semibold text-white text-sm truncate">{lead.nome}</div>
             <div className="text-[11px] text-gray-400 mt-0.5 truncate">{lead.telefone || 'Sem telefone'}</div>
             <div className="text-[11px] text-gray-500 truncate">{lead.email || 'Sem e-mail'}</div>
+            {lead.cidade && (
+              <div className="text-[11px] text-gray-500 truncate">{lead.cidade}</div>
+            )}
           </div>
-          {badge && (
-            <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${badge.cls}`}>{badge.label}</span>
-          )}
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span
+              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                lead.fonte === 'lp' ? 'bg-violet-500/20 text-violet-300' : 'bg-sky-500/20 text-sky-300'
+              }`}
+            >
+              {rotuloFonte(lead.fonte)}
+            </span>
+            {badge && (
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${badge.cls}`}>{badge.label}</span>
+            )}
+          </div>
         </div>
         <div className="text-[11px] text-gray-500 mt-1.5">{fmtDt(lead.data_lead)}</div>
       </div>
@@ -601,7 +634,9 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
 
         {podeEditar && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm">
-            <span className="text-emerald-400 font-medium">Planilha V4 Company conectada.</span>
+            <span className="text-emerald-400 font-medium">
+              {SHEETS_FONTES.length} planilhas conectadas (V4 Company + Leads LP).
+            </span>
             <span className="text-[11px] text-gray-500 truncate">Novos leads entram sozinhos a cada 2 minutos.</span>
             <button
               type="button"
@@ -711,6 +746,14 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
                       </button>
                     )}
                   </div>
+                </div>
+                <div>
+                  <div className={labelClass}>Fonte</div>
+                  <div>{modal.fonte === 'lp' ? 'Leads LP' : 'V4 Company'}</div>
+                </div>
+                <div>
+                  <div className={labelClass}>Cidade</div>
+                  <div>{modal.cidade || '—'}</div>
                 </div>
                 <div>
                   <div className={labelClass}>E-mail</div>
@@ -880,7 +923,8 @@ export default function LeadsV4Kanban({ usuario, listaUsuarios = [] }) {
             <div className="p-4 space-y-3">
               <p className="text-sm text-gray-300">
                 O lead vai para <strong>ATENDIMENTO COM VENDEDOR</strong> e aparece como{' '}
-                <strong>LEAD QUENTE</strong> no CRM do usuário, com origem <strong>V4 COMPANY</strong>.
+                <strong>LEAD QUENTE</strong> no CRM do usuário, com origem{' '}
+                <strong>{origemCrmPorFonte(modalVincular?.fonte)}</strong>.
               </p>
               <div>
                 <label className={labelClass}>Usuário (diretor, gerente ou vendedor)</label>
