@@ -208,30 +208,65 @@ export default function PainelCRMAprimorado({
       return;
     }
 
-    const ordenados = [...leads].sort((a, b) =>
-      (a.nome || "").localeCompare(b.nome || "", "pt-BR")
-    );
-    const rows = ordenados
-      .map(
-        (lead) => `<tr>
-          <td>${escapeHtml((lead.nome || "").toUpperCase())}</td>
-          <td>${escapeHtml(lead.telefone || "")}</td>
-        </tr>`
-      )
-      .join("");
+    const ordemStatus = ["LEAD QUENTE", "LEAD NOVO", "LEAD FRIO", "VENDIDO", "ESQUECIDO"];
+    const porStatus = new Map();
+    for (const lead of leads) {
+      const tipo = String(lead.tipo || "SEM STATUS").trim() || "SEM STATUS";
+      if (!porStatus.has(tipo)) porStatus.set(tipo, []);
+      porStatus.get(tipo).push(lead);
+    }
 
-    const corpo =
-      ordenados.length === 0
-        ? "<p>Nenhum lead cadastrado neste CRM.</p>"
-        : `<table>
+    const statusOrdenados = [
+      ...ordemStatus.filter((t) => porStatus.has(t)),
+      ...[...porStatus.keys()].filter((t) => !ordemStatus.includes(t)).sort((a, b) =>
+        a.localeCompare(b, "pt-BR")
+      ),
+    ];
+
+    const formatarDataPrint = (val) => {
+      if (!val) return "—";
+      return dayjs(isoParaInputDate(val)).format("DD/MM/YYYY");
+    };
+
+    const rowLead = (lead) => `<tr>
+      <td>${escapeHtml((lead.nome || "").toUpperCase())}</td>
+      <td>${escapeHtml(lead.telefone || "—")}</td>
+      <td>${escapeHtml(lead.origem || "—")}</td>
+      <td>${escapeHtml(formatarDataPrint(lead.data_contato))}</td>
+      <td>${escapeHtml(formatarDataPrint(lead.data_retorno))}</td>
+      <td class="obs">${escapeHtml(lead.observacao || "—")}</td>
+    </tr>`;
+
+    const secoes = statusOrdenados
+      .map((tipo) => {
+        const lista = [...porStatus.get(tipo)].sort((a, b) =>
+          (a.nome || "").localeCompare(b.nome || "", "pt-BR")
+        );
+        const rows = lista.map(rowLead).join("");
+        return `<section class="status-block">
+          <h3>${escapeHtml(tipo)} <span>(${lista.length})</span></h3>
+          <table>
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Telefone</th>
+                <th>Contato</th>
+                <th>Origem</th>
+                <th>Data do 1º contato</th>
+                <th>Data de retorno</th>
+                <th>Observação</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
-          </table>`;
+          </table>
+        </section>`;
+      })
+      .join("");
+
+    const total = leads.length;
+    const corpo =
+      total === 0
+        ? "<p>Nenhum lead cadastrado neste CRM.</p>"
+        : secoes;
 
     const dataGeracao = dayjs().format("DD/MM/YYYY HH:mm");
     const html = `<!DOCTYPE html>
@@ -240,19 +275,36 @@ export default function PainelCRMAprimorado({
   <meta charset="utf-8" />
   <title>Relatório de Leads — ${escapeHtml(nomeUsuarioRelatorio)}</title>
   <style>
-    body { background: #fff; color: #000; margin: 24px; font-family: Arial, sans-serif; }
-    h1 { font-size: 20px; margin: 0 0 6px; }
-    h2 { font-size: 16px; margin: 0 0 16px; font-weight: normal; }
-    .meta { font-size: 12px; color: #555; margin-bottom: 20px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { border: 1px solid #999; padding: 8px 10px; text-align: left; }
-    th { background: #f0f0f0; }
+    body { background: #fff; color: #000; margin: 18px; font-family: Arial, sans-serif; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    h2 { font-size: 14px; margin: 0 0 10px; font-weight: normal; }
+    h3 {
+      font-size: 13px; margin: 0 0 8px; padding: 6px 8px;
+      background: #e8eef7; border-left: 4px solid #1e3a5f; color: #111;
+    }
+    h3 span { font-weight: normal; color: #555; }
+    .meta { font-size: 11px; color: #555; margin-bottom: 16px; }
+    .status-block { margin-bottom: 22px; page-break-inside: avoid; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+    th, td { border: 1px solid #999; padding: 5px 6px; text-align: left; vertical-align: top; word-wrap: break-word; }
+    th { background: #f0f0f0; font-size: 10px; text-transform: uppercase; }
+    th:nth-child(1), td:nth-child(1) { width: 18%; }
+    th:nth-child(2), td:nth-child(2) { width: 12%; }
+    th:nth-child(3), td:nth-child(3) { width: 12%; }
+    th:nth-child(4), td:nth-child(4) { width: 11%; }
+    th:nth-child(5), td:nth-child(5) { width: 11%; }
+    th:nth-child(6), td:nth-child(6) { width: 36%; }
+    td.obs { white-space: pre-wrap; }
+    @media print {
+      body { margin: 10px; }
+      .status-block { break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
   <h1>Relatório de Leads CRM</h1>
   <h2>Usuário: <strong>${escapeHtml(nomeUsuarioRelatorio)}</strong></h2>
-  <p class="meta">Gerado em ${dataGeracao} — ${ordenados.length} lead(s)</p>
+  <p class="meta">Gerado em ${dataGeracao} — ${total} lead(s), agrupados por status</p>
   ${corpo}
 </body>
 </html>`;
@@ -448,7 +500,7 @@ export default function PainelCRMAprimorado({
               <button
                 type="button"
                 onClick={imprimirRelatorioLeads}
-                title="Imprimir relatório (nome e telefone)"
+                title="Imprimir relatório completo (por status)"
                 className="bg-gray-700 hover:bg-gray-600 px-2 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 border border-gray-600 text-gray-200 shrink-0"
               >
                 <FaPrint size={11} /> Imprimir
