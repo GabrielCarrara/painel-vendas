@@ -29,20 +29,33 @@ function fmtData(value) {
   return d.isValid() ? d.format('DD/MM/YYYY') : '—';
 }
 
+function rotuloPlanilha(fonte) {
+  if (fonte === 'lp') return 'Leads LP';
+  return 'V4 Company';
+}
+
 function cardHtml(lead) {
   const status = STATUS_LABEL[lead.status] || lead.status || '—';
+  const planilha = rotuloPlanilha(lead.fonte);
+  const badgeFonteCls = lead.fonte === 'lp' ? 'badge-fonte lp' : 'badge-fonte v4';
   return `
     <article class="card">
       <header class="card-head">
         <div>
           <h2>${escapeHtml((lead.nome || '').toUpperCase())}</h2>
           <span class="badge">${escapeHtml(status)}</span>
+          <span class="${badgeFonteCls}">${escapeHtml(planilha)}</span>
         </div>
-        <div class="meta-right">Linha ${escapeHtml(lead.sheet_row_index ?? '—')}</div>
+        <div class="meta-right">
+          <div>${escapeHtml(planilha)}</div>
+          <div>Linha ${escapeHtml(lead.sheet_row_index ?? '—')}</div>
+        </div>
       </header>
       <div class="grid">
+        <div><span class="lbl">Planilha / origem</span><div>${escapeHtml(planilha)}</div></div>
         <div><span class="lbl">Telefone</span><div>${escapeHtml(lead.telefone || '—')}</div></div>
         <div><span class="lbl">E-mail</span><div>${escapeHtml(lead.email || '—')}</div></div>
+        <div><span class="lbl">Cidade</span><div>${escapeHtml(lead.cidade || '—')}</div></div>
         <div><span class="lbl">Data do lead</span><div>${escapeHtml(fmtDt(lead.data_lead))}</div></div>
         <div><span class="lbl">Faixa etária</span><div>${escapeHtml(lead.faixa_etaria || '—')}</div></div>
         <div><span class="lbl">Já fez consórcio</span><div>${escapeHtml(lead.ja_fez_consorcio || '—')}</div></div>
@@ -117,6 +130,9 @@ export function exportarRelatorioLeadsV4({
   const statusTxt = statusFiltro ? STATUS_LABEL[statusFiltro] || statusFiltro : 'Todas as classificações';
   const geradoEm = dayjs().format('DD/MM/YYYY HH:mm');
   const logoSrc = logoFenix || `${window.location.origin}/logo-preta.png`;
+  const qtdV4 = ordenados.filter((l) => l.fonte !== 'lp').length;
+  const qtdLp = ordenados.filter((l) => l.fonte === 'lp').length;
+  const fontesTxt = `V4 Company: ${qtdV4} · Leads LP: ${qtdLp}`;
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -238,8 +254,19 @@ export function exportarRelatorioLeadsV4({
       letter-spacing: 0.04em;
       border-radius: 999px;
       padding: 3px 8px;
+      margin-right: 4px;
     }
-    .meta-right { font-size: 11px; color: #9ca3af; }
+    .badge-fonte {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border-radius: 999px;
+      padding: 3px 8px;
+    }
+    .badge-fonte.v4 { background: #e0f2fe; color: #0369a1; }
+    .badge-fonte.lp { background: #ede9fe; color: #6d28d9; }
+    .meta-right { font-size: 11px; color: #6b7280; text-align: right; line-height: 1.4; }
     .grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -304,7 +331,7 @@ export function exportarRelatorioLeadsV4({
     <div class="filters">
       <div class="chip"><span>Período</span><strong>${escapeHtml(periodoTxt)}</strong></div>
       <div class="chip"><span>Classificação</span><strong>${escapeHtml(statusTxt)}</strong></div>
-      <div class="chip"><span>Exportação</span><strong>Status atual + observações</strong></div>
+      <div class="chip"><span>Planilhas</span><strong>${escapeHtml(fontesTxt)}</strong></div>
     </div>
 
     <div class="stats">${resumo}</div>
